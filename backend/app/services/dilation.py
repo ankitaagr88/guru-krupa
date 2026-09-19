@@ -64,7 +64,8 @@ def is_complete(run: DilationRun) -> bool:
 
 
 def start_run(db: Session, visit: Visit, by_staff: Staff | int | None) -> DilationRun:
-    """Snapshot the current protocol into a run; step 0 is given immediately (startedAt = now).
+    """Snapshot the current protocol into a run. No step is given yet: the technician ticks
+    step 0 (`tickStep`) when the first drop is actually instilled, as in the mockup.
     Moves the visit to the `dilate` stage (audited) if it is not there already.
     Raises RunExists, NoProtocolSteps."""
     if visit.dilation_run is not None:
@@ -74,8 +75,8 @@ def start_run(db: Session, visit: Visit, by_staff: Staff | int | None) -> Dilati
         raise NoProtocolSteps()
     now = utcnow()
     run = DilationRun(visit_id=visit.id, current_index=0, started_at=now)
-    run.steps = [DilationStep(sort_order=i, name=s.name, minutes=s.minutes, given=(i == 0),
-                              started_at=now if i == 0 else None, done=False) for i, s in enumerate(steps)]
+    run.steps = [DilationStep(sort_order=i, name=s.name, minutes=s.minutes, given=False, started_at=None,
+                              done=False) for i, s in enumerate(steps)]
     db.add(run)
     db.flush()
     visit.dilation_run = run

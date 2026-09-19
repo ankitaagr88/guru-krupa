@@ -37,6 +37,15 @@ def register_visit(data: VisitCreate, db: Session = Depends(get_db)):
     return _out(db, visit)
 
 
+@router.get("/today/counts")
+def visits_today_counts(db: Session = Depends(get_db)) -> dict[str, int]:
+    """Active visits per stage key for the rail badges (stages with 0 included)."""
+    counts = {s.key: 0 for s in svc.stages(db)}
+    for v in svc.todays_visits(db):
+        counts[v.stage_key] = counts.get(v.stage_key, 0) + 1
+    return counts
+
+
 @router.get("/today", response_model=list[VisitOut])
 def visits_today(stage: str | None = Query(None), db: Session = Depends(get_db)):
     return svc.visits_out(db, svc.todays_visits(db, stage))

@@ -142,3 +142,11 @@ def test_services_direct(db, admin_user):
         queue.move_stage(db, v, "bogus", admin_user)
     queue.move_stage(db, v, "done", admin_user.id)
     assert v.status == "completed" and v.completed_at is not None
+
+
+def test_today_counts(client, admin_headers):
+    r = client.get("/api/visits/today/counts", headers=admin_headers)
+    assert r.status_code == 200
+    counts = r.json()
+    assert "reg" in counts and all(isinstance(n, int) for n in counts.values())
+    assert sum(counts.values()) == len(client.get("/api/visits/today", headers=admin_headers).json())

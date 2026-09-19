@@ -76,8 +76,12 @@ def test_start_copies_protocol_and_moves_stage(client, admin_headers, visit, db)
     assert run["visitId"] == vid and run["currentIndex"] == 0 and run["complete"] is False
     assert [(s["name"], s["min"]) for s in run["steps"]] == PROTOCOL_STEPS  # the 2 seeded steps, in order
     s0, s1 = run["steps"]
-    assert s0["given"] is True and s0["done"] is False and s0["startedAt"]
+    assert s0["given"] is False and s0["done"] is False and s0["startedAt"] is None
+    # ticking step 0 stamps startedAt and dueAt
+    s0 = client.post(f"/api/visits/{vid}/dilation/steps/0/given", headers=admin_headers).json()["steps"][0]
+    assert s0["given"] is True and s0["startedAt"]
     assert _iso(s0["dueAt"]) - _iso(s0["startedAt"]) == timedelta(minutes=s0["min"])
+    run["steps"][0] = s0
     assert s1 == {"name": PROTOCOL_STEPS[1][0], "min": PROTOCOL_STEPS[1][1], "given": False, "startedAt": None,
                   "done": False, "dueAt": None}
     assert set(s0) == {"name", "min", "given", "startedAt", "done", "dueAt"}
@@ -86,7 +90,7 @@ def test_start_copies_protocol_and_moves_stage(client, admin_headers, visit, db)
     v = client.get(f"/api/visits/{vid}", headers=admin_headers).json()
     assert v["stage"] == "dilate" and v["status"] == "active"
     assert v["dilation"]["currentIndex"] == 0 and len(v["dilation"]["steps"]) == 2
-    assert v["dilation"]["steps"][0]["given"] is True
+    assert v["dilation"]["steps"][0]["given"] is True  # ticked above
     rows = list(db.scalars(select(AuditLog).where(AuditLog.entity == "visit", AuditLog.entity_id == vid)))
     assert [(a.detail["from"], a.detail["to"]) for a in rows] == [("reg", "dilate")]
 
@@ -101,9 +105,11 @@ def test_step_sequencing_and_complete(client, admin_headers, visit):
     vid = visit["id"]
     client.post(f"/api/visits/{vid}/move", json={"stage": "dilate"}, headers=admin_headers)
     run = client.post(f"/api/visits/{vid}/dilation/start", headers=admin_headers).json()
-    assert run["currentIndex"] == 0 and run["steps"][0]["given"] is True
+    assert run["currentIndex"] == 0 and run["steps"][0]["given"] is False
 
-    # step 0 already given (start does that); giving it again or touching step 1 is out of order
+    # done before given is out of order; give step 0, then giving it again or touching step 1 is out of order
+    assert client.post(f"/api/visits/{vid}/dilation/steps/0/done", headers=admin_headers).status_code == 409
+    assert client.post(f"/api/visits/{vid}/dilation/steps/0/given", headers=admin_headers).status_code == 200
     assert client.post(f"/api/visits/{vid}/dilation/steps/0/given", headers=admin_headers).status_code == 409
     assert client.post(f"/api/visits/{vid}/dilation/steps/1/given", headers=admin_headers).status_code == 409
     assert client.post(f"/api/visits/{vid}/dilation/steps/1/done", headers=admin_headers).status_code == 409
