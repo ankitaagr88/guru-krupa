@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     JWT_EXPIRE_MIN: int = 60 * 12  # one clinic day
     UPLOAD_DIR: str = "./uploads"
     TESSERACT_CMD: str | None = None
+    CLINIC_TZ: str = "Asia/Kolkata"  # clinic day boundary, independent of server TZ
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
 

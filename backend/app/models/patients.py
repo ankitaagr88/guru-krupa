@@ -37,7 +37,7 @@ class Patient(Base):
 
 class Visit(Base):
     __tablename__ = "visits"
-    __table_args__ = (Index("ix_visits_date_token", "date", "token"),)
+    __table_args__ = (Index("ix_visits_date_token", "date", "token", unique=True),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), index=True)
