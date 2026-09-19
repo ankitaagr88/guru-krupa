@@ -1,0 +1,70 @@
+/* MR visits (F10) — additions to the mockup's table styles. */
+.mr-filter {
+  margin: 0;
+  width: 260px;
+  padding: 8px 11px;
+}
+.mr-rep-link {
+  color: var(--teal);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.mr-note {
+  display: block;
+  color: var(--faint);
+  font-size: 11px;
+  margin-top: 2px;
+}
+.mr-dates {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.mr-dates label {
+  flex: 1;
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.mr-dates .fake-input {
+  margin: 4px 0 0;
+}
+.mr-detail {
+  width: 440px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+.mr-detail-scroll {
+  overflow-y: auto;
+}
+.mr-detail-sub {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--muted);
+  margin: -4px 0 12px;
+}
+.mr-detail-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 12px;
+  align-items: center;
+}
+.mr-detail-stats b {
+  color: var(--ink);
+  font-weight: 700;
+}
+body.mobile-mode .mr-filter {
+  width: 100%;
+}
+body.mobile-mode .appt-head {
+  flex-wrap: wrap;
+}
+body.mobile-mode .mr-dates {
+  flex-direction: column;
+}

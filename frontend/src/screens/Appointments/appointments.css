@@ -1,0 +1,38 @@
+/* Appointments screen (F4) — additions on top of the ported mockup styles */
+.appt-table .appt-actions {
+  white-space: nowrap;
+  text-align: right;
+}
+.appt-icon-btn {
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.appt-icon-btn:hover:not(:disabled) {
+  border-color: var(--teal);
+  color: var(--teal-deep);
+}
+.appt-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.appt-table .appt-checkin {
+  vertical-align: middle;
+}
+.appt-table .appt-checkin:disabled {
+  cursor: default;
+}
+body.mobile-mode .appt-table td.appt-actions {
+  justify-content: flex-end;
+  padding-top: 10px;
+}
+.modal input[type='date'].fake-input {
+  margin-bottom: 12px;
+}

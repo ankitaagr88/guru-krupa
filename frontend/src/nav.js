@@ -7,6 +7,7 @@ import {
   IconStock,
   IconAdmin,
 } from './components/Icons';
+import IconRx from './screens/Prescription/IconRx';
 
 /* Navigation model shared by the desktop rail, the mobile slide-out menu and
    the mobile bottom nav. `roles` = who can see it (omit = everyone).
@@ -40,6 +41,16 @@ export const NAV_ITEMS = [
     icon: IconMachines,
     mobileLabel: 'Machines',
     emoji: '📷',
+  },
+  {
+    key: 'prescriptions',
+    label: 'Rx',
+    path: '/prescriptions',
+    section: 'today',
+    icon: IconRx,
+    mobileLabel: 'Prescriptions',
+    emoji: '💊',
+    roles: ['admin', 'doctor'],
   },
   {
     key: 'mrs',

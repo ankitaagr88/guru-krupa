@@ -1,0 +1,11 @@
+/* Queue screen (F2/F3) — additions on top of the ported mockup styles */
+.dstep-tag.timer.overdue {
+  background: var(--coral);
+}
+.stage-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.stage-summary .pill {
+  cursor: pointer;
+}

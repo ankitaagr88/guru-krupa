@@ -27,6 +27,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,ico,woff2}'],
+        // Background Sync shim for queued machine captures (see public/sw-sync.js)
+        importScripts: ['sw-sync.js'],
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
           {

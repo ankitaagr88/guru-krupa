@@ -416,7 +416,20 @@ export function emptyOtBilling() {
   return { lensTier: null, mediclaim: false, paymentMode: null };
 }
 
-export const OT_TIME_SLOTS = ['9:00 AM', '11:00 AM', '2:00 PM', '4:00 PM'];
+// Backend B7: 11 slots, 9:00 AM to 4:30 PM every 45 minutes (GET /ot/slots).
+export const OT_TIME_SLOTS = [
+  '9:00 AM',
+  '9:45 AM',
+  '10:30 AM',
+  '11:15 AM',
+  '12:00 PM',
+  '12:45 PM',
+  '1:30 PM',
+  '2:15 PM',
+  '3:00 PM',
+  '3:45 PM',
+  '4:30 PM',
+];
 export const OT_PROCEDURES = [
   'Cataract — Phaco with IOL (OD)',
   'Cataract — Phaco with IOL (OS)',
@@ -433,7 +446,7 @@ export function seedOtCases() {
       age: 52,
       sex: 'F',
       date: dateStr(0),
-      time: '9:00 AM',
+      timeSlot: '9:00 AM',
       procedure: 'Cataract — Phaco with IOL (OD)',
       status: 'scheduled',
       preOpBiometry: {
@@ -454,7 +467,7 @@ export function seedOtCases() {
       age: 41,
       sex: 'M',
       date: dateStr(2),
-      time: '11:00 AM',
+      timeSlot: '11:15 AM',
       procedure: 'Cataract — Phaco with IOL (OS)',
       status: 'scheduled',
       preOpBiometry: {
@@ -475,7 +488,7 @@ export function seedOtCases() {
       age: 63,
       sex: 'F',
       date: dateStr(-3),
-      time: '2:00 PM',
+      timeSlot: '2:15 PM',
       procedure: 'Cataract — Phaco with IOL (OU, staged)',
       status: 'completed',
       preOpBiometry: {
@@ -494,7 +507,7 @@ export function seedOtCases() {
         complications: 'None',
         notes: 'Uneventful surgery, good red reflex maintained throughout.',
       },
-      consentPhotos: [{ capturedAt: '10:15 AM, 3 days ago' }],
+      consentPhotos: [{ id: 1, capturedAt: '10:15 AM, 3 days ago' }],
       postOp: {
         followUpNotes: 'Wound stable, no signs of infection. Patient comfortable.',
         followUpVA: { R: '6/9', L: '—' },

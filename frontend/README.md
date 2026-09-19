@@ -59,7 +59,7 @@ src/
 ```
 
 Routes: `/login`, `/queue`, `/queue/:stage`, `/appointments`, `/machines`, `/ot`, `/inventory`,
-`/mrs`, `/admin` (admin only).
+`/mrs`, `/prescriptions` (doctor/admin; `PrescriptionModal` is exported from `src/screens/Prescription` for the Queue drawer), `/admin` (admin only).
 
 ## How to add / replace a screen (Agents 2–4)
 

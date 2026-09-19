@@ -1,0 +1,134 @@
+/* Login (F1) — builds on the .login-* base in global.css. */
+.login-page {
+  position: relative;
+  overflow: hidden;
+  background: radial-gradient(1200px 600px at 10% -10%, #24469a 0%, var(--teal-deep) 55%);
+}
+.login-glow {
+  position: absolute;
+  width: 520px;
+  height: 520px;
+  border-radius: 50%;
+  right: -160px;
+  bottom: -220px;
+  background: radial-gradient(circle, rgba(140, 217, 138, 0.22) 0%, rgba(140, 217, 138, 0) 70%);
+  pointer-events: none;
+}
+.login-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  width: 100%;
+  max-width: 420px;
+}
+.login-hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: #fff;
+}
+.login-logo {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.6);
+  flex-shrink: 0;
+  background: #fff;
+}
+.login-hero-text h1 {
+  font-family: var(--font-head);
+  font-size: 19px;
+  font-weight: 800;
+  margin: 2px 0 2px;
+  line-height: 1.2;
+  color: #fff;
+}
+.login-hero-text p {
+  font-family: var(--font-body);
+  font-size: 12px;
+  margin: 0;
+  color: var(--rail-nav-fg);
+}
+.login-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-brand);
+  font-size: 10.5px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--rail-brand-accent);
+}
+.login-eyebrow svg {
+  width: 14px;
+  height: 14px;
+}
+.login-card {
+  width: 100%;
+  padding: 26px 26px 22px;
+}
+.login-brand {
+  margin-bottom: 16px;
+}
+.login-brand h1 {
+  font-size: 16px;
+}
+.login-pw {
+  position: relative;
+}
+.login-pw .fake-input {
+  padding-right: 58px;
+}
+.login-pw-toggle {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--bg);
+  border: none;
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-family: var(--font-head);
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.login-pw-toggle:hover {
+  color: var(--teal-deep);
+}
+.login-credit {
+  text-align: center;
+  font-family: var(--font-brand);
+  font-size: 11px;
+  color: var(--rail-fg);
+  opacity: 0.8;
+}
+.login-credit u {
+  text-decoration: none;
+}
+.login-credit b {
+  color: #fff;
+  font-weight: 800;
+}
+.login-credit i {
+  font-style: normal;
+  color: var(--rail-brand-accent);
+  font-weight: 800;
+}
+@media (max-width: 480px) {
+  .login-hero {
+    flex-direction: column;
+    text-align: center;
+    gap: 10px;
+  }
+  .login-hero-text h1 {
+    font-size: 17px;
+  }
+  .login-card {
+    padding: 22px 18px 18px;
+  }
+}

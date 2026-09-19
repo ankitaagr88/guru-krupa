@@ -1,0 +1,343 @@
+/* Prescription modal + print sheet (F7). Base .rx-* / .med-* classes live in
+   global.css (ported from the mockup); these are the additions. */
+.rx-modal {
+  width: 460px;
+  max-height: 92vh;
+  overflow-y: auto;
+}
+.rx-head-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin: 0 auto 6px;
+  display: block;
+  border: 2px solid var(--teal-wash);
+}
+.rx-patient b {
+  font-family: var(--font-head);
+  font-weight: 700;
+}
+.rx-cols {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-head);
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 6px;
+}
+.rx-none {
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  color: var(--faint);
+  margin: 0 0 4px;
+}
+.med-row {
+  align-items: flex-start;
+}
+.rx-avail {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 9.5px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.rx-avail.sage {
+  background: var(--sage-wash);
+  color: var(--sage);
+}
+.rx-avail.amber {
+  background: var(--amber-wash);
+  color: var(--amber-ink);
+}
+.rx-avail.coral {
+  background: var(--coral-wash);
+  color: var(--coral);
+}
+.rx-qty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.rx-qty label {
+  font-family: var(--font-body);
+  font-size: 9.5px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.rx-qty small {
+  font-family: var(--font-body);
+  font-size: 9.5px;
+  color: var(--faint);
+}
+.rx-qty-ctl {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.rx-qty-ctl button {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--teal-deep);
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1;
+  font-size: 13px;
+  box-shadow: var(--shadow-card);
+}
+.rx-qty-ctl button:hover {
+  background: var(--teal);
+  color: #fff;
+}
+.rx-qty-ctl input {
+  width: 38px;
+  text-align: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 3px 4px;
+  font-family: var(--font-head);
+  font-weight: 700;
+  font-size: 12.5px;
+  background: var(--surface);
+  color: var(--ink);
+  -moz-appearance: textfield;
+}
+.rx-qty-ctl input::-webkit-outer-spin-button,
+.rx-qty-ctl input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.rx-split-note {
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: var(--muted);
+  margin: 2px 0 8px;
+}
+.rx-photo-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  border: 1.5px dashed var(--faint);
+  background: transparent;
+  border-radius: 9px;
+  padding: 11px;
+  margin-top: 10px;
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: 12.5px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.rx-photo-btn:hover {
+  border-color: var(--teal);
+  color: var(--teal-deep);
+}
+.rx-photo-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.rx-lang {
+  margin-top: 14px;
+}
+.rx-lang .field-label {
+  display: block;
+  margin: 0 0 6px;
+}
+.rx-modal .modal-actions .btn-ghost {
+  flex: 0 0 auto;
+  padding: 11px 14px;
+}
+
+/* ---- print sheet: hidden on screen, the only thing on paper ---- */
+.rx-print {
+  display: none;
+}
+@media print {
+  @page {
+    margin: 12mm;
+  }
+  body > *:not(.rx-print) {
+    display: none !important;
+  }
+  body {
+    background: #fff !important;
+  }
+  .rx-print {
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    color: #000;
+    font-family: var(--font-body), 'Inter', Arial, sans-serif;
+    font-size: 12px;
+  }
+}
+.rx-print-head {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  gap: 14px;
+  align-items: center;
+  border-bottom: 2px solid #1e3a8a;
+  padding-bottom: 10px;
+}
+.rx-print-logo {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.rx-print-hosp h1 {
+  font-family: var(--font-head), Arial, sans-serif;
+  font-size: 20px;
+  margin: 0;
+  color: #1e3a8a;
+}
+.rx-print-tag {
+  font-size: 11px;
+  color: #555;
+  font-style: italic;
+}
+.rx-print-addr {
+  font-size: 11px;
+  color: #333;
+}
+.rx-print-doc {
+  text-align: right;
+  font-size: 11px;
+  color: #333;
+  display: flex;
+  flex-direction: column;
+}
+.rx-print-doc b {
+  font-size: 13px;
+  color: #1e3a8a;
+}
+.rx-print-patient {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  padding: 10px 0;
+  border-bottom: 1px dashed #bbb;
+}
+.rx-print-rx {
+  font-size: 26px;
+  color: #1e3a8a;
+  margin: 10px 0 4px;
+  font-family: Georgia, serif;
+}
+.rx-print-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.rx-print-table th {
+  text-align: left;
+  font-size: 11px;
+  color: #555;
+  border-bottom: 1px solid #999;
+  padding: 6px 4px;
+}
+.rx-print-table td {
+  padding: 9px 4px;
+  border-bottom: 1px dotted #ccc;
+  vertical-align: top;
+  font-size: 12.5px;
+}
+.rx-print-name {
+  font-weight: 700;
+}
+.rx-print-dose {
+  font-size: 13px;
+}
+.rx-print-dose-en {
+  font-size: 10.5px;
+  color: #666;
+  margin-top: 2px;
+}
+.rx-print-empty {
+  text-align: center;
+  color: #888;
+  padding: 20px;
+}
+.rx-print-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-top: 60px;
+}
+.rx-print-sign {
+  text-align: center;
+  font-size: 12px;
+}
+.rx-print-sign-line {
+  width: 180px;
+  border-top: 1px solid #333;
+  margin-bottom: 4px;
+}
+.rx-print-note {
+  font-size: 10px;
+  color: #777;
+  max-width: 55%;
+}
+
+/* ---- Prescriptions (today) list ---- */
+.rx-list-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.rx-list-filters .rx-filter {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 20px;
+  padding: 6px 12px;
+  font-family: var(--font-head);
+  font-weight: 700;
+  font-size: 11.5px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.rx-list-filters .rx-filter.active {
+  background: var(--teal-wash);
+  border-color: var(--teal);
+  color: var(--teal-deep);
+}
+.rx-list-wrap .data-table tbody tr {
+  cursor: pointer;
+}
+.rx-open-btn {
+  background: var(--teal-wash);
+  color: var(--teal-deep);
+  border: none;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-family: var(--font-head);
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.rx-open-btn:hover {
+  background: var(--teal);
+  color: #fff;
+}
+body.mobile-mode .rx-modal {
+  width: 94vw;
+  max-width: 94vw;
+}
+body.mobile-mode .rx-cols {
+  display: none;
+}

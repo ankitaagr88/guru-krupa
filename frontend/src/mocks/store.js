@@ -10,7 +10,7 @@ const clone = (v) => JSON.parse(JSON.stringify(v));
 function createStore() {
   const state = {
     stages: clone(D.STAGES),
-    protocolSteps: clone(D.PROTOCOL_STEPS),
+    protocolSteps: clone(D.PROTOCOL_STEPS).map((s, i) => ({ id: i + 1, ...s })),
     referralSources: clone(D.REFERRAL_SOURCES),
     patients: D.seedPatients(),
     patientHistory: clone(D.PATIENT_HISTORY),

@@ -29,6 +29,11 @@ export const patients = {
 export const visits = {
   today: ({ stage } = {}) => data(client.get('/visits/today', { params: stage ? { stage } : {} })),
   counts: () => data(client.get('/visits/today/counts')),
+  // B3: register today's visit for an existing patient (409 if one is already active today)
+  create: (body) => data(client.post('/visits', body)),
+  get: (id) => data(client.get(`/visits/${id}`)),
+  // B3: PATCH /visits/{id} {note?, doctorNotes?, elsewhere?, elsewhereNote?}
+  update: (id, patch) => data(client.patch(`/visits/${id}`, patch)),
   move: (id, stage) => data(client.post(`/visits/${id}/move`, { stage })),
   setVA: (id, va) => data(client.patch(`/visits/${id}/va`, va)),
   complete: (id) => data(client.post(`/visits/${id}/complete`)),
@@ -36,7 +41,16 @@ export const visits = {
   startDilation: (id) => data(client.post(`/visits/${id}/dilation/start`)),
   dilationStepGiven: (id, n) => data(client.post(`/visits/${id}/dilation/steps/${n}/given`)),
   dilationStepDone: (id, n) => data(client.post(`/visits/${id}/dilation/steps/${n}/done`)),
-  saveBill: (id, bill) => data(client.post(`/visits/${id}/bill`, bill)),
+  clearDilation: (id) => data(client.delete(`/visits/${id}/dilation`)),
+  // Billing (B8): GET 404s until a bill exists; PUT upserts {items:[{label,amount}], paymentMode?}
+  bill: (id) => data(client.get(`/visits/${id}/bill`)),
+  saveBill: (id, bill) => data(client.put(`/visits/${id}/bill`, bill)),
+  payBill: (id, paymentMode) => data(client.post(`/visits/${id}/bill/pay`, { paymentMode })),
+};
+
+// GET /config → { stages, protocolSteps, referralSources, lensTiers, conditions }
+export const config = {
+  get: () => data(client.get('/config')),
 };
 
 export const appointments = {
@@ -49,58 +63,73 @@ export const appointments = {
 };
 
 export const readings = {
-  testTypes: () => data(client.get('/readings/test-types')),
+  // B6 contract: GET /machines → [{key, label, fields, manualOnly}]
+  machines: () => data(client.get('/machines')),
+  testTypes: () => data(client.get('/machines')),
   listForVisit: (visitId) => data(client.get(`/visits/${visitId}/readings`)),
+  // multipart, camelCase form fields (visitId, machineKey, image, clientCapturedAt, clientUuid);
+  // 202 pending, or 200 with the existing reading when clientUuid was already uploaded.
   capture: ({ patientId, visitId, machine, machineKey, file, clientUuid, capturedAt }) => {
     const fd = new FormData();
-    fd.append('visit_id', visitId ?? patientId);
-    fd.append('machine_key', machineKey ?? machine);
-    if (file) fd.append('image', file);
-    if (clientUuid) fd.append('client_uuid', clientUuid);
-    if (capturedAt) fd.append('client_captured_at', String(capturedAt));
+    fd.append('visitId', String(visitId ?? patientId));
+    fd.append('machineKey', machineKey ?? machine);
+    if (file) fd.append('image', file, file.name || 'capture.jpg');
+    if (clientUuid) fd.append('clientUuid', clientUuid);
+    if (capturedAt) fd.append('clientCapturedAt', new Date(capturedAt).toISOString());
     return data(client.post('/readings', fd, { headers: { 'Content-Type': 'multipart/form-data' } }));
   },
+  manual: ({ visitId, machineKey, values, capturedAt }) =>
+    data(client.post('/readings/manual', { visitId, machineKey, values, ...(capturedAt ? { capturedAt } : {}) })),
   get: (id) => data(client.get(`/readings/${id}`)),
   setValues: (id, vals) => data(client.patch(`/readings/${id}/values`, { values: vals })),
+  remove: (id) => data(client.delete(`/readings/${id}`)),
   apply: (id) => data(client.post(`/readings/${id}/apply`)),
+  examPhotos: (visitId) => data(client.get(`/visits/${visitId}/exam-photos`)),
   addExamPhoto: (visitId, meta) => {
     const fd = new FormData();
-    if (meta?.file) fd.append('image', meta.file);
+    if (meta?.file) fd.append('image', meta.file, meta.file.name || 'exam.jpg');
+    if (meta?.capturedAt) fd.append('capturedAt', new Date(meta.capturedAt).toISOString());
     return data(
       client.post(`/visits/${visitId}/exam-photos`, fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
     );
   },
-  removeExamPhoto: (visitId, photoId) => data(client.delete(`/visits/${visitId}/exam-photos/${photoId}`)),
+  removeExamPhoto: (_visitId, photoId) => data(client.delete(`/exam-photos/${photoId}`)),
+  /** Absolute URL for an uploaded image path (backend serves /api/uploads/{path}). */
+  imageUrl: (r) => (r?.imageUrl ?? r?.url ?? (r?.imagePath ? `/api/uploads/${r.imagePath}` : null)),
 };
 
 export const ot = {
+  // B7 contract: GET /ot/slots?date= → [{timeSlot, caseId, patientName}]
   slots: (date) => data(client.get('/ot/slots', { params: { date } })),
-  procedures: () => data(client.get('/ot/procedures')),
   lensTiers: () => data(client.get('/lens-tiers')),
   cases: ({ date } = {}) => data(client.get('/ot/cases', { params: { date } })),
-  counts: ({ from, to } = {}) => data(client.get('/ot/cases/counts', { params: { from, to } })),
+  counts: ({ from, to } = {}) => data(client.get('/ot/counts', { params: { from, to } })),
   get: (id) => data(client.get(`/ot/cases/${id}`)),
   create: (body) => data(client.post('/ot/cases', body)),
+  // partial; preOpBiometry/operative/postOp/billing are deep-merged server-side
   update: (id, patch) => data(client.patch(`/ot/cases/${id}`, patch)),
   setStatus: (id, status) => data(client.post(`/ot/cases/${id}/status`, { status })),
+  remove: (id) => data(client.delete(`/ot/cases/${id}`)),
+  // multipart field is `file`; returns the full OtCaseOut
   addConsentPhoto: (id, meta) => {
     const fd = new FormData();
-    if (meta?.file) fd.append('image', meta.file);
+    if (meta?.file) fd.append('file', meta.file, meta.file.name || 'consent.jpg');
     return data(
       client.post(`/ot/cases/${id}/consent-photos`, fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
     );
   },
-  removeConsentPhoto: (id, photoId) => data(client.delete(`/ot/cases/${id}/consent-photos/${photoId}`)),
+  removeConsentPhoto: (_caseId, photoId) => data(client.delete(`/ot/consent-photos/${photoId}`)),
 };
 
 export const prescriptions = {
   medicines: ({ q = '' } = {}) => data(client.get('/medicines', { params: { q } })),
   get: (visitId) => data(client.get(`/visits/${visitId}/prescription`)),
-  save: (visitId, lines) => data(client.post(`/visits/${visitId}/prescription`, { lines })),
+  save: (visitId, lines, printLanguage) =>
+    data(client.post(`/visits/${visitId}/prescription`, { lines, printLanguage })),
   printPayload: (visitId, lang) =>
     data(client.get(`/visits/${visitId}/prescription/print`, { params: { lang } })),
 };
@@ -109,23 +138,26 @@ export const inventory = {
   list: () => data(client.get('/inventory')),
   low: () => data(client.get('/inventory/low')),
   create: (body) => data(client.post('/inventory', body)),
-  adjust: (id, delta, reason) => data(client.patch(`/inventory/${id}/adjust`, { delta, reason })),
+  adjust: (id, delta, reason, note) =>
+    data(client.post(`/inventory/${id}/adjust`, { delta, reason, note })),
   update: (id, patch) => data(client.patch(`/inventory/${id}`, patch)),
   movements: (id) => data(client.get(`/inventory/${id}/movements`)),
 };
 
-function crud(base) {
+function crud(base, orderKey = 'ids') {
   return {
     list: () => data(client.get(base)),
     create: (body) => data(client.post(base, body)),
     update: (id, patch) => data(client.patch(`${base}/${id}`, patch)),
     remove: (id) => data(client.delete(`${base}/${id}`)),
     move: (id, dir) => data(client.post(`${base}/${id}/move`, { direction: dir })),
+    // PUT {base}/order {keys|ids: [...]} — full ordered list of refs
+    reorder: (refs) => data(client.put(`${base}/order`, { [orderKey]: refs })),
   };
 }
 
 export const admin = {
-  stages: crud('/admin/stages'),
+  stages: crud('/admin/stages', 'keys'),
   protocolSteps: crud('/admin/protocol-steps'),
   referralSources: crud('/admin/referral-sources'),
   lensTiers: crud('/admin/lens-tiers'),
@@ -136,7 +168,8 @@ export const admin = {
 };
 
 export const mr = {
-  list: ({ rep } = {}) => data(client.get('/mr-visits', { params: rep ? { rep } : {} })),
+  list: ({ rep, company } = {}) =>
+    data(client.get('/mr-visits', { params: { ...(rep ? { rep } : {}), ...(company ? { company } : {}) } })),
   reps: () => data(client.get('/mr-visits/reps')),
   create: (body) => data(client.post('/mr-visits', body)),
   update: (id, patch) => data(client.patch(`/mr-visits/${id}`, patch)),

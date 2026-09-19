@@ -11,6 +11,7 @@ import OT from './screens/OT';
 import Inventory from './screens/Inventory';
 import Admin from './screens/Admin';
 import MRs from './screens/MRs';
+import PrescriptionsToday from './screens/Prescription';
 
 /* Route table. AppShell is the layout route: rail/topbar/mobile nav wrap every
    authenticated screen. Add a screen = add a Route here + a NAV_ITEMS entry in nav.js. */
@@ -33,6 +34,14 @@ export function AppRoutes() {
         <Route path="/ot" element={<OT />} />
         <Route path="/inventory" element={<Inventory />} />
         <Route path="/mrs" element={<MRs />} />
+        <Route
+          path="/prescriptions"
+          element={
+            <RequireRole roles={['doctor', 'admin']}>
+              <PrescriptionsToday />
+            </RequireRole>
+          }
+        />
         <Route
           path="/admin"
           element={
