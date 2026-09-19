@@ -1,0 +1,32 @@
+/* MedicineForm (shared by the Rx modal "Add to medicine list" panel and Admin). */
+.med-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.med-form-grid .fake-input,
+.med-form-grid .drop-select {
+  margin: 0;
+  padding: 8px 9px;
+  font-size: 12px;
+}
+.med-form-err {
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: var(--coral);
+  margin: 6px 0 0;
+}
+.med-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 8px;
+}
+.med-form-actions .btn-primary,
+.med-form-actions .btn-ghost {
+  padding: 7px 12px;
+  font-size: 12px;
+}
+body.mobile-mode .med-form-grid {
+  grid-template-columns: 1fr;
+}

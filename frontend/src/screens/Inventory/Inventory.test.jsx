@@ -54,4 +54,22 @@ describe('Inventory', () => {
     expect(within(newRow).getByText('4 packs')).toBeInTheDocument();
     expect(within(newRow).getByText('Low stock')).toBeInTheDocument();
   });
+
+  it('add item via the medicine picker fills the name and sends medicineId', async () => {
+    renderShell({ route: '/inventory', child: <Inventory /> });
+    await screen.findByTestId('inv-row-1');
+    await userEvent.type(screen.getByLabelText('Item name'), 'mosi');
+    const opt = (await screen.findAllByTestId('med-option')).find((o) => within(o).queryByText('MOSI LP'));
+    expect(within(opt).getByText('Suspension')).toBeInTheDocument();
+    await userEvent.click(opt);
+    expect(screen.getByLabelText('Item name')).toHaveValue('MOSI LP');
+    expect(screen.getByTestId('inv-link-hint')).toHaveTextContent('Linked to the medicine list: MOSI LP');
+    await userEvent.type(screen.getByLabelText('Unit'), 'bottles');
+    await userEvent.type(screen.getByLabelText('Opening stock'), '6');
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+    await screen.findAllByText('MOSI LP', { selector: 'td' });
+    const item = (await inventory.list()).find((i) => i.name === 'MOSI LP');
+    expect(item.medicineId).toBeGreaterThan(0);
+    expect(item.stock).toBe(6);
+  });
 });

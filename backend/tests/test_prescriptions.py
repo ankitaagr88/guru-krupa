@@ -62,7 +62,7 @@ def _set_stock(client, headers, name, target):
     return item["id"]
 
 
-MED_KEYS = {"id", "name", "brand", "composition", "form", "formLabel", "strength", "packSize", "manufacturer",
+MED_KEYS = {"id", "name", "brand", "composition", "form", "formLabel", "strength", "packSize", "manufacturer", "active",
             "displayName"}
 
 
@@ -87,7 +87,7 @@ def test_medicines_search_by_brand_and_composition(client, admin_headers):
     assert a == {"id": a["id"], "name": "Aquaray Gel", "brand": "Aquaray Gel",
                  "composition": "Carboxymethylcellulose sodium eye drops IP", "form": "gel", "formLabel": "Gel",
                  "strength": "0.5%", "packSize": "10 ml", "manufacturer": "Raymed",
-                 "displayName": "Aquaray Gel (Carboxymethylcellulose sodium eye drops IP)"}
+                 "displayName": "Aquaray Gel (Carboxymethylcellulose sodium eye drops IP)", "active": True}
     # composition search: the generic CMC row (name prefix) first, then the brand whose composition matches
     names = [h["name"] for h in client.get("/api/medicines?q=carboxymethyl", headers=admin_headers).json()]
     assert names == ["Carboxymethylcellulose 0.5% (tear drops)", "Aquaray Gel"]

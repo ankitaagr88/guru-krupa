@@ -19,6 +19,7 @@ class MedicineOut(CamelModel):
     pack_size: str | None
     manufacturer: str | None
     display_name: str  # "Aquaray Gel (Carboxymethylcellulose sodium eye drops IP)"
+    active: bool = True
 
 
 # --------------------------------------------------------------------------- prescriptions

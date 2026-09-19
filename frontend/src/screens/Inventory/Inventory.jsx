@@ -3,13 +3,16 @@ import { useTopbar } from '../../components/AppShell';
 import Modal from '../../components/Modal';
 import Drawer from '../../components/Drawer';
 import { useToast } from '../../components/Toast';
+import MedicinePicker from '../../components/MedicinePicker';
 import { inventory as inventoryApi, onDataChange, errorMessage } from '../../api';
 import './inventory.css';
 
 /* Stock levels (mockup renderInventory / addInventoryItem / adjustStock /
    pushLowStockToast) + adjust modal with reason/note and per-item movement
    history (B8). Rows are normalised so the real API's `reorderLevel` / `low`
-   and the mock's `reorder` both work. */
+   and the mock's `reorder` both work. The add-item row has a medicine picker
+   (GET /medicines) that fills the name and sends `medicineId` so the item is
+   linked to the master list; free text still works for non-medicine stock. */
 
 const REASONS = [
   { key: 'received', label: 'Stock received' },
@@ -36,7 +39,14 @@ export default function Inventory() {
   const [adjusting, setAdjusting] = useState(null); // item
   const [history, setHistory] = useState(null); // item
   const [movements, setMovements] = useState([]);
-  const [draft, setDraft] = useState({ name: '', unit: '', stock: '', reorder: '' });
+  const [draft, setDraft] = useState({
+    name: '',
+    medicineId: null,
+    medicine: null,
+    unit: '',
+    stock: '',
+    reorder: '',
+  });
   const [busy, setBusy] = useState(false);
   const announced = useRef(false);
 
@@ -102,11 +112,12 @@ export default function Inventory() {
       const reorder = parseInt(draft.reorder, 10);
       await inventoryApi.create({
         name,
+        ...(draft.medicineId != null ? { medicineId: draft.medicineId } : {}),
         unit: draft.unit.trim() || 'units',
         stock: parseInt(draft.stock, 10) || 0,
         reorderLevel: Number.isNaN(reorder) ? 5 : reorder,
       });
-      setDraft({ name: '', unit: '', stock: '', reorder: '' });
+      setDraft({ name: '', medicineId: null, medicine: null, unit: '', stock: '', reorder: '' });
       toast.success('Item added', name);
       await load();
     } catch (err) {
@@ -239,13 +250,14 @@ export default function Inventory() {
       <div className="admin-block" style={{ marginTop: 18 }}>
         <h2>Add a stock item</h2>
         <form className="bill-add-row inv-add-row" onSubmit={addItem}>
-          <input
-            className="fake-input"
+          <MedicinePicker
             id="invNewName"
-            placeholder="Item name"
-            aria-label="Item name"
+            className="fake-input"
+            placeholder="Item name — pick a medicine or type"
+            ariaLabel="Item name"
             value={draft.name}
-            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+            onChange={(v) => setDraft({ ...draft, name: v, medicineId: null, medicine: null })}
+            onPick={(m) => setDraft({ ...draft, name: m.name, medicineId: m.id, medicine: m })}
           />
           <input
             className="fake-input"
@@ -280,6 +292,11 @@ export default function Inventory() {
             Add
           </button>
         </form>
+        <p className="hint" style={{ margin: '6px 0 0' }} data-testid="inv-link-hint">
+          {draft.medicine
+            ? `Linked to the medicine list: ${draft.medicine.displayName || draft.medicine.name}${draft.medicine.formLabel ? ` · ${draft.medicine.formLabel}` : ''} — prescriptions will deduct from this item.`
+            : 'Pick from the medicine list so prescriptions deduct from this item, or type any other stock item.'}
+        </p>
       </div>
 
       <AdjustModal

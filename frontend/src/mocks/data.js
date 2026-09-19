@@ -326,6 +326,28 @@ export function seedAppointments() {
   ];
 }
 
+// Medicine types (backend MedicineForm seed). Admin-editable; `Medicine.form` stores the key.
+export const MEDICINE_FORMS = [
+  ['drops', 'Drops'],
+  ['gel', 'Gel'],
+  ['ointment', 'Ointment'],
+  ['suspension', 'Suspension'],
+  ['tablet', 'Tablet'],
+  ['capsule', 'Capsule'],
+  ['syrup', 'Syrup'],
+  ['gummies', 'Gummies'],
+].map(([key, label], i) => ({ id: i + 1, key, label, sortOrder: i, active: true }));
+
+/** Best-effort form key from a name ("… eye ointment" → ointment); default drops. */
+export function guessMedicineForm(text) {
+  const t = (text || '').toLowerCase();
+  for (const f of ['ointment', 'tablet', 'capsule', 'suspension', 'syrup', 'gummies', 'gel']) {
+    if (t.includes(f)) return f;
+  }
+  return 'drops';
+}
+
+// Generic-only rows from the mockup: name == composition, no brand.
 export const MEDICINE_LIST = [
   'Moxifloxacin 0.5% eye drops',
   'Prednisolone acetate 1% eye drops',
@@ -338,6 +360,38 @@ export const MEDICINE_LIST = [
   'Ofloxacin eye ointment',
   'Acetazolamide 250mg tablets',
 ];
+
+// Branded packs (the chemist dispenses by brand; the sheet prints brand with the
+// composition underneath). name == brand. [brand, composition, form, strength, packSize, manufacturer]
+export const MEDICINE_BRANDS = [
+  ['Aquaray Gel', 'Carboxymethylcellulose sodium eye drops IP', 'gel', '0.5%', '10 ml', 'Raymed'],
+  [
+    'MOSI LP',
+    'Moxifloxacin Hydrochloride & Loteprednol Etabonate ophthalmic suspension',
+    'suspension',
+    '0.5% / 0.5%',
+    '5 ml',
+    'FDC',
+  ],
+];
+
+/** Every seeded medicine as a store row (generics first, then brands) — mirrors the backend seed. */
+export function seedMedicines() {
+  const rows = MEDICINE_LIST.map((n) => ({
+    name: n,
+    brand: null,
+    composition: n,
+    form: guessMedicineForm(n),
+    strength: null,
+    packSize: null,
+    manufacturer: null,
+    active: true,
+  }));
+  MEDICINE_BRANDS.forEach(([brand, composition, form, strength, packSize, manufacturer]) => {
+    rows.push({ name: brand, brand, composition, form, strength, packSize, manufacturer, active: true });
+  });
+  return rows.map((r, i) => ({ id: i + 1, ...r }));
+}
 
 export const INVENTORY = [
   { name: 'Tropicamide 0.8%', unit: 'bottles', stock: 8, reorder: 5 },

@@ -185,3 +185,20 @@ describe('Billing', () => {
     await waitFor(() => expect(drawer()).not.toHaveClass('show'));
   });
 });
+
+describe('Prescription from the drawer (F14)', () => {
+  it('doctor stage shows the saved lines with a type chip and the button opens the PrescriptionModal', async () => {
+    window.print = vi.fn();
+    renderQueue('/queue/doctor?patient=5');
+    await waitFor(() => expect(drawer()).toHaveClass('show'));
+    const btn = await within(drawer()).findByRole('button', { name: /Prescription/ });
+    expect(drawer()).toHaveTextContent('Timolol 0.5% eye drops');
+    await waitFor(() => expect(within(drawer()).getAllByText('Drops')[0]).toHaveClass('med-type-chip'));
+    await userEvent.click(btn);
+    const dialog = await screen.findByRole('dialog');
+    expect(await within(dialog).findByText('Print language')).toBeInTheDocument();
+    expect((await within(dialog).findAllByTestId('med-row')).length).toBe(2);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+});

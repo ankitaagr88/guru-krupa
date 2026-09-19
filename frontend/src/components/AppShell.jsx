@@ -122,7 +122,7 @@ function MobileNavDrawer({
   onLogout,
 }) {
   const find = (k) => items.find((i) => i.key === k);
-  const top = ['appointments', 'ot', 'machines'].map(find).filter(Boolean);
+  const top = ['appointments', 'ot', 'machines', 'prescriptions'].map(find).filter(Boolean);
   const bottom = ['mrs', 'inventory', 'admin'].map(find).filter(Boolean);
   return (
     <>

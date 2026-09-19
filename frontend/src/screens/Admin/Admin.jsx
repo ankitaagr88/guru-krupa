@@ -4,13 +4,16 @@ import Modal from '../../components/Modal';
 import { useToast } from '../../components/Toast';
 import { ROLES, ROLE_LABELS, useAuth } from '../../auth/AuthContext';
 import { admin as adminApi, patients as patientsApi, onDataChange, errorMessage } from '../../api';
+import { MedicinesSection, MedicineTypesSection } from './MedicinesAdmin';
+import { EditableText, ReorderBtns } from './pieces';
 import './admin.css';
 
 /* Admin settings (mockup renderAdmin + addStage/renameStage/deleteStage,
    add/rename/delete/moveProtocolStep, add/rename/deleteReferralSource) plus
    lens tiers and staff (B9). Rows are addressed the way the real API does:
    stages / referral sources / lens tiers by `key`, protocol steps and staff by
-   `id`. Reorder sends the full ordered list (PUT …/order). */
+   `id`. Reorder sends the full ordered list (PUT …/order). Medicines and medicine
+   types (F12) live in MedicinesAdmin.jsx. */
 
 const refOf = (row) => row.id ?? row.key;
 
@@ -24,21 +27,26 @@ export default function Admin() {
   const [needsDetailKeys, setNeedsDetailKeys] = useState([]);
   const [tiers, setTiers] = useState([]);
   const [staff, setStaff] = useState([]);
+  const [medicines, setMedicines] = useState([]);
+  const [medForms, setMedForms] = useState([]);
+  const [showInactiveMeds, setShowInactiveMeds] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [staffModal, setStaffModal] = useState(false);
   const [pwFor, setPwFor] = useState(null);
 
-  useTopbar({ sub: 'Process stages, dilation drops, referral sources, lens prices and staff' });
+  useTopbar({ sub: 'Process stages, dilation drops, referral sources, lens prices, medicines and staff' });
 
   const load = useCallback(async () => {
     const safe = (p, fb = []) => p.catch(() => fb);
-    const [st, ps, rs, nd, lt, sf] = await Promise.all([
+    const [st, ps, rs, nd, lt, sf, md, mf] = await Promise.all([
       safe(adminApi.stages.list()),
       safe(adminApi.protocolSteps.list()),
       safe(adminApi.referralSources.list()),
       safe(patientsApi.referralNeedsDetail()),
       safe(adminApi.lensTiers.list()),
       safe(adminApi.staff.list()),
+      safe(adminApi.medicines.list({ includeInactive: showInactiveMeds })),
+      safe(adminApi.medicineForms.list()),
     ]);
     setStages(st);
     setSteps(ps);
@@ -46,8 +54,10 @@ export default function Admin() {
     setNeedsDetailKeys(nd);
     setTiers(lt);
     setStaff(sf);
+    setMedicines(md);
+    setMedForms(mf);
     setLoaded(true);
-  }, []);
+  }, [showInactiveMeds]);
 
   useEffect(() => {
     load();
@@ -406,6 +416,16 @@ export default function Admin() {
         </button>
       </section>
 
+      {/* ---------------- medicines & types (F12) ---------------- */}
+      <MedicinesSection
+        medicines={medicines}
+        forms={medForms}
+        run={run}
+        showInactive={showInactiveMeds}
+        onShowInactive={setShowInactiveMeds}
+      />
+      <MedicineTypesSection forms={medForms} run={run} />
+
       {/* ---------------- staff ---------------- */}
       <section className="admin-block" aria-labelledby="h-staff">
         <h2 id="h-staff">Staff &amp; roles</h2>
@@ -492,59 +512,7 @@ export default function Admin() {
   );
 }
 
-/* ---- pieces ---- */
-
-function ReorderBtns({ i, n, onMove, label }) {
-  return (
-    <div className="reorder-btns">
-      <button
-        className="reorder-btn"
-        onClick={() => onMove(-1)}
-        disabled={i === 0}
-        aria-label={`Move ${label} up`}
-        type="button"
-      >
-        ▲
-      </button>
-      <button
-        className="reorder-btn"
-        onClick={() => onMove(1)}
-        disabled={i === n - 1}
-        aria-label={`Move ${label} down`}
-        type="button"
-      >
-        ▼
-      </button>
-    </div>
-  );
-}
-
-/** Text input that keeps a local draft and commits on blur / Enter. */
-function EditableText({ value, onCommit, ariaLabel, className = '' }) {
-  const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
-  const commit = () => {
-    if (draft !== value) onCommit(draft);
-  };
-  return (
-    <input
-      type="text"
-      className={className}
-      value={draft}
-      aria-label={ariaLabel}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          e.currentTarget.blur();
-        } else if (e.key === 'Escape') {
-          setDraft(value);
-        }
-      }}
-    />
-  );
-}
+/* ---- modals ---- */
 
 function StaffModal({ open, onClose, onCreate }) {
   const toast = useToast();

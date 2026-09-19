@@ -1,0 +1,74 @@
+/* MedicinePicker — combobox dropdown + the medicine type chip used on Rx lines. */
+.med-picker {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.med-picker input {
+  width: 100%;
+  box-sizing: border-box;
+}
+.med-picker-list {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(20, 28, 24, 0.14);
+  max-height: 260px;
+  overflow-y: auto;
+  z-index: 20;
+}
+.med-picker-opt {
+  padding: 7px 9px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.med-picker-opt.hi,
+.med-picker-opt:hover {
+  background: var(--teal-wash);
+}
+.med-picker-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  color: var(--ink);
+}
+.med-picker-main b {
+  font-weight: 700;
+}
+.med-picker-sub {
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 1px;
+}
+.med-type-chip {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 9.5px;
+  line-height: 1.4;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--sage-wash);
+  color: var(--sage);
+  white-space: nowrap;
+  text-transform: none;
+}
+.med-name .med-comp {
+  flex-basis: 100%;
+  font-weight: 500;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: -2px;
+}

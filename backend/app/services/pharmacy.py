@@ -190,7 +190,7 @@ def medicine_out(m: Medicine, labels: dict[str, str] | None = None) -> MedicineO
     labels = labels or {}
     return MedicineOut(id=m.id, name=m.name, brand=m.brand, composition=m.composition, form=m.form,
                        form_label=labels.get(m.form, m.form), strength=m.strength, pack_size=m.pack_size,
-                       manufacturer=m.manufacturer, display_name=m.display_name)
+                       manufacturer=m.manufacturer, display_name=m.display_name, active=m.active)
 
 
 def find_medicine(db: Session, text: str) -> Medicine | None:

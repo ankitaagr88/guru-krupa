@@ -48,7 +48,7 @@ export const visits = {
   payBill: (id, paymentMode) => data(client.post(`/visits/${id}/bill/pay`, { paymentMode })),
 };
 
-// GET /config → { stages, protocolSteps, referralSources, lensTiers, conditions }
+// GET /config → { stages, protocolSteps, referralSources, lensTiers, conditions, medicineForms:[{key,label}] }
 export const config = {
   get: () => data(client.get('/config')),
 };
@@ -79,7 +79,9 @@ export const readings = {
     return data(client.post('/readings', fd, { headers: { 'Content-Type': 'multipart/form-data' } }));
   },
   manual: ({ visitId, machineKey, values, capturedAt }) =>
-    data(client.post('/readings/manual', { visitId, machineKey, values, ...(capturedAt ? { capturedAt } : {}) })),
+    data(
+      client.post('/readings/manual', { visitId, machineKey, values, ...(capturedAt ? { capturedAt } : {}) })
+    ),
   get: (id) => data(client.get(`/readings/${id}`)),
   setValues: (id, vals) => data(client.patch(`/readings/${id}/values`, { values: vals })),
   remove: (id) => data(client.delete(`/readings/${id}`)),
@@ -97,7 +99,7 @@ export const readings = {
   },
   removeExamPhoto: (_visitId, photoId) => data(client.delete(`/exam-photos/${photoId}`)),
   /** Absolute URL for an uploaded image path (backend serves /api/uploads/{path}). */
-  imageUrl: (r) => (r?.imageUrl ?? r?.url ?? (r?.imagePath ? `/api/uploads/${r.imagePath}` : null)),
+  imageUrl: (r) => r?.imageUrl ?? r?.url ?? (r?.imagePath ? `/api/uploads/${r.imagePath}` : null),
 };
 
 export const ot = {
@@ -126,10 +128,14 @@ export const ot = {
 };
 
 export const prescriptions = {
+  // GET /medicines?q= → [{id, name, brand, composition, form, formLabel, strength, packSize, manufacturer, displayName}]
+  // matches name, brand or composition (brand/prefix hits first); active rows only
   medicines: ({ q = '' } = {}) => data(client.get('/medicines', { params: { q } })),
   get: (visitId) => data(client.get(`/visits/${visitId}/prescription`)),
+  // lines: [{name, medicineId?, dosage, qtyGiven}] → {…, lines:[{…, matched, form, formLabel}], lowStock:[names]}
   save: (visitId, lines, printLanguage) =>
     data(client.post(`/visits/${visitId}/prescription`, { lines, printLanguage })),
+  // → {hospital, patient, language, lines:[{name, dosage, dosageLocal, qtyGiven, brand, composition, form, formLabel, packSize}]}
   printPayload: (visitId, lang) =>
     data(client.get(`/visits/${visitId}/prescription/print`, { params: { lang } })),
 };
@@ -137,9 +143,9 @@ export const prescriptions = {
 export const inventory = {
   list: () => data(client.get('/inventory')),
   low: () => data(client.get('/inventory/low')),
+  // {name?, medicineId?, unit, stock, reorderLevel} — name optional when medicineId is given
   create: (body) => data(client.post('/inventory', body)),
-  adjust: (id, delta, reason, note) =>
-    data(client.post(`/inventory/${id}/adjust`, { delta, reason, note })),
+  adjust: (id, delta, reason, note) => data(client.post(`/inventory/${id}/adjust`, { delta, reason, note })),
   update: (id, patch) => data(client.patch(`/inventory/${id}`, patch)),
   movements: (id) => data(client.get(`/inventory/${id}/movements`)),
 };
@@ -161,6 +167,20 @@ export const admin = {
   protocolSteps: crud('/admin/protocol-steps'),
   referralSources: crud('/admin/referral-sources'),
   lensTiers: crud('/admin/lens-tiers'),
+  /* Medicine master: rows carry `active`; includeInactive=true also returns retired ones. */
+  medicines: {
+    list: ({ includeInactive = false } = {}) =>
+      data(client.get('/admin/medicines', includeInactive ? { params: { includeInactive: true } } : undefined)),
+    get: (id) => data(client.get(`/admin/medicines/${id}`)),
+    // {name?, brand?, composition (required), form="drops", strength?, packSize?, manufacturer?} — 409 dup, 422 bad form
+    create: (body) => data(client.post('/admin/medicines', body)),
+    // any field; "" clears an optional one; {active:true} reactivates
+    update: (id, patch) => data(client.patch(`/admin/medicines/${id}`, patch)),
+    // soft delete → inactive
+    remove: (id) => data(client.delete(`/admin/medicines/${id}`)),
+  },
+  // [{id, key, label, sortOrder, active}]; rows addressed by key; DELETE 409s when medicines use the form
+  medicineForms: crud('/admin/medicine-forms', 'keys'),
   staff: {
     ...crud('/admin/staff'),
     resetPassword: (id, password) => data(client.post(`/admin/staff/${id}/reset-password`, { password })),

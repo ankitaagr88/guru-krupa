@@ -5,8 +5,10 @@ import {
   patients as patientsApi,
   visits as visitsApi,
   readings as readingsApi,
+  prescriptions as prescriptionsApi,
   errorMessage,
 } from '../../api';
+import { PrescriptionModal } from '../Prescription';
 import { ageSex, fmtLastVisit } from '../../lib/format';
 import ConditionGrid, { PillToggle, ElsewhereToggle } from './ConditionGrid';
 import DilationChecklist from './DilationChecklist';
@@ -43,6 +45,8 @@ const DETAIL_KEYS = [
   'note',
 ];
 const KNOWN_STAGES = ['reg', 'pretest', 'doctor', 'dilate', 'billing', 'done'];
+// Stages where the doctor writes / prints the prescription from the drawer (F14)
+const RX_STAGES = ['doctor', 'dilate'];
 
 function pickDraft(row) {
   const d = {};
@@ -89,6 +93,8 @@ export default function PatientDrawer({
   const [readings, setReadings] = useState([]);
   const [photos, setPhotos] = useState([]);
   const [bill, setBill] = useState(null);
+  const [rxLines, setRxLines] = useState(null); // null = not loaded → fall back to row.medicines
+  const [rxOpen, setRxOpen] = useState(false);
   const pending = useRef({ row: null, patch: {} });
   const timer = useRef(null);
   const vaTimer = useRef(null);
@@ -169,6 +175,12 @@ export default function PatientDrawer({
         .then((list) => alive && setPhotos((list || []).map(normalizeExamPhoto)))
         .catch(() => alive && setPhotos([]));
     } else setPhotos([]);
+    if (RX_STAGES.includes(stageKey) && typeof prescriptionsApi?.get === 'function') {
+      prescriptionsApi
+        .get(r.id)
+        .then((rx) => alive && setRxLines(Array.isArray(rx) ? rx : rx?.lines || []))
+        .catch(() => alive && setRxLines(null));
+    } else setRxLines(null);
     if (stageKey === 'billing') {
       if (typeof visitsApi.bill === 'function')
         visitsApi
@@ -181,6 +193,10 @@ export default function PatientDrawer({
       alive = false;
     };
   }, [open, rowId, stageKey, refreshKey]);
+
+  useEffect(() => {
+    setRxOpen(false);
+  }, [rowId]);
 
   const rowReadings = row?.readings;
   const rowPhotos = row?.examPhotos;
@@ -419,27 +435,13 @@ export default function PatientDrawer({
             fields. Attach them from the <b>Machines</b> screen (mobile camera).
           </p>
           <ExamPhotoList photos={allPhotos} />
-          <div className="field-label">Prescribed medicines</div>
-          {row.medicines.length === 0 ? (
-            <p className="hint" style={{ fontSize: 11.5, color: 'var(--faint)', margin: '0 0 8px' }}>
-              Nothing prescribed yet
-            </p>
-          ) : (
-            <div className="med-rows" id="medChips">
-              {row.medicines.map((m, i) => (
-                <div key={i} className={`med-row${m.matched === false ? ' manual' : ''}`}>
-                  <div className="med-main">
-                    <div className="med-name">{m.name}</div>
-                    {m.dosage && (
-                      <div className="hint" style={{ margin: '3px 0 0', fontSize: 11.5 }}>
-                        {m.dosage}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <RxSection lines={rxLines ?? row.medicines} onOpen={() => setRxOpen(true)} />
+        </div>
+      )}
+
+      {stageKey === 'dilate' && (
+        <div id="rxSection">
+          <RxSection lines={rxLines ?? row.medicines} onOpen={() => setRxOpen(true)} />
         </div>
       )}
 
@@ -456,6 +458,16 @@ export default function PatientDrawer({
           busy={busy}
           onItems={(items) => saveBill({ ...currentBill, items })}
           onPaymentMode={(mode) => saveBill({ ...currentBill, paymentMode: mode }, { pay: true })}
+        />
+      )}
+
+      {RX_STAGES.includes(stageKey) && rxOpen && (
+        <PrescriptionModal
+          visit={row}
+          onClose={() => setRxOpen(false)}
+          onSaved={(res) => {
+            if (Array.isArray(res?.lines)) setRxLines(res.lines);
+          }}
         />
       )}
 
@@ -509,6 +521,47 @@ export default function PatientDrawer({
         )}
       </div>
     </Drawer>
+  );
+}
+
+/* F14: "🖨 Prescription" opens the PrescriptionModal; saved lines listed underneath. */
+function RxSection({ lines, onOpen }) {
+  const list = lines || [];
+  return (
+    <>
+      <div className="field-label">Prescription</div>
+      <button type="button" className="rx-drawer-btn" onClick={onOpen} id="openRxBtn">
+        🖨 Prescription
+        <small>
+          {list.length
+            ? `${list.length} medicine${list.length === 1 ? '' : 's'} · edit or print`
+            : 'write, save and print'}
+        </small>
+      </button>
+      {list.length === 0 ? (
+        <p className="hint" style={{ fontSize: 11.5, color: 'var(--faint)', margin: '0 0 8px' }}>
+          Nothing prescribed yet
+        </p>
+      ) : (
+        <div className="med-rows" id="medChips">
+          {list.map((m, i) => (
+            <div key={m.id ?? i} className={`med-row${m.matched === false ? ' manual' : ''}`}>
+              <div className="med-main">
+                <div className="med-name">
+                  {m.name}
+                  {m.formLabel && <span className="med-type-chip">{m.formLabel}</span>}
+                </div>
+                {m.dosage && (
+                  <div className="hint" style={{ margin: '3px 0 0', fontSize: 11.5 }}>
+                    {m.dosage}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 

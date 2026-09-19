@@ -5,7 +5,10 @@ import { HOSPITAL_PRINT } from './hospital';
    @media print rules in prescription.css can hide everything else. Takes the
    payload of GET /visits/{id}/prescription/print:
      { hospital:{name,address,phone,doctor}, patient:{name,age,sex,token,date},
-       language, lines:[{name,dosage,dosageLocal,qtyGiven}] } */
+       language, lines:[{name,dosage,dosageLocal,qtyGiven,brand,composition,form,formLabel,packSize}] }
+   Each line prints the brand in bold (or the generic name), the composition in
+   smaller type underneath (omitted when it is the same as the name), and the
+   type label + pack size on the dosage line. */
 export default function PrescriptionPrint({ payload }) {
   if (!payload || typeof document === 'undefined') return null;
   const h = { ...HOSPITAL_PRINT, ...(payload.hospital || {}) };
@@ -58,12 +61,24 @@ export default function PrescriptionPrint({ payload }) {
           )}
           {(payload.lines || []).map((l, i) => {
             const local = lang !== 'english' && l.dosageLocal && l.dosageLocal !== l.dosage;
+            const title = l.brand || l.name;
+            const comp =
+              l.composition && l.composition.trim().toLowerCase() !== (title || '').trim().toLowerCase()
+                ? l.composition
+                : null;
+            const typeBits = [l.formLabel || l.form, l.packSize].filter(Boolean);
             return (
               <tr key={i}>
                 <td>{i + 1}</td>
-                <td className="rx-print-name">{l.name}</td>
+                <td className="rx-print-name">
+                  <b className="rx-print-brand">{title}</b>
+                  {comp && <div className="rx-print-comp">{comp}</div>}
+                </td>
                 <td>
-                  <div className="rx-print-dose">{local ? l.dosageLocal : l.dosage || '—'}</div>
+                  <div className="rx-print-dose">
+                    <span>{local ? l.dosageLocal : l.dosage || '—'}</span>
+                    {typeBits.length > 0 && <span className="rx-print-type">{typeBits.join(' · ')}</span>}
+                  </div>
                   {local && <div className="rx-print-dose-en">{l.dosage}</div>}
                 </td>
                 <td>{l.qtyGiven ? `${l.qtyGiven} from clinic` : 'to buy'}</td>

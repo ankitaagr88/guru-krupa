@@ -85,6 +85,10 @@
 .inv-add-row .fake-input {
   margin: 0;
 }
+.inv-add-row .med-picker {
+  flex: 1 1 220px;
+  min-width: 180px;
+}
 .inv-delta-row {
   display: flex;
   align-items: center;
@@ -158,4 +162,7 @@ body.mobile-mode .inv-row-actions {
 }
 body.mobile-mode .inv-add-row .fake-input {
   width: 100% !important;
+}
+body.mobile-mode .inv-add-row .med-picker {
+  flex-basis: 100%;
 }

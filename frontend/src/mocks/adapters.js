@@ -290,6 +290,10 @@ export const config = {
       })),
       lensTiers: c(S.lensTiers),
       conditions: [...CONDITIONS],
+      // active medicine types for the picker / admin add form
+      medicineForms: S.medicineForms
+        .filter((f) => f.active !== false)
+        .map((f) => ({ key: f.key, label: f.label })),
     };
   },
 };
@@ -401,7 +405,9 @@ function applyReadingToPatient(r) {
   const p = S.patients.find((x) => x.id === Number(r.visitId));
   if (!p) return;
   const src =
-    (r.source || 'scanned') + ', ' + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+    (r.source || 'scanned') +
+    ', ' +
+    new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
   const entry = { machine: r.machine, src, vals: c(r.values) };
   const i = p.readings.findIndex((x) => x.machine === r.machine);
   if (i >= 0) p.readings[i] = entry;
@@ -560,7 +566,11 @@ function otCaseOut(k) {
   const out = c(k);
   const tier = S.lensTiers.find((t) => t.key === out.billing?.lensTier);
   out.billing = { ...out.billing, lensPrice: tier ? tier.price : 0, total: tier ? tier.price : 0 };
-  out.consentPhotos = (out.consentPhotos || []).map((ph, i) => ({ id: ph.id ?? i + 1, imagePath: null, ...ph }));
+  out.consentPhotos = (out.consentPhotos || []).map((ph, i) => ({
+    id: ph.id ?? i + 1,
+    imagePath: null,
+    ...ph,
+  }));
   return out;
 }
 
@@ -606,7 +616,8 @@ export const ot = {
       patient = S.patients.find((p) => p.id === Number(data.patientId));
       if (!patient) throw httpError(404, 'Patient not found');
     }
-    if (!patient && !(data.patientName || '').trim()) throw httpError(422, 'patientId or patientName is required');
+    if (!patient && !(data.patientName || '').trim())
+      throw httpError(422, 'patientId or patientName is required');
     const k = {
       id: store.nextId('ot'),
       patientId: patient ? patient.id : null,
@@ -643,7 +654,9 @@ export const ot = {
     const date = patch.date ?? x.date;
     if (slot || patch.date) {
       const s = slot ?? x.timeSlot;
-      const conflict = S.otCases.find((k) => k.id !== x.id && k.date === date && k.timeSlot === s && ACTIVE_OT(k));
+      const conflict = S.otCases.find(
+        (k) => k.id !== x.id && k.date === date && k.timeSlot === s && ACTIVE_OT(k)
+      );
       if (conflict) throw httpError(409, `Time slot '${s}' is already booked on that date`);
     }
     if (patch.billing?.lensTier && !S.lensTiers.some((t) => t.key === patch.billing.lensTier))
@@ -694,14 +707,63 @@ function deepMerge(target, patch) {
   });
 }
 
+/* ---------------- medicines (master list) ---------------- */
+const norm = (v) => (v || '').trim().toLowerCase();
+const formLabelOf = (key) => S.medicineForms.find((f) => f.key === key)?.label || key;
+
+/** MedicineOut: {id, name, brand, composition, form, formLabel, strength, packSize, manufacturer, displayName} */
+function medOut(m) {
+  const brand = m.brand || null;
+  const displayName =
+    brand && m.composition && norm(m.composition) !== norm(brand) ? `${brand} (${m.composition})` : m.name;
+  return {
+    id: m.id,
+    name: m.name,
+    brand,
+    composition: m.composition ?? '',
+    form: m.form || 'drops',
+    formLabel: formLabelOf(m.form || 'drops'),
+    strength: m.strength ?? null,
+    packSize: m.packSize ?? null,
+    manufacturer: m.manufacturer ?? null,
+    displayName,
+    active: m.active !== false,
+  };
+}
+const activeMeds = () => S.medicines.filter((m) => m.active !== false);
+const medById = (id) => (id == null ? null : S.medicines.find((m) => m.id === Number(id)));
+/** A typed name matches when it equals a medicine's name, brand or composition (case-insensitive). */
+function medByText(text) {
+  const t = norm(text);
+  if (!t) return null;
+  return (
+    activeMeds().find((m) => norm(m.name) === t || norm(m.brand) === t || norm(m.composition) === t) || null
+  );
+}
+
 /* ---------------- prescriptions ---------------- */
 export const prescriptions = {
-  // Real: GET /medicines?q= → [{id, name}]
+  // Real: GET /medicines?q= → [MedicineOut]; matches name, brand or composition, brand/prefix hits first
   async medicines({ q = '' } = {}) {
-    const query = q.toLowerCase();
-    return S.medicines
-      .map((name, i) => ({ id: i + 1, name }))
-      .filter((m) => !query || m.name.toLowerCase().includes(query));
+    const query = norm(q);
+    const rows = activeMeds().filter(
+      (m) =>
+        !query ||
+        norm(m.name).includes(query) ||
+        norm(m.brand).includes(query) ||
+        norm(m.composition).includes(query)
+    );
+    const rank = (m) => {
+      if (!query) return 0;
+      if (norm(m.brand).startsWith(query) || norm(m.name).startsWith(query)) return 0;
+      if (norm(m.brand).includes(query) || norm(m.name).includes(query)) return 1;
+      if (norm(m.composition).startsWith(query)) return 2;
+      return 3;
+    };
+    return rows
+      .map((m, i) => ({ m, i, r: rank(m) }))
+      .sort((a, b) => a.r - b.r || a.i - b.i)
+      .map(({ m }) => medOut(m));
   },
   // Real: GET /visits/{id}/prescription → PrescriptionOut {id, visitId, printLanguage, lines}
   async get(patientId) {
@@ -711,48 +773,59 @@ export const prescriptions = {
       id: p.id,
       visitId: p.id,
       printLanguage: p.printLanguage || 'english',
-      lines: c(p.medicines || []),
+      lines: (p.medicines || []).map(rxLineOut),
     };
   },
-  // lines: [{name, matched, dosage, qtyGiven}] — decrements stock only by qtyGiven
+  // lines: [{name, medicineId?, dosage, qtyGiven}] — decrements stock only by qtyGiven.
+  // `matched` when the typed name equals a medicine's name, brand or composition; stored name is canonical.
   async save(patientId, lines, printLanguage) {
     await latency();
     const p = S.patients.find((x) => x.id === Number(patientId));
     if (!p) throw httpError(404, 'Patient not found');
+    const resolved = lines.map((line) => {
+      const med = medById(line.medicineId) || medByText(line.name);
+      return {
+        name: med ? med.name : line.name,
+        medicineId: med ? med.id : null,
+        matched: !!med,
+        dosage: line.dosage || '',
+        qtyGiven: Number(line.qtyGiven) || 0,
+      };
+    });
     // 409 on insufficient stock (real backend behaviour) before touching anything
-    for (const line of lines) {
+    for (const line of resolved) {
       const prev = p.medicines.find((m) => m.name === line.name);
-      const delta = (line.qtyGiven || 0) - (prev?.qtyGiven || 0);
-      const item = S.inventory.find((i) => i.name === line.name);
+      const delta = line.qtyGiven - (prev?.qtyGiven || 0);
+      const item = stockItemFor(line);
       if (delta > 0 && item && item.stock < delta)
         throw httpError(409, `Not enough stock of ${item.name} (only ${item.stock} ${item.unit} left)`);
     }
     const lowStock = [];
-    lines.forEach((line) => {
+    resolved.forEach((line) => {
       const prev = p.medicines.find((m) => m.name === line.name);
-      const delta = (line.qtyGiven || 0) - (prev?.qtyGiven || 0);
+      const delta = line.qtyGiven - (prev?.qtyGiven || 0);
       if (delta > 0) {
-        const item = decrementStock(line.name, delta, 'dispensed');
+        const item = decrementStock(stockItemFor(line)?.name || line.name, delta, 'dispensed');
         if (item && item.stock <= item.reorder) lowStock.push(c(item));
       }
     });
-    p.medicines = c(lines).map((l) => {
-      const idx = S.medicines.indexOf(l.name);
-      return { matched: idx >= 0, medicineId: idx >= 0 ? idx + 1 : null, qtyGiven: 0, ...l };
-    });
+    p.medicines = resolved.map((l, i) => ({ id: i + 1, ...l }));
     if (printLanguage) p.printLanguage = printLanguage;
     store.notify();
     // lowStock: mock keeps full items (name/stock/unit/reorder); real returns names only
+    const out = p.medicines.map(rxLineOut);
     return {
       id: p.id,
       visitId: p.id,
       printLanguage: p.printLanguage || 'english',
-      lines: c(p.medicines),
-      medicines: c(p.medicines),
+      createdAt: new Date().toISOString(),
+      lines: out,
+      medicines: out,
       lowStock,
     };
   },
-  // Real: GET /visits/{id}/prescription/print?lang= → {hospital, patient, language, lines[{dosageLocal}]}
+  // Real: GET /visits/{id}/prescription/print?lang= → {hospital, patient, language,
+  //   lines[{name, dosage, dosageLocal, qtyGiven, brand, composition, form, formLabel, packSize}]}
   async printPayload(patientId, lang = 'english') {
     const p = S.patients.find((x) => x.id === Number(patientId));
     if (!p) throw httpError(404, 'Patient not found');
@@ -765,15 +838,45 @@ export const prescriptions = {
       },
       patient: { name: p.name, age: p.age, sex: p.sex, token: p.token, date: dateStr(0) },
       language: lang,
-      lines: (p.medicines || []).map((m) => ({
-        name: m.name,
-        dosage: m.dosage || '',
-        dosageLocal: localizeDosage(m.dosage || '', lang),
-        qtyGiven: m.qtyGiven || 0,
-      })),
+      lines: (p.medicines || []).map((m) => {
+        const med = medById(m.medicineId) || medByText(m.name);
+        return {
+          name: m.name,
+          dosage: m.dosage || '',
+          dosageLocal: localizeDosage(m.dosage || '', lang),
+          qtyGiven: m.qtyGiven || 0,
+          brand: med?.brand || null,
+          composition: med?.composition || null,
+          form: med?.form || null,
+          formLabel: med ? formLabelOf(med.form) : null,
+          packSize: med?.packSize || null,
+        };
+      }),
     };
   },
 };
+
+/** PrescriptionLineOut: {id, medicineId, name, matched, dosage, qtyGiven, form, formLabel} */
+function rxLineOut(l, i) {
+  const med = medById(l.medicineId) || medByText(l.name);
+  return {
+    id: l.id ?? i + 1,
+    medicineId: med ? med.id : (l.medicineId ?? null),
+    name: l.name,
+    matched: l.matched ?? !!med,
+    dosage: l.dosage || '',
+    qtyGiven: Number(l.qtyGiven) || 0,
+    form: med ? med.form : null,
+    formLabel: med ? formLabelOf(med.form) : null,
+  };
+}
+function stockItemFor(line) {
+  return (
+    (line.medicineId != null && S.inventory.find((i) => i.medicineId === line.medicineId)) ||
+    S.inventory.find((i) => i.name === line.name) ||
+    null
+  );
+}
 
 // Mock-only dosage transliteration (the real backend does this server-side).
 const DOSAGE_WORDS = {
@@ -840,10 +943,18 @@ export const inventory = {
   async low() {
     return c(S.inventory.filter((i) => i.stock <= i.reorder)).map(invOut);
   },
+  // POST /inventory {name?, medicineId?, unit, stock, reorderLevel} — name defaults to the medicine's name
   async create(data) {
     await latency();
     const { reorderLevel, ...rest } = data;
-    const item = { id: store.nextId('inventory'), unit: 'bottles', stock: 0, reorder: 0, ...rest };
+    const med = medById(rest.medicineId);
+    if (rest.medicineId != null && !med) throw httpError(404, 'Medicine not found');
+    const name = (rest.name || med?.name || '').trim();
+    if (!name) throw httpError(422, 'name is required when medicineId is not given');
+    if (S.inventory.some((i) => i.name.toLowerCase() === name.toLowerCase()))
+      throw httpError(409, `'${name}' is already a stock item`);
+    const item = { id: store.nextId('inventory'), unit: 'bottles', stock: 0, reorder: 0, ...rest, name };
+    item.medicineId = med ? med.id : null;
     if (reorderLevel != null) item.reorder = Number(reorderLevel);
     item.stock = Number(item.stock) || 0;
     S.inventory.push(item);
@@ -882,8 +993,13 @@ export const inventory = {
   },
 };
 function invOut(item) {
-  const mi = S.medicines.indexOf(item.name);
-  return { ...item, reorderLevel: item.reorder, low: item.stock <= item.reorder, medicineId: mi >= 0 ? mi + 1 : null };
+  const med = medById(item.medicineId) || S.medicines.find((m) => m.name === item.name);
+  return {
+    ...item,
+    reorderLevel: item.reorder,
+    low: item.stock <= item.reorder,
+    medicineId: med ? med.id : null,
+  };
 }
 
 /* ---------------- admin ---------------- */
@@ -940,6 +1056,10 @@ function listOps(key, seqKey) {
   };
 }
 
+function assertForm(form) {
+  const keys = S.medicineForms.filter((f) => f.active !== false).map((f) => f.key);
+  if (!keys.includes(form)) throw httpError(422, `form must be one of: ${keys.join(', ')}`);
+}
 const stagesOps = listOps('stages', 'stage');
 export const admin = {
   stages: {
@@ -954,6 +1074,120 @@ export const admin = {
   protocolSteps: listOps('protocolSteps', 'protocol'),
   referralSources: listOps('referralSources', 'referral'),
   lensTiers: listOps('lensTiers', 'lens'),
+  // GET/POST/PATCH/DELETE /admin/medicines — soft delete, 409 dup name, 422 bad form
+  medicines: {
+    list: async ({ includeInactive = false } = {}) =>
+      (includeInactive ? S.medicines : activeMeds()).map(medOut),
+    get: async (id) => {
+      const m = medById(id);
+      if (!m) throw httpError(404, 'Medicine not found');
+      return medOut(m);
+    },
+    create: async (data) => {
+      const composition = (data.composition || '').trim();
+      if (!composition) throw httpError(422, 'composition is required');
+      const brand = (data.brand || '').trim() || null;
+      const name = (data.name || '').trim() || brand || composition;
+      const form = (data.form || 'drops').trim();
+      assertForm(form);
+      if (S.medicines.some((m) => norm(m.name) === norm(name)))
+        throw httpError(409, `A medicine named '${name}' already exists`);
+      const row = {
+        id: store.nextId('medicine'),
+        name,
+        brand,
+        composition,
+        form,
+        strength: (data.strength || '').trim() || null,
+        packSize: (data.packSize || '').trim() || null,
+        manufacturer: (data.manufacturer || '').trim() || null,
+        active: true,
+      };
+      S.medicines.push(row);
+      store.notify();
+      return medOut(row);
+    },
+    update: async (id, patch) => {
+      const m = medById(id);
+      if (!m) throw httpError(404, 'Medicine not found');
+      if (patch.form !== undefined) assertForm(patch.form);
+      if (patch.name !== undefined) {
+        const name = (patch.name || '').trim();
+        if (!name) throw httpError(422, 'name cannot be empty');
+        if (S.medicines.some((x) => x.id !== m.id && norm(x.name) === norm(name)))
+          throw httpError(409, `A medicine named '${name}' already exists`);
+        m.name = name;
+      }
+      if (patch.composition !== undefined) {
+        const comp = (patch.composition || '').trim();
+        if (!comp) throw httpError(422, 'composition cannot be empty');
+        m.composition = comp;
+      }
+      ['brand', 'strength', 'packSize', 'manufacturer'].forEach((k) => {
+        if (patch[k] !== undefined) m[k] = (patch[k] || '').trim() || null; // "" clears
+      });
+      if (patch.form !== undefined) m.form = patch.form;
+      if (patch.active !== undefined) m.active = !!patch.active;
+      store.notify();
+      return medOut(m);
+    },
+    remove: async (id) => {
+      const m = medById(id);
+      if (!m) throw httpError(404, 'Medicine not found');
+      m.active = false;
+      store.notify();
+      return null;
+    },
+  },
+  // /admin/medicine-forms — key ^[a-z0-9_-]+$, 409 dup / in use, PUT /order {keys}
+  medicineForms: {
+    list: async () => c(S.medicineForms),
+    create: async ({ key, label }) => {
+      const k = (key || '').trim();
+      if (!/^[a-z0-9_-]+$/.test(k)) throw httpError(422, 'key must match ^[a-z0-9_-]+$');
+      if (!(label || '').trim()) throw httpError(422, 'label is required');
+      if (S.medicineForms.some((f) => f.key === k))
+        throw httpError(409, `Medicine type '${k}' already exists`);
+      const row = {
+        id: store.nextId('medicineForm'),
+        key: k,
+        label: label.trim(),
+        sortOrder: S.medicineForms.reduce((mx, f) => Math.max(mx, f.sortOrder ?? 0), -1) + 1,
+        active: true,
+      };
+      S.medicineForms.push(row);
+      store.notify();
+      return c(row);
+    },
+    update: async (key, patch) => {
+      const f = S.medicineForms.find((x) => x.key === key);
+      if (!f) throw httpError(404, 'Medicine type not found');
+      if (patch.label !== undefined) {
+        if (!(patch.label || '').trim()) throw httpError(422, 'label cannot be empty');
+        f.label = patch.label.trim();
+      }
+      if (patch.active !== undefined) f.active = !!patch.active;
+      store.notify();
+      return c(f);
+    },
+    remove: async (key) => {
+      const idx = S.medicineForms.findIndex((x) => x.key === key);
+      if (idx < 0) throw httpError(404, 'Medicine type not found');
+      const n = S.medicines.filter((m) => m.form === key).length;
+      if (n > 0) throw httpError(409, `${n} medicine(s) use form '${key}'`);
+      S.medicineForms.splice(idx, 1);
+      store.notify();
+      return null;
+    },
+    reorder: async (keys) => {
+      const rows = S.medicineForms;
+      const ordered = keys.map((k) => rows.find((f) => f.key === k)).filter(Boolean);
+      const rest = rows.filter((f) => !ordered.includes(f));
+      S.medicineForms = [...ordered, ...rest].map((f, i) => ({ ...f, sortOrder: i }));
+      store.notify();
+      return c(S.medicineForms);
+    },
+  },
   staff: {
     list: async () => c(S.staff),
     create: async (data) => {

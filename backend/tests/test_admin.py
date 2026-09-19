@@ -194,7 +194,7 @@ def test_staff_create_duplicate_last_admin(client, admin_headers, admin_user, db
     assert {"staff.create", "staff.update", "staff.reset_password"} <= set(audit)
 
 
-MED_KEYS = {"id", "name", "brand", "composition", "form", "formLabel", "strength", "packSize", "manufacturer",
+MED_KEYS = {"id", "name", "brand", "composition", "form", "formLabel", "strength", "packSize", "manufacturer", "active",
             "displayName"}
 
 
@@ -254,7 +254,7 @@ def test_medicines_crud_soft_delete(client, admin_headers, db):
     assert m == {"id": mid, "name": "Testbrand Eye Drops", "brand": "Testbrand Eye Drops",
                  "composition": "Ketorolac tromethamine 0.5%", "form": "drops", "formLabel": "Drops",
                  "strength": "0.5%", "packSize": "5 ml", "manufacturer": "Sun Pharma",
-                 "displayName": "Testbrand Eye Drops (Ketorolac tromethamine 0.5%)"}
+                 "displayName": "Testbrand Eye Drops (Ketorolac tromethamine 0.5%)", "active": True}
     # duplicate name (case-insensitive) -> 409; unknown form -> 422; composition required -> 422
     assert client.post("/api/admin/medicines", json={"brand": "testbrand eye drops", "composition": "x"},
                        headers=admin_headers).status_code == 409

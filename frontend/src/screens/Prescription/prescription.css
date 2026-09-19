@@ -156,6 +156,38 @@
   display: block;
   margin: 0 0 6px;
 }
+.rx-not-listed {
+  color: var(--amber-ink);
+  background: var(--amber-wash);
+}
+.rx-add-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 10.5px;
+  color: var(--teal);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.rx-add-link:hover {
+  color: var(--teal-deep);
+}
+.rx-add-med {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px dashed var(--teal);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.rx-add-med-title {
+  font-family: var(--font-head);
+  font-weight: 700;
+  font-size: 11.5px;
+  color: var(--teal-deep);
+  margin: 0 0 8px;
+}
 .rx-modal .modal-actions .btn-ghost {
   flex: 0 0 auto;
   padding: 11px 14px;
@@ -166,8 +198,9 @@
   display: none;
 }
 @media print {
+  /* Fits A5 (148 × 210 mm) as well as A4: fluid widths, 10 mm margins, 11.5px base. */
   @page {
-    margin: 12mm;
+    margin: 10mm;
   }
   body > *:not(.rx-print) {
     display: none !important;
@@ -183,7 +216,13 @@
     width: 100%;
     color: #000;
     font-family: var(--font-body), 'Inter', Arial, sans-serif;
-    font-size: 12px;
+    font-size: 11.5px;
+  }
+  .rx-print-table tr {
+    page-break-inside: avoid;
+  }
+  .rx-print-foot {
+    page-break-inside: avoid;
   }
 }
 .rx-print-head {
@@ -257,10 +296,34 @@
   font-size: 12.5px;
 }
 .rx-print-name {
+  font-weight: 400;
+  max-width: 46%;
+}
+.rx-print-brand {
   font-weight: 700;
+  font-size: 13px;
+}
+.rx-print-comp {
+  font-size: 10px;
+  color: #444;
+  margin-top: 1px;
+  line-height: 1.25;
 }
 .rx-print-dose {
   font-size: 13px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.rx-print-type {
+  font-size: 10px;
+  color: #1e3a8a;
+  border: 1px solid #1e3a8a;
+  border-radius: 4px;
+  padding: 0 5px;
+  line-height: 1.5;
+  white-space: nowrap;
 }
 .rx-print-dose-en {
   font-size: 10.5px;

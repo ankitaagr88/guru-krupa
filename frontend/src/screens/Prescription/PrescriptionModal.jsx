@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Modal from '../../components/Modal';
 import { useToast } from '../../components/Toast';
-import { prescriptions, inventory as inventoryApi, readings, errorMessage } from '../../api';
+import {
+  prescriptions,
+  inventory as inventoryApi,
+  readings,
+  admin as adminApi,
+  config as configApi,
+  errorMessage,
+} from '../../api';
+import { useAuth } from '../../auth/AuthContext';
+import MedicinePicker, { medicineSubtitle } from '../../components/MedicinePicker';
+import MedicineForm from '../Admin/MedicineForm';
 import { HOSPITAL_NAME, DOCTOR_NAME } from '../../nav';
 import { RX_LANGUAGES, visitInfo } from './hospital';
 import PrescriptionPrint from './PrescriptionPrint';
@@ -18,9 +28,13 @@ import './prescription.css';
      onClose  — called on Close / Esc / backdrop
      onSaved  — optional (prescriptionOut) after a successful save
 
-   Each line = { name, medicineId, matched, dosage, qtyGiven }:
+   Each line = { name, medicineId, matched, dosage, qtyGiven, form?, formLabel? }:
      dosage   → the treatment plan printed for the patient
-     qtyGiven → what was handed over from clinic stock (decrements inventory) */
+     qtyGiven → what was handed over from clinic stock (decrements inventory)
+   The picker searches GET /medicines by brand or generic (composition); a line
+   is `matched` when the name equals a medicine's name, brand or composition.
+   Free-text lines get a "not in list" hint and, for admins, an inline
+   "Add to medicine list" form (POST /admin/medicines) that re-matches the line. */
 
 const DOSAGE_PRESETS = [
   '1 drop, both eyes, 3x daily',
@@ -36,13 +50,29 @@ function newLine(name, med) {
     matched: !!med,
     dosage: '',
     qtyGiven: 0,
+    form: med?.form ?? null,
+    formLabel: med?.formLabel ?? null,
   };
 }
+
+const lineFromApi = (l) => ({
+  name: l.name,
+  medicineId: l.medicineId ?? null,
+  matched: l.matched ?? l.medicineId != null,
+  dosage: l.dosage || '',
+  qtyGiven: Number(l.qtyGiven) || 0,
+  form: l.form ?? null,
+  formLabel: l.formLabel ?? null,
+});
+
+const norm = (v) => (v || '').trim().toLowerCase();
 
 export default function PrescriptionModal({ visit, open, onClose, onSaved }) {
   const isOpen = open ?? !!visit;
   const info = useMemo(() => visitInfo(visit), [visit]);
   const toast = useToast();
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role === 'admin';
 
   const [lines, setLines] = useState([]);
   const [lang, setLang] = useState('english');
@@ -55,6 +85,10 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved }) {
   const [printPayload, setPrintPayload] = useState(null);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photos, setPhotos] = useState(0);
+  const [forms, setForms] = useState([]);
+  const [addingFor, setAddingFor] = useState(null); // index of the free-text line being added to the list
+  const [addBusy, setAddBusy] = useState(false);
+  const [medsKey, setMedsKey] = useState(0);
   const fileRef = useRef(null);
   const printPending = useRef(false);
 
@@ -81,25 +115,21 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved }) {
     setPrintPayload(null);
     setPhotos(0);
     (async () => {
-      const [rx, medList] = await Promise.all([
+      const [rx, medList, cfg] = await Promise.all([
         prescriptions.get(info.id).catch(() => null),
         prescriptions.medicines({ q: '' }).catch(() => []),
+        configApi.get().catch(() => null),
       ]);
       await loadStock();
       if (cancelled) return;
       const normMeds = (medList || []).map((m) => (typeof m === 'string' ? { id: null, name: m } : m));
       setMeds(normMeds);
+      setForms(cfg?.medicineForms || []);
       const existing = Array.isArray(rx) ? rx : rx?.lines || [];
-      setLines(
-        existing.map((l) => ({
-          name: l.name,
-          medicineId: l.medicineId ?? null,
-          matched: l.matched ?? l.medicineId != null,
-          dosage: l.dosage || '',
-          qtyGiven: Number(l.qtyGiven) || 0,
-        }))
-      );
+      setLines(existing.map(lineFromApi));
       setLang(rx?.printLanguage || 'english');
+      setAddingFor(null);
+      setSearch('');
       setLoading(false);
     })();
     return () => {
@@ -107,22 +137,66 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved }) {
     };
   }, [isOpen, info.id, loadStock]);
 
-  const findMed = (name) => meds.find((m) => m.name.toLowerCase() === name.trim().toLowerCase());
+  // Typed text matches a master row by name, brand or composition (what the backend does on save)
+  const findMed = (name) => {
+    const t = norm(name);
+    return meds.find((m) => norm(m.name) === t || norm(m.brand) === t || norm(m.composition) === t);
+  };
+  const medOf = (line) =>
+    (line.medicineId != null && meds.find((m) => m.id === line.medicineId)) || findMed(line.name) || null;
 
   const stockFor = (line) =>
     stock.find((s) => (line.medicineId != null && s.medicineId === line.medicineId) || s.name === line.name);
 
-  const addMedManual = () => {
-    const val = search.trim();
-    if (!val) return;
-    if (lines.some((l) => l.name.toLowerCase() === val.toLowerCase())) {
+  const pushLine = (name, med) => {
+    if (lines.some((l) => norm(l.name) === norm(name))) {
       setSearch('');
       return;
     }
-    const med = findMed(val);
-    setLines((ls) => [...ls, newLine(med ? med.name : val, med)]);
+    setLines((ls) => [...ls, newLine(name, med)]);
     setSearch('');
     setDirty(true);
+  };
+  const addMedManual = () => {
+    const val = search.trim();
+    if (!val) return;
+    const med = findMed(val);
+    pushLine(med ? med.name : val, med);
+  };
+  const pickMed = (med) => pushLine(med.name, med);
+
+  // Admin: add a free-text line to the master list, then re-match the line to it
+  const addToList = async (i, body) => {
+    setAddBusy(true);
+    try {
+      const med = await adminApi.medicines.create(body);
+      setMeds((ms) => [...ms, med]);
+      setMedsKey((k) => k + 1);
+      setLines((ls) =>
+        ls.map((l, j) =>
+          j === i
+            ? {
+                ...l,
+                name: med.name,
+                medicineId: med.id,
+                matched: true,
+                form: med.form,
+                formLabel: med.formLabel,
+              }
+            : l
+        )
+      );
+      setDirty(true);
+      setAddingFor(null);
+      toast.success('Added to medicine list', med.displayName || med.name);
+    } catch (err) {
+      toast.error(
+        err?.response?.status === 409 ? 'Already in the list' : 'Could not add medicine',
+        errorMessage(err)
+      );
+    } finally {
+      setAddBusy(false);
+    }
   };
 
   const updateLine = (i, patch) => {
@@ -172,17 +246,7 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved }) {
       }));
       const res = await prescriptions.save(info.id, body, lang);
       setDirty(false);
-      if (Array.isArray(res?.lines)) {
-        setLines(
-          res.lines.map((l) => ({
-            name: l.name,
-            medicineId: l.medicineId ?? null,
-            matched: l.matched ?? l.medicineId != null,
-            dosage: l.dosage || '',
-            qtyGiven: Number(l.qtyGiven) || 0,
-          }))
-        );
-      }
+      if (Array.isArray(res?.lines)) setLines(res.lines.map(lineFromApi));
       toast.success(
         'Prescription saved',
         `${body.length} medicine${body.length === 1 ? '' : 's'} for ${info.name}`
@@ -328,18 +392,47 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved }) {
                 } else {
                   avail = <span className="rx-avail">not stocked · patient buys</span>;
                 }
+                const med = medOf(m);
+                const typeLabel = m.formLabel || med?.formLabel || null;
+                const sub = med ? medicineSubtitle(med, { withType: false }) : '';
                 return (
                   <div className={`med-row${m.matched ? '' : ' manual'}`} key={i} data-testid="med-row">
                     <div className="med-main">
                       <div className="med-name">
                         {m.name}
+                        {m.matched && typeLabel && <span className="med-type-chip">{typeLabel}</span>}
                         {m.matched ? (
                           <span className="match-tag">in list</span>
                         ) : (
-                          <span className="match-tag">free text</span>
+                          <span className="match-tag rx-not-listed">not in list</span>
                         )}
                         {avail}
+                        {!m.matched && isAdmin && addingFor !== i && (
+                          <button
+                            type="button"
+                            className="rx-add-link"
+                            onClick={() => setAddingFor(i)}
+                            aria-label={`Add ${m.name} to medicine list`}
+                          >
+                            + Add to medicine list
+                          </button>
+                        )}
+                        {m.matched && sub && <div className="med-comp">{sub}</div>}
                       </div>
+                      {!m.matched && isAdmin && addingFor === i && (
+                        <div className="rx-add-med">
+                          <p className="rx-add-med-title">Add to the medicine list</p>
+                          <MedicineForm
+                            forms={forms}
+                            initial={{ brand: m.name }}
+                            busy={addBusy}
+                            idPrefix={`rxAddMed${i}`}
+                            autoFocusField="composition"
+                            onCancel={() => setAddingFor(null)}
+                            onSubmit={(body) => addToList(i, body)}
+                          />
+                        </div>
+                      )}
                       <input
                         className="dosage-input"
                         placeholder="Dosage — e.g. 1 drop, both eyes, 3x daily"
@@ -399,26 +492,16 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved }) {
             )}
 
             <div className="med-manual">
-              <input
-                list="medMasterList"
-                className="med-search"
+              <MedicinePicker
                 id="medSearchInput"
-                placeholder="Search medicine name, or type a new one…"
-                aria-label="Medicine name"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    addMedManual();
-                  }
-                }}
+                onChange={setSearch}
+                onPick={pickMed}
+                onEnter={addMedManual}
+                reloadKey={medsKey}
+                placeholder="Search brand or generic name, or type a new one…"
+                ariaLabel="Medicine name"
               />
-              <datalist id="medMasterList">
-                {meds.map((m) => (
-                  <option value={m.name} key={m.id ?? m.name} />
-                ))}
-              </datalist>
               <datalist id="rxDosagePresets">
                 {DOSAGE_PRESETS.map((d) => (
                   <option value={d} key={d} />
