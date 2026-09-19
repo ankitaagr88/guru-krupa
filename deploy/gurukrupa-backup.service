@@ -1,0 +1,12 @@
+# One-shot unit triggered by gurukrupa-backup.timer.
+# Run manually: sudo systemctl start gurukrupa-backup.service
+[Unit]
+Description=Gurukrupa nightly database + uploads backup
+After=postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env bash /srv/gurukrupa/deploy/backup-db.sh
+Nice=10
+IOSchedulingClass=idle

@@ -1,0 +1,33 @@
+# systemd unit for the Gurukrupa Eye Hospital FastAPI backend.
+# Install: sudo cp deploy/gurukrupa-api.service /etc/systemd/system/
+#          sudo systemctl daemon-reload && sudo systemctl enable --now gurukrupa-api
+# Logs:    journalctl -u gurukrupa-api -f
+
+[Unit]
+Description=Gurukrupa Eye Hospital API (uvicorn)
+After=network-online.target postgresql.service
+Wants=network-online.target
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=gurukrupa
+Group=gurukrupa
+WorkingDirectory=/srv/gurukrupa/backend
+EnvironmentFile=/srv/gurukrupa/backend/.env
+# Bind to localhost only; Nginx terminates TLS and proxies /api/ here.
+ExecStart=/srv/gurukrupa/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 2 --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=always
+RestartSec=3
+KillSignal=SIGINT
+TimeoutStopSec=20
+
+# Hardening (uploads dir must stay writable for photo uploads)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/srv/gurukrupa/uploads /srv/gurukrupa/backend
+
+[Install]
+WantedBy=multi-user.target
