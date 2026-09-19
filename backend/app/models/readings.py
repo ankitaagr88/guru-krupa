@@ -9,7 +9,7 @@ READING_SOURCES = ("scanned", "manual", "corrected")
 READING_STATUSES = ("pending", "processing", "done", "failed")
 # One key per machine in TEST_TYPES; the display label lives with the OCR template.
 MACHINE_KEYS = ("hnt1p_tono", "hrk8000a_ref", "hrk8000a_ker", "clm1_lensmeter",
-                "ypc100k_ref", "ypc100k_ker", "tbut_schirmer")
+                "ypc100k_ref", "ypc100k_ker", "hbm1_biometry", "tbut_schirmer")
 
 
 class Reading(Base):
@@ -26,5 +26,10 @@ class Reading(Base):
     confidence: Mapped[float | None] = mapped_column(Float)
     client_uuid: Mapped[str | None] = mapped_column(String(36), unique=True)  # idempotent offline retry (B6)
     error: Mapped[str | None] = mapped_column(String(255))
+    # Printout photos are not kept long-term: once a person approves the extracted values the image
+    # file is deleted and image_path cleared (see services.readings.approve_reading / purge_stale_images).
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    approved_by_id: Mapped[int | None] = mapped_column(ForeignKey("staff.id"))
 
     visit = relationship("Visit", back_populates="readings")
+    approved_by = relationship("Staff", foreign_keys=[approved_by_id])

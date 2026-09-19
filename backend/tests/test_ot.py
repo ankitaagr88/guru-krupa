@@ -242,3 +242,52 @@ def test_deep_merge_unit():
     out = svc.deep_merge(base, {"a": {"c": {"x": 3}}, "e": [2], "f": None})
     assert out == {"a": {"b": 1, "c": {"d": 2, "x": 3}}, "e": [2], "f": None}
     assert base == {"a": {"b": 1, "c": {"d": 2}}, "e": [1]}  # input untouched
+
+
+def test_biometry_patch_unit():
+    values = [{"l": "AL (R)", "v": "22.90"}, {"l": "AL (L)", "v": "22.80"}, {"l": "ACD (R)", "v": "2.70"},
+              {"l": "K1 (R)", "v": "43.27"}, {"l": "K2 (L)", "v": "43.93"}, {"l": "Target (R)", "v": "0.00"},
+              {"l": "Axis (R)", "v": "65"},  # no slot in preOpBiometry
+              {"l": "K1 (L)", "v": "99.00", "ok": False}]  # failed sanity -> not merged
+    assert svc.biometry_patch(values) == {"AL": {"R": "22.90mm", "L": "22.80mm"}, "ACD": {"R": "2.70mm"},
+                                         "K1": {"R": "43.27D"}, "K2": {"L": "43.93D"},
+                                         "targetRefraction": {"R": "0.00D"}}
+
+
+def test_biometry_scan_real_iol_report(client, admin_headers, tmp_path, monkeypatch):
+    from app.ocr import tesseract_available
+
+    if not tesseract_available():
+        pytest.skip("Tesseract binary not reachable (set TESSERACT_CMD)")
+    monkeypatch.setattr(settings, "UPLOAD_DIR", str(tmp_path))
+    c = _case(client, admin_headers, patientName="Rujavana Madhani", timeSlot="3:45 PM",
+              date=(D0 + timedelta(days=40)).isoformat(), preOpBiometry={"AL": {"R": "old", "L": ""}})
+    cid = c["id"]
+    sample = Path(__file__).parent / "ocr_samples" / "hbm1_iol_report_01.png"
+    r = client.post(f"/api/ot/cases/{cid}/biometry/scan",
+                    files={"image": ("iol.png", sample.read_bytes(), "image/png")}, headers=admin_headers)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert set(body) == {"case", "values", "confidence"}
+    got = {v["l"]: v["v"] for v in body["values"]}
+    assert got["AL (R)"] == "22.90" and got["AL (L)"] == "22.80" and got["K1 (R)"] == "43.27"
+    assert got["K2 (L)"] == "43.93" and got["Target (R)"] == "0.00" and got["Axis (L)"] == "166"
+    assert body["confidence"] >= 0.9 and all("ok" not in v for v in body["values"])
+    bio = body["case"]["preOpBiometry"]
+    assert bio["AL"] == {"R": "22.90mm", "L": "22.80mm"} and bio["ACD"] == {"R": "2.70mm", "L": "2.77mm"}
+    assert bio["K1"] == {"R": "43.27D", "L": "43.34D"} and bio["K2"] == {"R": "43.48D", "L": "43.93D"}
+    assert bio["targetRefraction"] == {"R": "0.00D", "L": "0.00D"}
+    assert "Axis" not in bio
+    # persisted
+    assert client.get(f"/api/ot/cases/{cid}", headers=admin_headers).json()["preOpBiometry"]["K1"]["R"] == "43.27D"
+    # the report photo is kept under UPLOAD_DIR/ot/
+    assert list((tmp_path / "ot").rglob("*.png"))
+    # validation
+    assert client.post(f"/api/ot/cases/{cid}/biometry/scan", files={"image": ("x.txt", b"hi", "text/plain")},
+                       headers=admin_headers).status_code == 415
+    assert client.post(f"/api/ot/cases/{cid}/biometry/scan", files={"image": ("e.png", b"", "image/png")},
+                       headers=admin_headers).status_code == 400
+    assert client.post("/api/ot/cases/999999/biometry/scan", files={"image": ("iol.png", PNG, "image/png")},
+                       headers=admin_headers).status_code == 404
+    assert client.post(f"/api/ot/cases/{cid}/biometry/scan", files={"image": ("junk.png", PNG, "image/png")},
+                       headers=admin_headers).status_code in (200, 422)  # unreadable 8x8 png: no values or 422

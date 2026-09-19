@@ -16,6 +16,11 @@ RANGES: dict[str, tuple[float, float, float | None, bool]] = {
     "K2": (35.0, 55.0, None, False),
     "TBUT": (0, 60, None, False),
     "SCHIMER": (0, 40, None, False),
+    # HBM-1 biometry
+    "AL": (18.0, 32.0, None, False),
+    "ACD": (1.5, 5.0, None, False),
+    "AXIS": (0, 180, None, True),
+    "TARGET": (-5.0, 2.0, None, False),
 }
 
 _NUM = re.compile(r"[-+]?\d+(?:\.\d+)?")

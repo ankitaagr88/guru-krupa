@@ -33,6 +33,16 @@ class ReadingOut(CamelModel):
     confidence: float | None
     client_uuid: str | None
     error: str | None
+    approved: bool = False  # a person approved the values; the printout photo has been deleted
+    approved_at: datetime | None = None
+    approved_by: str | None = None  # staff name
+    approved_by_id: int | None = None
+
+
+class ReadingApproveIn(CamelModel):
+    """`POST /readings/{id}/approve`: optionally correct the values in the same step."""
+
+    values: list[ReadingValue] | None = None
 
 
 class ManualReadingIn(CamelModel):

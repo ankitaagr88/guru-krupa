@@ -7,6 +7,7 @@ from typing import Any
 from pydantic import Field
 
 from app.schemas.common import CamelModel
+from app.schemas.readings import ReadingValue
 
 
 class LensTierOut(CamelModel):
@@ -76,3 +77,12 @@ class OtCaseOut(CamelModel):
     billing: dict[str, Any]  # stored keys + computed `lensPrice` and `total`
     created_at: datetime
     updated_at: datetime | None
+
+
+class OtBiometryScanOut(CamelModel):
+    """`POST /ot/cases/{id}/biometry/scan`: the case after merging the readable HBM-1 values, every
+    extracted value (`ok: false` = failed its sanity range and was NOT merged) and the OCR confidence."""
+
+    case: OtCaseOut
+    values: list[ReadingValue]
+    confidence: float

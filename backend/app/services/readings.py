@@ -2,13 +2,18 @@
 
 Scanned flow: POST /readings saves the photo and a `pending` Reading, then `process_reading`
 runs in a background task with its own DB session: preprocess -> Tesseract -> template parser ->
-sanity flags -> `done` (or `failed` with `error`). Nothing here can leave a row in `processing`."""
+sanity flags -> `done` (or `failed` with `error`). Nothing here can leave a row in `processing`.
+
+Twin machines: one HRK-8000A / YPC-100K slip carries both the REF and the KER section, so when the
+other section is readable (>= MIN_TWIN_FIELDS fields) a second `scanned` Reading for the twin
+machine is created from the same image (`client_uuid=None`, so idempotency stays on the original)."""
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.db import SessionLocal, utcnow
 from app.models.audit import AuditLog
 from app.models.patients import ExamPhoto, Visit
@@ -22,7 +27,10 @@ log = logging.getLogger(__name__)
 
 CORRECTED_SOURCE = "corrected"
 CORRECTED_ACTION = "reading.correct"
+APPROVED_ACTION = "reading.approve"
+PURGE_ACTION = "reading.purge_image"
 NO_FIELDS_ERROR = "No readable fields found - retake the photo (flat, well lit, printout filling the frame)"
+MIN_TWIN_FIELDS = 3  # the other section of a REF/KER slip must yield at least this many fields to be stored
 
 
 class ReadingError(Exception):
@@ -35,6 +43,10 @@ class ManualOnly(ReadingError):
 
 class UnknownMachine(ReadingError):
     pass
+
+
+class NotReady(ReadingError):
+    """Approve called while OCR has not finished (pending / processing)."""
 
 
 def _aware(dt: datetime | None) -> datetime | None:
@@ -106,7 +118,8 @@ def process_reading(reading_id: int) -> None:
         reading.error = None
         db.commit()
         try:
-            _run_ocr(reading)
+            for derived in _run_ocr(reading):
+                db.add(derived)
         except Exception as exc:  # noqa: BLE001 - any failure must land in `failed`, never stay `processing`
             log.exception("OCR failed for reading %s", reading_id)
             db.rollback()
@@ -117,7 +130,8 @@ def process_reading(reading_id: int) -> None:
         db.commit()
 
 
-def _run_ocr(reading: Reading) -> None:
+def _run_ocr(reading: Reading) -> list[Reading]:
+    """Fill `reading` from its image; return derived (twin-machine) readings to add, if any."""
     # Imported lazily so the API can start (and manual readings work) without cv2/tesseract.
     from app.ocr.engine import recognise
     from app.ocr.preprocess import preprocess
@@ -133,6 +147,12 @@ def _run_ocr(reading: Reading) -> None:
         reading.status, reading.error = "done", None
     else:
         reading.status, reading.error = "failed", NO_FIELDS_ERROR
+    derived: list[Reading] = []
+    if machine.twin_key and len(result.twin_values) >= MIN_TWIN_FIELDS:
+        derived.append(Reading(visit_id=reading.visit_id, machine_key=machine.twin_key, source="scanned",
+                               status="done", image_path=reading.image_path, captured_at=reading.captured_at,
+                               values=result.twin_values, confidence=result.twin_confidence, client_uuid=None))
+    return derived
 
 
 # ---------------------------------------------------------------- correction / delete
@@ -160,11 +180,64 @@ def set_values(db: Session, reading: Reading, values: list[ReadingValue], by_sta
     return reading
 
 
+# ---------------------------------------------------------------- approval / image retention
+
+def _image_referenced_elsewhere(db: Session, reading: Reading, path: str) -> bool:
+    """A REF/KER twin reading shares the photo; the file may only go once nobody references it."""
+    return db.scalar(select(Reading.id).where(Reading.image_path == path, Reading.id != reading.id).limit(1)) is not None
+
+
+def _drop_image(db: Session, reading: Reading) -> None:
+    path = reading.image_path
+    reading.image_path = None
+    if path and not _image_referenced_elsewhere(db, reading, path):
+        uploads.delete_upload(path)
+
+
+def approve_reading(db: Session, reading: Reading, by_staff: Staff | int | None,
+                    values: list[ReadingValue] | None = None) -> Reading:
+    """A person confirms the extracted values (optionally correcting them first): stamp approved_at /
+    approved_by, mark done, delete the printout photo and clear image_path, audit `reading.approve`."""
+    if reading.status in ("pending", "processing"):
+        raise NotReady(reading.status)
+    staff_id = by_staff.id if isinstance(by_staff, Staff) else by_staff
+    if values is not None:
+        set_values(db, reading, values, staff_id)
+    had_image = reading.image_path
+    _drop_image(db, reading)
+    reading.status = "done"
+    reading.error = None
+    reading.approved_at = utcnow()
+    reading.approved_by_id = staff_id
+    db.add(AuditLog(staff_id=staff_id, action=APPROVED_ACTION, entity="reading", entity_id=reading.id,
+                    detail={"values": reading.values, "imageDeleted": bool(had_image)}))
+    db.commit()
+    return reading
+
+
+def purge_stale_images(db: Session, older_than_days: int | None = None) -> int:
+    """Safety net (cron: `python -m app.maintenance`): delete the photo of every done/failed reading
+    captured more than N days ago even if nobody approved it. Returns the number of images removed."""
+    days = settings.READING_IMAGE_RETENTION_DAYS if older_than_days is None else older_than_days
+    cutoff = utcnow() - timedelta(days=days)
+    stale = list(db.scalars(select(Reading).where(Reading.image_path.is_not(None),
+                                                  Reading.status.in_(("done", "failed")),
+                                                  Reading.captured_at < cutoff).order_by(Reading.id)))
+    for reading in stale:
+        _drop_image(db, reading)
+        db.add(AuditLog(staff_id=None, action=PURGE_ACTION, entity="reading", entity_id=reading.id,
+                        detail={"olderThanDays": days}))
+    db.commit()
+    return len(stale)
+
+
 def delete_reading(db: Session, reading: Reading) -> None:
     path = reading.image_path
     db.delete(reading)
     db.commit()
-    uploads.delete_upload(path)
+    # A REF/KER twin reading shares the photo: only remove the file once nobody references it.
+    if path and db.scalar(select(Reading.id).where(Reading.image_path == path).limit(1)) is None:
+        uploads.delete_upload(path)
 
 
 def for_visit(db: Session, visit_id: int) -> list[Reading]:
@@ -179,7 +252,9 @@ def reading_out(db: Session, reading: Reading) -> ReadingOut:
         source=reading.source, corrected=is_corrected(db, reading), captured_at=_aware(reading.captured_at),
         image_path=reading.image_path, image_url=uploads.public_url(reading.image_path), status=reading.status,
         values=[ReadingValue(**v) for v in (reading.values or [])], confidence=reading.confidence,
-        client_uuid=reading.client_uuid, error=reading.error)
+        client_uuid=reading.client_uuid, error=reading.error,
+        approved=reading.approved_at is not None, approved_at=_aware(reading.approved_at),
+        approved_by=reading.approved_by.name if reading.approved_by else None, approved_by_id=reading.approved_by_id)
 
 
 # ---------------------------------------------------------------- exam photos

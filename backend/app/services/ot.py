@@ -15,6 +15,7 @@ from app.models.ot import (OT_STATUSES, OtCase, OtConsentPhoto, empty_billing, e
                            empty_operative, empty_post_op)
 from app.models.patients import Patient
 from app.schemas.ot import LensTierOut, OtCaseOut, OtConsentPhotoOut, OtSlotOut
+from app.schemas.readings import ReadingValue
 from app.services.queue import today
 
 SLOT_STEP_MIN = 45
@@ -217,7 +218,7 @@ def cancel_case(db: Session, case: OtCase) -> OtCase:
 _EXT_BY_TYPE = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/heic": "heic"}
 
 
-def save_consent_image(data: bytes, filename: str | None, content_type: str | None) -> str:
+def save_ot_image(data: bytes, filename: str | None, content_type: str | None) -> str:
     """Write bytes to UPLOAD_DIR/ot/<yyyy>/<mm>/<uuid>.<ext>; return the path relative to UPLOAD_DIR."""
     ext = Path(filename or "").suffix.lstrip(".").lower() or _EXT_BY_TYPE.get(content_type or "", "jpg")
     now = utcnow()
@@ -226,6 +227,9 @@ def save_consent_image(data: bytes, filename: str | None, content_type: str | No
     full.parent.mkdir(parents=True, exist_ok=True)
     full.write_bytes(data)
     return rel.as_posix()
+
+
+save_consent_image = save_ot_image
 
 
 def add_consent_photo(db: Session, case: OtCase, data: bytes, filename: str | None,
@@ -244,6 +248,48 @@ def remove_consent_photo(db: Session, photo: OtConsentPhoto) -> None:
         full.unlink(missing_ok=True)
     except OSError:
         pass
+
+
+# --- HBM-1 biometry scan -----------------------------------------------------------------------
+
+BIOMETRY_MACHINE = "hbm1_biometry"
+# OCR field -> (preOpBiometry key, unit suffix); Axis has no slot in the mockup's preOpBiometry.
+_BIOMETRY_MAP = {"AL": ("AL", "mm"), "ACD": ("ACD", "mm"), "K1": ("K1", "D"), "K2": ("K2", "D"),
+                 "Target": ("targetRefraction", "D")}
+
+
+def biometry_patch(values: list[dict]) -> dict:
+    """{l, v, ok} rows from the HBM-1 parser -> the mockup's `preOpBiometry` strings
+    (`AL: {R: "22.90mm"}`, `K1: {R: "43.27D"}`, ...). Values flagged `ok: false` are left out."""
+    patch: dict[str, dict[str, str]] = {}
+    for item in values:
+        if item.get("ok") is False:
+            continue
+        label = item.get("l", "")
+        field, _, eye = label.rpartition(" ")
+        eye = eye.strip("()")
+        if field not in _BIOMETRY_MAP or eye not in ("R", "L"):
+            continue
+        key, unit = _BIOMETRY_MAP[field]
+        patch.setdefault(key, {})[eye] = f"{item['v']}{unit}"
+    return patch
+
+
+def scan_biometry(db: Session, case: OtCase, data: bytes, filename: str | None,
+                  content_type: str | None) -> tuple[OtCase, list[ReadingValue], float]:
+    """Run the HBM-1 OCR pipeline on an IOL / biometry report photo synchronously (one page) and
+    deep-merge the plausible values into `pre_op_biometry`. The photo is kept under UPLOAD_DIR/ot/."""
+    from app.ocr.engine import recognise  # lazy: the API must start without cv2/tesseract
+    from app.ocr.preprocess import preprocess
+    from app.ocr.templates import MACHINES
+
+    rel = save_ot_image(data, filename, content_type)
+    result = recognise(preprocess(Path(settings.UPLOAD_DIR) / rel), MACHINES[BIOMETRY_MACHINE])
+    patch = biometry_patch(result.values)
+    if patch:
+        case.pre_op_biometry = deep_merge(case.pre_op_biometry or empty_biometry(), patch)
+        db.commit()
+    return case, [ReadingValue(**v) for v in result.values], result.confidence
 
 
 # --- output ------------------------------------------------------------------------------------

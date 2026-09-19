@@ -70,7 +70,7 @@ def test_machines(client, admin_headers):
     assert r.status_code == 200
     rows = r.json()
     assert [m["key"] for m in rows] == ["hnt1p_tono", "hrk8000a_ref", "hrk8000a_ker", "clm1_lensmeter",
-                                        "ypc100k_ref", "ypc100k_ker", "tbut_schirmer"]
+                                        "ypc100k_ref", "ypc100k_ker", "hbm1_biometry", "tbut_schirmer"]
     assert rows[0] == {"key": "hnt1p_tono", "label": "HNT-1P — Tono-Pachy (IOP & CCT)",
                        "fields": ["IOP (R)", "IOP (L)", "CIOP (R)", "CIOP (L)", "CCT (R)", "CCT (L)"],
                        "manualOnly": False}
@@ -256,3 +256,104 @@ def test_preprocess_on_uploaded_file_shape(upload_dir):
     Image.fromarray(np.full((300, 500, 3), 240, np.uint8)).save(p)
     out = preprocess(p)
     assert out.ndim == 2 and set(np.unique(out)) <= {0, 255}
+
+
+# ---------------------------------------------------------------- approval / image retention
+
+def test_approve_deletes_image_and_audits(client, admin_headers, visit_id, upload_dir, db):
+    r = upload(client, admin_headers, visit_id, "hrk8000a_ref")
+    rid, path = r.json()["id"], r.json()["imagePath"]
+    assert (upload_dir / path).is_file()
+    got = client.get(f"/api/readings/{rid}", headers=admin_headers).json()
+    assert got["status"] in ("done", "failed") and got["approved"] is False
+
+    new = [{"l": "SPH (R)", "v": "-0.25"}, {"l": "CYL (R)", "v": "-2.00"}]
+    r = client.post(f"/api/readings/{rid}/approve", json={"values": new}, headers=admin_headers)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["approved"] is True and body["approvedAt"] and body["approvedBy"] == "Admin" and body["approvedById"]
+    assert body["status"] == "done" and body["values"] == new and body["corrected"] is True
+    assert "imagePath" not in body and "imageUrl" not in body  # null -> excluded
+    assert not (upload_dir / path).exists()
+    row = db.get(Reading, rid)
+    assert row.image_path is None and row.approved_at is not None
+    audit = db.scalar(select(AuditLog).where(AuditLog.entity == "reading", AuditLog.entity_id == rid,
+                                             AuditLog.action == "reading.approve"))
+    assert audit is not None and audit.detail["imageDeleted"] is True and audit.detail["values"] == new
+    # approving again (no body) is harmless
+    assert client.post(f"/api/readings/{rid}/approve", headers=admin_headers).status_code == 200
+    assert client.post("/api/readings/999999/approve", headers=admin_headers).status_code == 404
+
+
+def test_approve_while_processing_is_409(client, admin_headers, visit_id, db):
+    r = upload(client, admin_headers, visit_id, "hrk8000a_ref")
+    rid = r.json()["id"]
+    row = db.get(Reading, rid)
+    row.status = "processing"
+    db.commit()
+    assert client.post(f"/api/readings/{rid}/approve", headers=admin_headers).status_code == 409
+    row.status = "pending"
+    db.commit()
+    assert client.post(f"/api/readings/{rid}/approve", headers=admin_headers).status_code == 409
+    assert db.get(Reading, rid).image_path  # untouched
+
+
+def test_purge_stale_images(client, admin_headers, visit_id, upload_dir, db):
+    from datetime import datetime, timedelta, timezone
+
+    old = upload(client, admin_headers, visit_id, "hrk8000a_ref").json()
+    fresh = upload(client, admin_headers, visit_id, "hnt1p_tono").json()
+    twin_a = upload(client, admin_headers, visit_id, "clm1_lensmeter").json()
+    for body in (old, twin_a):
+        row = db.get(Reading, body["id"])
+        row.captured_at = datetime.now(timezone.utc) - timedelta(days=10)
+        row.status = "done"
+    # a second reading sharing twin_a's photo (REF/KER twin): the file must survive until both are gone
+    shared = Reading(visit_id=visit_id, machine_key="hrk8000a_ker", source="scanned", status="done",
+                     image_path=twin_a["imagePath"], captured_at=datetime.now(timezone.utc), values=[])
+    db.add(shared)
+    db.commit()
+
+    assert svc.purge_stale_images(db, older_than_days=7) == 2
+    assert db.get(Reading, old["id"]).image_path is None and not (upload_dir / old["imagePath"]).exists()
+    assert db.get(Reading, twin_a["id"]).image_path is None and (upload_dir / twin_a["imagePath"]).is_file()
+    assert db.get(Reading, fresh["id"]).image_path == fresh["imagePath"] and (upload_dir / fresh["imagePath"]).is_file()
+    assert db.scalar(select(AuditLog).where(AuditLog.action == "reading.purge_image",
+                                            AuditLog.entity_id == old["id"])) is not None
+    assert svc.purge_stale_images(db, older_than_days=7) == 0  # idempotent
+
+    # the CLI entry point uses the configured retention
+    from app.maintenance import main
+
+    assert main(["--days", "7"]) == 0
+
+
+def test_hrk_upload_derives_twin_ker_reading(client, admin_headers, visit_id, upload_dir, db):
+    """One HRK-8000A photo carries [REF] and [KER]: uploading it as hrk8000a_ref also stores a
+    hrk8000a_ker reading (same image, source scanned, no client_uuid)."""
+    from pathlib import Path
+
+    from app.ocr import tesseract_available
+
+    if not tesseract_available():
+        pytest.skip("Tesseract binary not reachable (set TESSERACT_CMD)")
+    sample = Path(__file__).parent / "ocr_samples" / "hrk8000a_ref_ker_01.png"
+    r = upload(client, admin_headers, visit_id, "hrk8000a_ref", sample.read_bytes(), clientUuid=str(uuid.uuid4()))
+    assert r.status_code == 202, r.text
+    rows = client.get(f"/api/visits/{visit_id}/readings", headers=admin_headers).json()
+    by_key = {x["machineKey"]: x for x in rows}
+    assert set(by_key) == {"hrk8000a_ref", "hrk8000a_ker"}
+    ref, ker = by_key["hrk8000a_ref"], by_key["hrk8000a_ker"]
+    assert ref["status"] == "done" and {v["l"]: v["v"] for v in ref["values"]} == {
+        "SPH (R)": "+0.00", "CYL (R)": "-1.75", "AX (R)": "170", "SPH (L)": "+0.25", "CYL (L)": "-2.00",
+        "AX (L)": "161", "PD": "66mm"}
+    assert ker["status"] == "done" and ker["source"] == "scanned" and ker["confidence"] == 1.0
+    assert {v["l"]: v["v"] for v in ker["values"]} == {"K1 (R)": "41.40", "K2 (R)": "43.85", "K1 (L)": "42.15",
+                                                       "K2 (L)": "44.65"}
+    assert ker["imagePath"] == ref["imagePath"] and "clientUuid" not in ker and ref["clientUuid"]
+    assert ker["machine"] == "HRK-8000A — Keratometry (KER)"
+    # deleting one twin keeps the shared photo for the other
+    assert client.delete(f"/api/readings/{ker['id']}", headers=admin_headers).status_code == 204
+    assert (upload_dir / ref["imagePath"]).is_file()
+    assert client.delete(f"/api/readings/{ref['id']}", headers=admin_headers).status_code == 204
+    assert not (upload_dir / ref["imagePath"]).exists()

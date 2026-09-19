@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     JWT_EXPIRE_MIN: int = 60 * 12  # one clinic day
     UPLOAD_DIR: str = "./uploads"
     TESSERACT_CMD: str | None = None
+    READING_IMAGE_RETENTION_DAYS: int = 7  # printout photos of done/failed readings are purged after this
     CLINIC_TZ: str = "Asia/Kolkata"  # clinic day boundary, independent of server TZ
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
     USE_X_ACCEL: bool = False  # prod: empty body + X-Accel-Redirect so Nginx streams /uploads (deploy/README.md)

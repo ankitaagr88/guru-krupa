@@ -17,7 +17,8 @@ from app.models.readings import Reading
 from app.models.staff import Staff
 from app.ocr.templates import MACHINES, Machine
 from app.routes import register
-from app.schemas.readings import ExamPhotoOut, MachineOut, ManualReadingIn, ReadingOut, ReadingValuesPatch
+from app.schemas.readings import (ExamPhotoOut, MachineOut, ManualReadingIn, ReadingApproveIn, ReadingOut,
+                                  ReadingValuesPatch)
 from app.services import readings as svc
 from app.services import uploads
 
@@ -124,6 +125,19 @@ def patch_values(reading_id: int, data: ReadingValuesPatch, db: Session = Depend
     if reading.status == "processing":
         raise HTTPException(status.HTTP_409_CONFLICT, "Reading is still being processed")
     return svc.reading_out(db, svc.set_values(db, reading, data.values, user))
+
+
+@router.post("/readings/{reading_id}/approve", response_model=ReadingOut, response_model_exclude_none=True)
+def approve_reading(reading_id: int, data: ReadingApproveIn | None = None, db: Session = Depends(get_db),
+                    user: Staff = Depends(require_role(*ANY_STAFF))):
+    """A person approves the extracted values (optionally correcting them in the same call). The
+    printout photo is deleted and `imagePath` / `imageUrl` become null. 409 while OCR is still running."""
+    reading = _reading(db, reading_id)
+    try:
+        svc.approve_reading(db, reading, user, data.values if data else None)
+    except svc.NotReady as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"Reading is still {exc} - wait for OCR to finish")
+    return svc.reading_out(db, reading)
 
 
 @router.delete("/readings/{reading_id}", status_code=status.HTTP_204_NO_CONTENT)

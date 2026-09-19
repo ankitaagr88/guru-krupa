@@ -51,13 +51,17 @@ def as_map(values: list[dict]) -> dict[str, str]:
 
 def test_machines_match_mockup():
     assert list(MACHINES) == ["hnt1p_tono", "hrk8000a_ref", "hrk8000a_ker", "clm1_lensmeter", "ypc100k_ref",
-                              "ypc100k_ker", "tbut_schirmer"]
+                              "ypc100k_ker", "hbm1_biometry", "tbut_schirmer"]
     assert MACHINES["hnt1p_tono"].label == "HNT-1P — Tono-Pachy (IOP & CCT)"
     assert MACHINES["hrk8000a_ref"].fields == ("SPH (R)", "CYL (R)", "AX (R)", "SPH (L)", "CYL (L)", "AX (L)", "PD")
     assert MACHINES["clm1_lensmeter"].fields[2] == "AXS (R)"
     assert MACHINES["tbut_schirmer"].manual_only is True and MACHINES["tbut_schirmer"].fields == (
         "TBUT (R)", "TBUT (L)", "Schimer (R)", "Schimer (L)")
     assert all(not m.manual_only for k, m in MACHINES.items() if k != "tbut_schirmer")
+    assert MACHINES["hrk8000a_ref"].twin_key == "hrk8000a_ker" and MACHINES["ypc100k_ker"].twin_key == "ypc100k_ref"
+    assert MACHINES["hbm1_biometry"].label == "HBM-1 — Biometry (IOL report)" and MACHINES["hbm1_biometry"].fields == (
+        "AL (R)", "AL (L)", "ACD (R)", "ACD (L)", "K1 (R)", "K1 (L)", "K2 (R)", "K2 (L)", "Axis (R)", "Axis (L)",
+        "Target (R)", "Target (L)")
     assert MACHINES["ypc100k_ker"].as_dict() == {"key": "ypc100k_ker", "label": "YPC-100K — Keratometry (KER)",
                                                  "fields": ["K1 (R)", "K2 (R)", "K1 (L)", "K2 (L)"],
                                                  "manualOnly": False}

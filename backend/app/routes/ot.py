@@ -10,7 +10,8 @@ from app.db import get_db
 from app.models.ot import OtCase, OtConsentPhoto
 from app.models.staff import Staff
 from app.routes import register
-from app.schemas.ot import LensTierOut, OtCaseCreate, OtCaseOut, OtCasePatch, OtSlotOut, OtStatusIn
+from app.schemas.ot import (LensTierOut, OtBiometryScanOut, OtCaseCreate, OtCaseOut, OtCasePatch, OtSlotOut,
+                            OtStatusIn)
 from app.services import ot as svc
 
 router = register(APIRouter(prefix="/ot", tags=["ot"], dependencies=[Depends(get_current_user)]))
@@ -131,6 +132,26 @@ async def upload_consent_photo(case_id: int, file: UploadFile = File(...), db: S
         raise HTTPException(413, "Image too large")
     svc.add_consent_photo(db, case, data, file.filename, file.content_type)
     return svc.case_out(db, case)
+
+
+@router.post("/cases/{case_id}/biometry/scan", response_model=OtBiometryScanOut,
+             response_model_exclude_none=True)
+async def scan_biometry(case_id: int, image: UploadFile = File(...), db: Session = Depends(get_db)):
+    """Photo of the HBM-1 IOL / biometry report -> OCR (synchronous, one page) -> plausible values
+    deep-merged into `preOpBiometry`; every extracted value is returned, `ok: false` ones unmerged."""
+    case = _get(db, case_id)
+    if not (image.content_type or "").startswith("image/"):
+        raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "Only image uploads are accepted")
+    data = await image.read()
+    if not data:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Empty file")
+    if len(data) > MAX_IMAGE_BYTES:
+        raise HTTPException(413, "Image too large")
+    try:
+        case, values, conf = svc.scan_biometry(db, case, data, image.filename, image.content_type)
+    except Exception as exc:  # noqa: BLE001 - unreadable file / OCR engine missing -> a clear 422
+        raise HTTPException(422, f"Could not read the report: {type(exc).__name__}: {exc}"[:300])
+    return OtBiometryScanOut(case=svc.case_out(db, case), values=values, confidence=conf)
 
 
 @router.delete("/consent-photos/{photo_id}", status_code=status.HTTP_204_NO_CONTENT)
