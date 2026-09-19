@@ -3,7 +3,7 @@
 Also `GET /config` — the lists every screen needs (stages, protocol, referral sources, lens
 tiers, conditions), readable by any staff.
 """
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.auth.deps import get_current_user, require_role
@@ -11,12 +11,15 @@ from app.auth.roles import ADMIN_ONLY
 from app.db import get_db
 from app.models.staff import Staff
 from app.routes import register
-from app.schemas.admin import (ConfigOut, IdOrder, LensTierIn, LensTierOut, LensTierPatch, PasswordIn,
+from app.schemas.admin import (ConfigOut, IdOrder, LensTierIn, LensTierOut, LensTierPatch, MedicineFormIn,
+                               MedicineFormOut, MedicineFormPatch, MedicineIn, MedicinePatch, PasswordIn,
                                ProtocolStepIn, ProtocolStepOut, ProtocolStepPatch, ReferralSourceIn,
                                ReferralSourceOut, ReferralSourcePatch, StaffIn, StaffPatch, StageIn, StageOrder,
                                StageOut, StagePatch)
 from app.schemas.auth import StaffOut
+from app.schemas.pharmacy import MedicineOut
 from app.services import admin as svc
+from app.services import pharmacy as pharmacy_svc
 
 router = register(APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(get_current_user)]))
 config_router = register(APIRouter(tags=["config"], dependencies=[Depends(get_current_user)]))
@@ -177,6 +180,95 @@ def patch_lens_tier(key: str, data: LensTierPatch, db: Session = Depends(get_db)
 def delete_lens_tier(key: str, db: Session = Depends(get_db), user: Staff = admin_user):
     try:
         svc.delete_lens_tier(db, svc.get_lens_tier(db, key), user)
+    except svc.AdminError as exc:
+        raise _http(exc)
+    return NO_CONTENT
+
+
+# --------------------------------------------------------------------------- medicine forms
+@router.get("/medicine-forms", response_model=list[MedicineFormOut])
+def list_medicine_forms(db: Session = Depends(get_db)):
+    """Every type incl. retired ones (admin table); `GET /config` lists only the active ones."""
+    return svc.medicine_forms(db)
+
+
+@router.post("/medicine-forms", response_model=MedicineFormOut, status_code=status.HTTP_201_CREATED)
+def create_medicine_form(data: MedicineFormIn, db: Session = Depends(get_db), user: Staff = admin_user):
+    try:
+        return svc.create_medicine_form(db, key=data.key, label=data.label, by=user)
+    except svc.AdminError as exc:
+        raise _http(exc)
+
+
+@router.put("/medicine-forms/order", response_model=list[MedicineFormOut])
+def reorder_medicine_forms(data: StageOrder, db: Session = Depends(get_db), user: Staff = admin_user):
+    try:
+        return svc.reorder_medicine_forms(db, data.keys, user)
+    except svc.AdminError as exc:
+        raise _http(exc)
+
+
+@router.patch("/medicine-forms/{key}", response_model=MedicineFormOut)
+def patch_medicine_form(key: str, data: MedicineFormPatch, db: Session = Depends(get_db), user: Staff = admin_user):
+    try:
+        return svc.update_medicine_form(db, svc.get_medicine_form(db, key), _patch_values(data), user)
+    except svc.AdminError as exc:
+        raise _http(exc)
+
+
+@router.delete("/medicine-forms/{key}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_medicine_form(key: str, db: Session = Depends(get_db), user: Staff = admin_user):
+    try:
+        svc.delete_medicine_form(db, svc.get_medicine_form(db, key), user)
+    except svc.AdminError as exc:
+        raise _http(exc)
+    return NO_CONTENT
+
+
+# --------------------------------------------------------------------------- medicines
+def _med_out(db: Session, med) -> MedicineOut:
+    return pharmacy_svc.medicine_out(med, pharmacy_svc.form_labels(db))
+
+
+@router.get("/medicines", response_model=list[MedicineOut])
+def list_medicines(include_inactive: bool = Query(False, alias="includeInactive"), db: Session = Depends(get_db)):
+    labels = pharmacy_svc.form_labels(db)
+    return [pharmacy_svc.medicine_out(m, labels) for m in svc.medicines(db, include_inactive)]
+
+
+@router.post("/medicines", response_model=MedicineOut, status_code=status.HTTP_201_CREATED)
+def create_medicine(data: MedicineIn, db: Session = Depends(get_db), user: Staff = admin_user):
+    try:
+        med = svc.create_medicine(db, name=data.name, brand=data.brand, composition=data.composition, form=data.form,
+                                  strength=data.strength, pack_size=data.pack_size, manufacturer=data.manufacturer,
+                                  by=user)
+    except svc.AdminError as exc:
+        raise _http(exc)
+    return _med_out(db, med)
+
+
+@router.get("/medicines/{medicine_id}", response_model=MedicineOut)
+def get_medicine(medicine_id: int, db: Session = Depends(get_db)):
+    try:
+        return _med_out(db, svc.get_medicine(db, medicine_id))
+    except svc.AdminError as exc:
+        raise _http(exc)
+
+
+@router.patch("/medicines/{medicine_id}", response_model=MedicineOut)
+def patch_medicine(medicine_id: int, data: MedicinePatch, db: Session = Depends(get_db), user: Staff = admin_user):
+    try:
+        med = svc.update_medicine(db, svc.get_medicine(db, medicine_id), data.model_dump(exclude_unset=True), user)
+    except svc.AdminError as exc:
+        raise _http(exc)
+    return _med_out(db, med)
+
+
+@router.delete("/medicines/{medicine_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_medicine(medicine_id: int, db: Session = Depends(get_db), user: Staff = admin_user):
+    """Soft delete (`active=false`): the row stays for old prescriptions but leaves the picker."""
+    try:
+        svc.delete_medicine(db, svc.get_medicine(db, medicine_id), user)
     except svc.AdminError as exc:
         raise _http(exc)
     return NO_CONTENT

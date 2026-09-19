@@ -2,15 +2,16 @@ from datetime import date
 
 from sqlalchemy import func, select
 
-from app.models import (InventoryItem, LensTier, Medicine, OtCase, OtConsentPhoto, Patient, Prescription,
-                        PrescriptionLine, ProtocolStep, Reading, ReferralSource, Stage, Visit)
-from app.seed.reference import INVENTORY, LENS_TIERS, MEDICINE_LIST, PROTOCOL_STEPS, REFERRAL_SOURCES, STAGES
+from app.models import (InventoryItem, LensTier, Medicine, MedicineForm, OtCase, OtConsentPhoto, Patient,
+                        Prescription, PrescriptionLine, ProtocolStep, Reading, ReferralSource, Stage, Visit)
+from app.seed.reference import (INVENTORY, LENS_TIERS, MEDICINE_BRANDS, MEDICINE_FORMS, MEDICINE_LIST,
+                                PROTOCOL_STEPS, REFERRAL_SOURCES, STAGES)
 from app.seed.reference import seed_reference
 
 
 def _counts(db):
     return {m.__tablename__: db.scalar(select(func.count()).select_from(m))
-            for m in (Stage, ProtocolStep, ReferralSource, LensTier, Medicine, InventoryItem)}
+            for m in (Stage, ProtocolStep, ReferralSource, LensTier, Medicine, MedicineForm, InventoryItem)}
 
 
 def test_seed_reference_is_idempotent(db):
@@ -18,7 +19,8 @@ def test_seed_reference_is_idempotent(db):
     first = _counts(db)
     assert first == {"stages": len(STAGES), "protocol_steps": len(PROTOCOL_STEPS),
                      "referral_sources": len(REFERRAL_SOURCES), "lens_tiers": len(LENS_TIERS),
-                     "medicines": len(MEDICINE_LIST), "inventory_items": len(INVENTORY)}
+                     "medicines": len(MEDICINE_LIST) + len(MEDICINE_BRANDS), "medicine_forms": len(MEDICINE_FORMS),
+                     "inventory_items": len(INVENTORY)}
 
     # Opening stock survives a re-seed; labels/prices are re-asserted.
     cyclo = db.scalar(select(InventoryItem).filter_by(name="Cyclopentolate 1%"))
@@ -36,6 +38,22 @@ def test_seed_reference_is_idempotent(db):
     assert cyclo.medicine_id is None  # dilation drops are stocked but not on the prescription list
     timolol = db.scalar(select(InventoryItem).filter_by(name="Timolol 0.5% eye drops"))
     assert timolol.medicine.name == "Timolol 0.5% eye drops"
+    # generic-only rows: name == composition, no brand; form guessed from the name
+    assert timolol.medicine.brand is None and timolol.medicine.composition == "Timolol 0.5% eye drops"
+    assert timolol.medicine.form == "drops" and timolol.medicine.display_name == "Timolol 0.5% eye drops"
+    assert db.scalar(select(Medicine).filter_by(name="Ofloxacin eye ointment")).form == "ointment"
+    assert db.scalar(select(Medicine).filter_by(name="Acetazolamide 250mg tablets")).form == "tablet"
+    # branded packs from the photos (ref files/med.jpeg, med 1.jpeg)
+    aquaray = db.scalar(select(Medicine).filter_by(name="Aquaray Gel"))
+    assert (aquaray.brand, aquaray.form, aquaray.strength, aquaray.pack_size, aquaray.manufacturer) == \
+        ("Aquaray Gel", "gel", "0.5%", "10 ml", "Raymed")
+    assert aquaray.display_name == "Aquaray Gel (Carboxymethylcellulose sodium eye drops IP)"
+    mosi = db.scalar(select(Medicine).filter_by(name="MOSI LP"))
+    assert mosi.form == "suspension" and mosi.manufacturer == "FDC" and mosi.pack_size == "5 ml"
+    assert "Loteprednol" in mosi.composition
+    assert [f.key for f in db.scalars(select(MedicineForm).order_by(MedicineForm.sort_order))] == \
+        [k for k, _ in MEDICINE_FORMS]
+    assert all(db.scalar(select(MedicineForm).filter_by(key=m.form)) for m in db.scalars(select(Medicine)))
 
     doctor = db.scalar(select(ReferralSource).filter_by(key="doctor"))
     assert doctor.needs_detail is True

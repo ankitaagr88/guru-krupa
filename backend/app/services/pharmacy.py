@@ -7,18 +7,18 @@ Mockup counterparts: `addMedManual`/`renderMeds`/`decrementInventory`/`pushLowSt
 import re
 from collections import defaultdict
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db import utcnow
 from app.models.audit import AuditLog
 from app.models.billing import PAYMENT_MODES, Bill, BillItem
 from app.models.patients import Visit
-from app.models.pharmacy import (INVENTORY_UNITS, STOCK_REASONS, InventoryItem, Medicine,
+from app.models.pharmacy import (INVENTORY_UNITS, STOCK_REASONS, InventoryItem, Medicine, MedicineForm,
                                  Prescription, PrescriptionLine, StockMovement)
 from app.models.staff import Staff
-from app.schemas.pharmacy import (BillItemOut, BillOut, InventoryItemOut, MovementOut, PrescriptionLineIn,
-                                  PrescriptionLineOut, PrescriptionOut, PrintLine, PrintPayload)
+from app.schemas.pharmacy import (BillItemOut, BillOut, InventoryItemOut, MedicineOut, MovementOut,
+                                  PrescriptionLineIn, PrescriptionLineOut, PrescriptionOut, PrintLine, PrintPayload)
 
 HOSPITAL = {
     "name": "Guru Krupa Eye Hospital & Laser Center",
@@ -159,20 +159,58 @@ DOSAGE_PHRASES = {p: (localize_dosage(p, "hindi"), localize_dosage(p, "gujarati"
 
 
 # --------------------------------------------------------------------------- medicines
+def form_labels(db: Session) -> dict[str, str]:
+    """MedicineForm key -> label (active or not: a retired type still prints on old prescriptions)."""
+    return {f.key: f.label for f in db.scalars(select(MedicineForm))}
+
+
 def search_medicines(db: Session, q: str, limit: int = 50) -> list[Medicine]:
+    """`buildMedDatalist`: case-insensitive substring on name, brand OR composition.
+
+    Ordering: brand / name prefix hits first, then composition prefix hits, then substring hits.
+    """
     stmt = select(Medicine).where(Medicine.active.is_(True)).order_by(Medicine.name).limit(limit)
     q = (q or "").strip().lower()
-    if q:
-        stmt = stmt.where(func.lower(Medicine.name).like(f"%{q}%"))
+    if not q:
+        return list(db.scalars(stmt))
+    like = f"%{q}%"
+    stmt = stmt.where(or_(func.lower(Medicine.name).like(like), func.lower(Medicine.brand).like(like),
+                          func.lower(Medicine.composition).like(like)))
     rows = list(db.scalars(stmt))
-    # prefix matches first, then substring
-    return sorted(rows, key=lambda m: (not m.name.lower().startswith(q), m.name.lower())) if q else rows
+
+    def rank(m: Medicine):
+        brand_prefix = m.name.lower().startswith(q) or (m.brand or "").lower().startswith(q)
+        comp_prefix = (m.composition or "").lower().startswith(q)
+        return (0 if brand_prefix else 1 if comp_prefix else 2, m.name.lower())
+
+    return sorted(rows, key=rank)
+
+
+def medicine_out(m: Medicine, labels: dict[str, str] | None = None) -> MedicineOut:
+    labels = labels or {}
+    return MedicineOut(id=m.id, name=m.name, brand=m.brand, composition=m.composition, form=m.form,
+                       form_label=labels.get(m.form, m.form), strength=m.strength, pack_size=m.pack_size,
+                       manufacturer=m.manufacturer, display_name=m.display_name)
+
+
+def find_medicine(db: Session, text: str) -> Medicine | None:
+    """Exact (case-insensitive) hit on name, brand or composition; name/brand wins over composition."""
+    key = (text or "").strip().lower()
+    if not key:
+        return None
+    hits = list(db.scalars(select(Medicine).where(Medicine.active.is_(True)).where(
+        or_(func.lower(Medicine.name) == key, func.lower(Medicine.brand) == key,
+            func.lower(Medicine.composition) == key)).order_by(Medicine.id)))
+    for m in hits:
+        if m.name.lower() == key or (m.brand or "").lower() == key:
+            return m
+    return hits[0] if hits else None
 
 
 def _medicine_for(db: Session, line: PrescriptionLineIn) -> Medicine | None:
     if line.medicine_id is not None:
         return db.get(Medicine, line.medicine_id)
-    return db.scalar(select(Medicine).where(func.lower(Medicine.name) == line.name.strip().lower()))
+    return find_medicine(db, line.name)
 
 
 def _item_for(db: Session, name: str, medicine: Medicine | None) -> InventoryItem | None:
@@ -272,29 +310,50 @@ def _reverse_movements(db: Session, rx: Prescription, staff_id: int | None) -> N
                              by_staff_id=staff_id))
 
 
-def prescription_out(rx: Prescription, low: list[InventoryItem] | None = None) -> PrescriptionOut:
-    return PrescriptionOut(
-        id=rx.id, visit_id=rx.visit_id, print_language=rx.print_language, created_at=rx.created_at,
-        lines=[PrescriptionLineOut(id=ln.id, medicine_id=ln.medicine_id, name=ln.name, matched=ln.matched,
-                                   dosage=ln.dosage, qty_given=ln.qty_given) for ln in rx.lines],
-        low_stock=[it.name for it in (low or [])])
+def _line_form(ln: PrescriptionLine, labels: dict[str, str]) -> tuple[str | None, str | None]:
+    med = ln.medicine
+    if med is None:
+        return None, None
+    return med.form, labels.get(med.form, med.form)
 
 
-def print_payload(rx: Prescription, lang: str | None) -> PrintPayload:
-    """`openPrescriptionModal` + `setLanguage`: the sheet the client renders / prints."""
+def prescription_out(db: Session, rx: Prescription, low: list[InventoryItem] | None = None) -> PrescriptionOut:
+    labels = form_labels(db)
+    lines = []
+    for ln in rx.lines:
+        form, form_label = _line_form(ln, labels)
+        lines.append(PrescriptionLineOut(id=ln.id, medicine_id=ln.medicine_id, name=ln.name, matched=ln.matched,
+                                         dosage=ln.dosage, qty_given=ln.qty_given, form=form, form_label=form_label))
+    return PrescriptionOut(id=rx.id, visit_id=rx.visit_id, print_language=rx.print_language, created_at=rx.created_at,
+                           lines=lines, low_stock=[it.name for it in (low or [])])
+
+
+def print_payload(db: Session, rx: Prescription, lang: str | None) -> PrintPayload:
+    """`openPrescriptionModal` + `setLanguage`: the sheet the client renders / prints.
+
+    Each line carries the brand (bold), the generic composition (under it) and the type so the
+    chemist can dispense the exact pack.
+    """
     visit = rx.visit
     patient = visit.patient
     code = LANGUAGE_ALIASES.get((lang or "").lower()) if lang else None
     if lang and code is None:
         raise BadValue(f"lang must be one of {sorted(LANGUAGE_ALIASES)}")
     code = code or rx.print_language or "english"
+    labels = form_labels(db)
+    lines = []
+    for ln in rx.lines:
+        med = ln.medicine
+        form, form_label = _line_form(ln, labels)
+        lines.append(PrintLine(name=ln.name, dosage=ln.dosage, dosage_local=localize_dosage(ln.dosage, code),
+                               qty_given=ln.qty_given, brand=med.brand if med else None,
+                               composition=med.composition if med else None, form=form, form_label=form_label,
+                               pack_size=med.pack_size if med else None))
     return PrintPayload(
         hospital=HOSPITAL,
         patient={"name": patient.name, "age": patient.age, "sex": patient.sex, "token": visit.token,
                  "date": visit.date.isoformat()},
-        language=LANGUAGE_NAMES.get(code, "english"),
-        lines=[PrintLine(name=ln.name, dosage=ln.dosage, dosage_local=localize_dosage(ln.dosage, code),
-                         qty_given=ln.qty_given) for ln in rx.lines])
+        language=LANGUAGE_NAMES.get(code, "english"), lines=lines)
 
 
 # --------------------------------------------------------------------------- inventory
@@ -309,18 +368,24 @@ def inventory_out(item: InventoryItem) -> InventoryItemOut:
                             medicine_id=item.medicine_id)
 
 
-def create_item(db: Session, *, name: str, unit: str, stock: int, reorder_level: int, medicine_id: int | None,
-                by: Staff | int | None) -> InventoryItem:
+def create_item(db: Session, *, name: str | None, unit: str, stock: int, reorder_level: int,
+                medicine_id: int | None, by: Staff | int | None) -> InventoryItem:
+    """`addInventoryItem`; `name` defaults to the linked medicine's name when only `medicineId` is sent."""
     if unit not in INVENTORY_UNITS:
         raise BadValue(f"unit must be one of {INVENTORY_UNITS}")
+    medicine = None
+    if medicine_id is not None:
+        medicine = db.get(Medicine, medicine_id)
+        if medicine is None:
+            raise BadValue(f"Unknown medicineId {medicine_id}")
+    name = (name or "").strip() or (medicine.name if medicine else "")
+    if not name:
+        raise BadValue("name is required unless medicineId is given")
     if stock < 0:
         raise NegativeStock(name)
-    if db.scalar(select(InventoryItem).where(func.lower(InventoryItem.name) == name.strip().lower())):
+    if db.scalar(select(InventoryItem).where(func.lower(InventoryItem.name) == name.lower())):
         raise Duplicate(f"Inventory item '{name}' already exists")
-    if medicine_id is not None and db.get(Medicine, medicine_id) is None:
-        raise BadValue(f"Unknown medicineId {medicine_id}")
-    item = InventoryItem(name=name.strip(), unit=unit, stock=stock, reorder_level=reorder_level,
-                         medicine_id=medicine_id)
+    item = InventoryItem(name=name, unit=unit, stock=stock, reorder_level=reorder_level, medicine_id=medicine_id)
     db.add(item)
     db.flush()
     if stock:

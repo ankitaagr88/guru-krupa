@@ -1,4 +1,5 @@
-"""Admin configuration (`renderAdmin`): stages, dilation protocol, referral sources, lens tiers, staff.
+"""Admin configuration (`renderAdmin`): stages, dilation protocol, referral sources, lens tiers, staff,
+medicine types and the medicine master list.
 
 Every write appends an AuditLog row. Errors are raised as AdminError subclasses and mapped to
 HTTP status codes by the route layer.
@@ -10,6 +11,7 @@ from app.auth.security import hash_password
 from app.models.audit import AuditLog
 from app.models.config import LensTier, ProtocolStep, ReferralSource, Stage
 from app.models.patients import Patient, Visit
+from app.models.pharmacy import Medicine, MedicineForm
 from app.models.staff import ROLES, Staff
 from app.seed.reference import CONDITIONS
 
@@ -299,7 +301,135 @@ def reset_password(db: Session, user: Staff, password: str, by) -> Staff:
     return user
 
 
+# --------------------------------------------------------------------------- medicine forms
+def medicine_forms(db: Session, active_only: bool = False) -> list[MedicineForm]:
+    stmt = select(MedicineForm).order_by(MedicineForm.sort_order, MedicineForm.id)
+    if active_only:
+        stmt = stmt.where(MedicineForm.active.is_(True))
+    return list(db.scalars(stmt))
+
+
+def get_medicine_form(db: Session, key: str) -> MedicineForm:
+    form = db.scalar(select(MedicineForm).filter_by(key=key))
+    if form is None:
+        raise NotFound("Medicine form not found")
+    return form
+
+
+def check_medicine_form(db: Session, key: str) -> MedicineForm:
+    """`Medicine.form` must be an existing *active* type key (no FK: types are plain admin config)."""
+    form = db.scalar(select(MedicineForm).where(MedicineForm.key == key, MedicineForm.active.is_(True)))
+    if form is None:
+        keys = [f.key for f in medicine_forms(db, active_only=True)]
+        raise BadValue(f"form must be one of {keys}")
+    return form
+
+
+def create_medicine_form(db: Session, *, key: str, label: str, by) -> MedicineForm:
+    if db.scalar(select(MedicineForm).filter_by(key=key)):
+        raise Conflict(f"Medicine form '{key}' already exists")
+    form = MedicineForm(key=key, label=label.strip(), sort_order=_next_order(db, MedicineForm), active=True)
+    db.add(form)
+    db.flush()
+    _audit(db, by, "medicine_form.create", "medicine_form", form.id, key=key, label=form.label)
+    db.commit()
+    return form
+
+
+def update_medicine_form(db: Session, form: MedicineForm, values: dict, by) -> MedicineForm:
+    changed = _apply(form, values)
+    _audit(db, by, "medicine_form.update", "medicine_form", form.id, key=form.key, **changed)
+    db.commit()
+    return form
+
+
+def delete_medicine_form(db: Session, form: MedicineForm, by) -> None:
+    used = db.scalar(select(func.count()).select_from(Medicine).where(Medicine.form == form.key))
+    if used:
+        raise Conflict(f"{used} medicine(s) use form '{form.key}'")
+    _audit(db, by, "medicine_form.delete", "medicine_form", form.id, key=form.key)
+    db.delete(form)
+    db.commit()
+
+
+def reorder_medicine_forms(db: Session, keys: list[str], by) -> list[MedicineForm]:
+    return _reorder(db, MedicineForm, keys, "key", by, "medicine_form.reorder", "medicine_form")
+
+
+# --------------------------------------------------------------------------- medicines
+def medicines(db: Session, include_inactive: bool = False) -> list[Medicine]:
+    stmt = select(Medicine).order_by(Medicine.name, Medicine.id)
+    if not include_inactive:
+        stmt = stmt.where(Medicine.active.is_(True))
+    return list(db.scalars(stmt))
+
+
+def get_medicine(db: Session, medicine_id: int) -> Medicine:
+    return _get_or_404(db, Medicine, medicine_id, "Medicine")
+
+
+def _medicine_name_taken(db: Session, name: str, exclude_id: int | None = None) -> bool:
+    stmt = select(Medicine).where(func.lower(Medicine.name) == name.lower())
+    if exclude_id is not None:
+        stmt = stmt.where(Medicine.id != exclude_id)
+    return db.scalar(stmt) is not None
+
+
+def create_medicine(db: Session, *, name: str | None, brand: str | None, composition: str, form: str,
+                    strength: str | None, pack_size: str | None, manufacturer: str | None, by) -> Medicine:
+    """A pack as an MR brings it. `name` (unique display name) defaults to brand, else composition."""
+    brand = (brand or "").strip() or None
+    composition = composition.strip()
+    name = (name or "").strip() or brand or composition
+    check_medicine_form(db, form)
+    if _medicine_name_taken(db, name):
+        raise Conflict(f"Medicine '{name}' already exists")
+    med = Medicine(name=name, brand=brand, composition=composition, form=form,
+                   strength=(strength or "").strip() or None, pack_size=(pack_size or "").strip() or None,
+                   manufacturer=(manufacturer or "").strip() or None, active=True)
+    db.add(med)
+    db.flush()
+    _audit(db, by, "medicine.create", "medicine", med.id, name=name, brand=brand, composition=composition, form=form)
+    db.commit()
+    return med
+
+
+def update_medicine(db: Session, med: Medicine, values: dict, by) -> Medicine:
+    values = dict(values)
+    for k in ("name", "brand", "composition", "strength", "pack_size", "manufacturer"):
+        if isinstance(values.get(k), str):
+            values[k] = values[k].strip()
+    if "form" in values and values["form"] is not None:
+        check_medicine_form(db, values["form"])
+    if values.get("name") and _medicine_name_taken(db, values["name"], exclude_id=med.id):
+        raise Conflict(f"Medicine '{values['name']}' already exists")
+    if values.get("name") == "":
+        del values["name"]
+    if values.get("composition") == "":
+        del values["composition"]
+    changed = {}
+    for k, v in values.items():
+        if v is None:
+            continue
+        if k in ("brand", "strength", "pack_size", "manufacturer") and v == "":
+            v = None  # "" clears an optional field (None in the payload means "leave unchanged")
+        if getattr(med, k) != v:
+            setattr(med, k, v)
+            changed[k] = v
+    _audit(db, by, "medicine.update", "medicine", med.id, name=med.name, **changed)
+    db.commit()
+    return med
+
+
+def delete_medicine(db: Session, med: Medicine, by) -> None:
+    """Soft delete: prescription lines keep pointing at the row; it just leaves the picker."""
+    med.active = False
+    _audit(db, by, "medicine.delete", "medicine", med.id, name=med.name)
+    db.commit()
+
+
 # --------------------------------------------------------------------------- /config
 def config(db: Session) -> dict:
     return {"stages": stages(db), "protocol_steps": protocol_steps(db), "referral_sources": referral_sources(db),
-            "lens_tiers": lens_tiers(db), "conditions": list(CONDITIONS)}
+            "lens_tiers": lens_tiers(db), "conditions": list(CONDITIONS),
+            "medicine_forms": medicine_forms(db, active_only=True)}

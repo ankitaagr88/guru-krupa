@@ -1,8 +1,8 @@
 import pytest
 from sqlalchemy import select
 
-from app.models import AuditLog, Patient, ReferralSource
-from app.seed.reference import CONDITIONS, seed_reference
+from app.models import AuditLog, Medicine, MedicineForm, Patient, ReferralSource
+from app.seed.reference import CONDITIONS, MEDICINE_FORMS, seed_reference
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -17,6 +17,10 @@ def _seed():
             db.delete(p)
         for s in db.scalars(select(ReferralSource).where(ReferralSource.key == "hoarding")):
             db.delete(s)
+        for m in db.scalars(select(Medicine).where(Medicine.name.like("Testbrand%"))):
+            db.delete(m)
+        for f in db.scalars(select(MedicineForm).where(MedicineForm.key.in_(["spray", "lozenge"]))):
+            db.delete(f)
         db.commit()
 
 
@@ -40,7 +44,7 @@ def test_config_shape(client, admin_headers, reception_headers):
     r = client.get("/api/config", headers=reception_headers)
     assert r.status_code == 200, r.text
     c = r.json()
-    assert set(c) == {"stages", "protocolSteps", "referralSources", "lensTiers", "conditions"}
+    assert set(c) == {"stages", "protocolSteps", "referralSources", "lensTiers", "conditions", "medicineForms"}
     assert [s["key"] for s in c["stages"]][:2] == ["reg", "pretest"] and c["stages"][-1]["key"] == "done"
     assert {"id", "key", "label", "cls", "sortOrder"} <= set(c["stages"][0])
     assert c["protocolSteps"][0]["name"] == "Tropicamide 0.8%" and c["protocolSteps"][0]["minutes"] == 5
@@ -49,6 +53,8 @@ def test_config_shape(client, admin_headers, reception_headers):
     assert next(s for s in c["referralSources"] if s["key"] == "self")["needsDetail"] is False
     assert {t["key"]: t["price"] for t in c["lensTiers"]}["monofocal"] == 28500
     assert c["conditions"] == CONDITIONS
+    assert c["medicineForms"] == [{"key": k, "label": lbl} for k, lbl in MEDICINE_FORMS]
+    assert c["medicineForms"][0] == {"key": "drops", "label": "Drops"}
 
 
 def test_stage_crud_reorder_and_active_visit_block(client, admin_headers, db):
@@ -188,6 +194,107 @@ def test_staff_create_duplicate_last_admin(client, admin_headers, admin_user, db
     assert {"staff.create", "staff.update", "staff.reset_password"} <= set(audit)
 
 
+MED_KEYS = {"id", "name", "brand", "composition", "form", "formLabel", "strength", "packSize", "manufacturer",
+            "displayName"}
+
+
+def test_medicine_forms_crud(client, admin_headers, db):
+    rows = client.get("/api/admin/medicine-forms", headers=admin_headers).json()
+    assert [r["key"] for r in rows][:4] == ["drops", "gel", "ointment", "suspension"]
+    assert set(rows[0]) == {"id", "key", "label", "sortOrder", "active"}
+    assert {"syrup", "gummies"} <= {r["key"] for r in rows}
+
+    r = client.post("/api/admin/medicine-forms", json={"key": "spray", "label": "Nasal spray"}, headers=admin_headers)
+    assert r.status_code == 201, r.text
+    assert r.json()["key"] == "spray" and r.json()["label"] == "Nasal spray" and r.json()["active"] is True
+    assert r.json()["sortOrder"] == max(x["sortOrder"] for x in rows) + 1
+    assert client.post("/api/admin/medicine-forms", json={"key": "spray", "label": "x"}, headers=admin_headers).status_code == 409
+    assert client.post("/api/admin/medicine-forms", json={"key": "Bad Key", "label": "x"}, headers=admin_headers).status_code == 422
+    r = client.patch("/api/admin/medicine-forms/spray", json={"label": "Spray"}, headers=admin_headers)
+    assert r.status_code == 200 and r.json()["label"] == "Spray"
+    assert client.patch("/api/admin/medicine-forms/nope", json={"label": "x"}, headers=admin_headers).status_code == 404
+    assert "spray" in [f["key"] for f in client.get("/api/config", headers=admin_headers).json()["medicineForms"]]
+
+    # retiring a type hides it from /config (and from new medicines) but keeps it on the admin list
+    r = client.patch("/api/admin/medicine-forms/spray", json={"active": False}, headers=admin_headers)
+    assert r.json()["active"] is False
+    assert "spray" not in [f["key"] for f in client.get("/api/config", headers=admin_headers).json()["medicineForms"]]
+    assert "spray" in [f["key"] for f in client.get("/api/admin/medicine-forms", headers=admin_headers).json()]
+    r = client.post("/api/admin/medicines", json={"composition": "Xylometazoline", "form": "spray"}, headers=admin_headers)
+    assert r.status_code == 422 and "form must be one of" in r.json()["detail"]
+
+    # a type in use cannot be deleted (seeded gel -> Aquaray Gel)
+    r = client.delete("/api/admin/medicine-forms/gel", headers=admin_headers)
+    assert r.status_code == 409 and "medicine(s) use form" in r.json()["detail"]
+    assert client.delete("/api/admin/medicine-forms/spray", headers=admin_headers).status_code == 204
+    assert client.delete("/api/admin/medicine-forms/spray", headers=admin_headers).status_code == 404
+
+    keys = [r["key"] for r in client.get("/api/admin/medicine-forms", headers=admin_headers).json()]
+    moved = keys[1:] + keys[:1]
+    r = client.put("/api/admin/medicine-forms/order", json={"keys": moved}, headers=admin_headers)
+    assert r.status_code == 200 and [f["key"] for f in r.json()] == moved
+    client.put("/api/admin/medicine-forms/order", json={"keys": keys}, headers=admin_headers)
+
+    actions = {a.action for a in db.scalars(select(AuditLog).where(AuditLog.entity == "medicine_form"))}
+    assert {"medicine_form.create", "medicine_form.update", "medicine_form.delete", "medicine_form.reorder"} <= actions
+
+
+def test_medicines_crud_soft_delete(client, admin_headers, db):
+    rows = client.get("/api/admin/medicines", headers=admin_headers).json()
+    assert len(rows) >= 12 and MED_KEYS == set(rows[0])
+    assert "Aquaray Gel" in [r["name"] for r in rows]
+
+    # brand + composition as an MR brings it: name defaults to the brand
+    body = {"brand": "Testbrand Eye Drops", "composition": "Ketorolac tromethamine 0.5%", "form": "drops",
+            "strength": "0.5%", "packSize": "5 ml", "manufacturer": "Sun Pharma"}
+    r = client.post("/api/admin/medicines", json=body, headers=admin_headers)
+    assert r.status_code == 201, r.text
+    m = r.json()
+    mid = m["id"]
+    assert m == {"id": mid, "name": "Testbrand Eye Drops", "brand": "Testbrand Eye Drops",
+                 "composition": "Ketorolac tromethamine 0.5%", "form": "drops", "formLabel": "Drops",
+                 "strength": "0.5%", "packSize": "5 ml", "manufacturer": "Sun Pharma",
+                 "displayName": "Testbrand Eye Drops (Ketorolac tromethamine 0.5%)"}
+    # duplicate name (case-insensitive) -> 409; unknown form -> 422; composition required -> 422
+    assert client.post("/api/admin/medicines", json={"brand": "testbrand eye drops", "composition": "x"},
+                       headers=admin_headers).status_code == 409
+    assert client.post("/api/admin/medicines", json={"composition": "x", "form": "lotion"}, headers=admin_headers).status_code == 422
+    assert client.post("/api/admin/medicines", json={"brand": "No composition"}, headers=admin_headers).status_code == 422
+    # generic-only row: name defaults to the composition, brand stays null
+    r = client.post("/api/admin/medicines", json={"composition": "Testbrand Generic Syrup", "form": "syrup"}, headers=admin_headers)
+    assert r.status_code == 201 and r.json()["name"] == "Testbrand Generic Syrup" and r.json()["brand"] is None
+    assert r.json()["formLabel"] == "Syrup" and r.json()["displayName"] == "Testbrand Generic Syrup"
+    gid = r.json()["id"]
+
+    # searchable by brand and by composition from the doctor's picker
+    assert [h["id"] for h in client.get("/api/medicines?q=testbrand eye", headers=admin_headers).json()] == [mid]
+    assert mid in [h["id"] for h in client.get("/api/medicines?q=tromethamine", headers=admin_headers).json()]
+
+    r = client.patch(f"/api/admin/medicines/{mid}", json={"packSize": "10 ml", "form": "gel", "manufacturer": ""},
+                     headers=admin_headers)
+    assert r.status_code == 200, r.text
+    assert r.json()["packSize"] == "10 ml" and r.json()["form"] == "gel" and r.json()["formLabel"] == "Gel"
+    assert r.json()["manufacturer"] is None  # "" clears an optional field
+    assert client.patch(f"/api/admin/medicines/{mid}", json={"form": "lotion"}, headers=admin_headers).status_code == 422
+    assert client.patch(f"/api/admin/medicines/{mid}", json={"name": "aquaray gel"}, headers=admin_headers).status_code == 409
+    assert client.patch("/api/admin/medicines/999999", json={"name": "x"}, headers=admin_headers).status_code == 404
+    assert client.get(f"/api/admin/medicines/{mid}", headers=admin_headers).json()["packSize"] == "10 ml"
+
+    # soft delete: gone from the picker and the default admin list, still present with includeInactive
+    assert client.delete(f"/api/admin/medicines/{gid}", headers=admin_headers).status_code == 204
+    assert gid not in [h["id"] for h in client.get("/api/medicines?q=testbrand", headers=admin_headers).json()]
+    assert gid not in [h["id"] for h in client.get("/api/admin/medicines", headers=admin_headers).json()]
+    assert gid in [h["id"] for h in client.get("/api/admin/medicines?includeInactive=true", headers=admin_headers).json()]
+    assert db.get(Medicine, gid).active is False
+    assert client.delete("/api/admin/medicines/999999", headers=admin_headers).status_code == 404
+    # reactivate via PATCH
+    assert client.patch(f"/api/admin/medicines/{gid}", json={"active": True}, headers=admin_headers).json()["name"]
+    assert gid in [h["id"] for h in client.get("/api/medicines?q=testbrand", headers=admin_headers).json()]
+
+    actions = {a.action for a in db.scalars(select(AuditLog).where(AuditLog.entity == "medicine"))}
+    assert {"medicine.create", "medicine.update", "medicine.delete"} <= actions
+
+
 def test_reception_denied_admin_writes(client, reception_headers):
     assert client.get("/api/admin/stages", headers=reception_headers).status_code == 200
     assert client.get("/api/admin/lens-tiers", headers=reception_headers).status_code == 200
@@ -202,3 +309,13 @@ def test_reception_denied_admin_writes(client, reception_headers):
     assert client.post("/api/admin/staff", json={"name": "x", "username": "x", "password": "xxxx", "role": "admin"},
                        headers=reception_headers).status_code == 403
     assert client.post("/api/admin/staff/1/reset-password", json={"password": "xxxx"}, headers=reception_headers).status_code == 403
+    # medicines / medicine forms: any staff reads, admin writes
+    assert client.get("/api/admin/medicines", headers=reception_headers).status_code == 200
+    assert client.get("/api/admin/medicine-forms", headers=reception_headers).status_code == 200
+    assert client.post("/api/admin/medicines", json={"composition": "x"}, headers=reception_headers).status_code == 403
+    assert client.patch("/api/admin/medicines/1", json={"packSize": "x"}, headers=reception_headers).status_code == 403
+    assert client.delete("/api/admin/medicines/1", headers=reception_headers).status_code == 403
+    assert client.post("/api/admin/medicine-forms", json={"key": "x", "label": "X"}, headers=reception_headers).status_code == 403
+    assert client.patch("/api/admin/medicine-forms/drops", json={"label": "X"}, headers=reception_headers).status_code == 403
+    assert client.delete("/api/admin/medicine-forms/drops", headers=reception_headers).status_code == 403
+    assert client.put("/api/admin/medicine-forms/order", json={"keys": []}, headers=reception_headers).status_code == 403

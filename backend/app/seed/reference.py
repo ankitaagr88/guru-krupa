@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.config import LensTier, ProtocolStep, ReferralSource, Stage
-from app.models.pharmacy import InventoryItem, Medicine
+from app.models.pharmacy import InventoryItem, Medicine, MedicineForm, guess_medicine_form
 
 STAGES = [
     ("reg", "Registration", "reg"),
@@ -33,6 +33,19 @@ REFERRAL_NEEDS_DETAIL = {"doctor", "patient"}
 CONDITIONS = ["Diabetes", "Hypertension", "Asthma", "Arthritis", "Thyroid disorder",
               "Heart disease / stroke history", "Allergy", "Acidity / GERD", "BPH"]
 
+# Medicine types (`Medicine.form` keys). Admin-editable after seeding; these are just the starting set.
+MEDICINE_FORMS = [
+    ("drops", "Drops"),
+    ("gel", "Gel"),
+    ("ointment", "Ointment"),
+    ("suspension", "Suspension"),
+    ("tablet", "Tablet"),
+    ("capsule", "Capsule"),
+    ("syrup", "Syrup"),
+    ("gummies", "Gummies"),
+]
+
+# Generic-only rows from the mockup: name == composition, no brand.
 MEDICINE_LIST = [
     "Moxifloxacin 0.5% eye drops",
     "Prednisolone acetate 1% eye drops",
@@ -45,6 +58,24 @@ MEDICINE_LIST = [
     "Ofloxacin eye ointment",
     "Acetazolamide 250mg tablets",
 ]
+
+# Branded packs (ref files/med.jpeg, med 1.jpeg): the chemist dispenses by brand, the sheet prints
+# brand with the composition underneath. name == brand.
+# (brand, composition, form, strength, pack_size, manufacturer)
+MEDICINE_BRANDS = [
+    ("Aquaray Gel", "Carboxymethylcellulose sodium eye drops IP", "gel", "0.5%", "10 ml", "Raymed"),
+    ("MOSI LP", "Moxifloxacin Hydrochloride & Loteprednol Etabonate ophthalmic suspension", "suspension",
+     "0.5% / 0.5%", "5 ml", "FDC"),
+]
+
+
+def medicine_rows() -> list[dict]:
+    """Every seeded medicine as Medicine kwargs (generics first, then brands)."""
+    rows = [{"name": n, "brand": None, "composition": n, "form": guess_medicine_form(n), "strength": None,
+             "pack_size": None, "manufacturer": None} for n in MEDICINE_LIST]
+    rows += [{"name": brand, "brand": brand, "composition": comp, "form": form, "strength": strength,
+              "pack_size": pack, "manufacturer": mfr} for brand, comp, form, strength, pack, mfr in MEDICINE_BRANDS]
+    return rows
 
 # (name, unit, stock, reorder_level) — stock only applies on first insert.
 INVENTORY = [
@@ -91,7 +122,12 @@ def seed_reference(db: Session) -> None:
     for i, (key, label, price) in enumerate(LENS_TIERS):
         _upsert(db, LensTier, {"key": key}, label=label, price=price, sort_order=i)
 
-    medicines = {name: _upsert(db, Medicine, {"name": name}, active=True) for name in MEDICINE_LIST}
+    for i, (key, label) in enumerate(MEDICINE_FORMS):
+        _upsert(db, MedicineForm, {"key": key}, label=label, sort_order=i, active=True)
+    medicines = {}
+    for row in medicine_rows():
+        name = row.pop("name")
+        medicines[name] = _upsert(db, Medicine, {"name": name}, active=True, **row)
     db.flush()
     for name, unit, stock, reorder in INVENTORY:
         med = medicines.get(name)

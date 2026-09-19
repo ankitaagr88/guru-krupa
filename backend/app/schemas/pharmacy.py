@@ -7,8 +7,18 @@ from app.schemas.common import CamelModel
 
 # --------------------------------------------------------------------------- medicines
 class MedicineOut(CamelModel):
+    """`buildMedDatalist` row: brand-first, generic composition underneath."""
+
     id: int
-    name: str
+    name: str  # display name: brand when present, else composition
+    brand: str | None
+    composition: str
+    form: str  # MedicineForm key (drops, gel, ointment, suspension, tablet, capsule, syrup, gummies, ...)
+    form_label: str  # "Drops", "Gel" ... (falls back to the key)
+    strength: str | None
+    pack_size: str | None
+    manufacturer: str | None
+    display_name: str  # "Aquaray Gel (Carboxymethylcellulose sodium eye drops IP)"
 
 
 # --------------------------------------------------------------------------- prescriptions
@@ -33,6 +43,8 @@ class PrescriptionLineOut(CamelModel):
     matched: bool
     dosage: str
     qty_given: int
+    form: str | None = None  # from the matched medicine; None for free-text lines
+    form_label: str | None = None
 
 
 class PrescriptionOut(CamelModel):
@@ -45,10 +57,15 @@ class PrescriptionOut(CamelModel):
 
 
 class PrintLine(CamelModel):
-    name: str
+    name: str  # what was prescribed (brand when matched to a branded row)
     dosage: str
     dosage_local: str
     qty_given: int
+    brand: str | None = None  # print bold; None for generic-only / unmatched lines
+    composition: str | None = None  # print under the brand in smaller type
+    form: str | None = None  # type key, printed next to the medicine ("Drops", "Gel")
+    form_label: str | None = None
+    pack_size: str | None = None
 
 
 class PrintPayload(CamelModel):
@@ -60,7 +77,7 @@ class PrintPayload(CamelModel):
 
 # --------------------------------------------------------------------------- inventory
 class InventoryItemIn(CamelModel):
-    name: str = Field(min_length=1, max_length=160)
+    name: str | None = Field(default=None, min_length=1, max_length=160)  # defaults to the medicine's name
     unit: str = "bottles"
     stock: int = Field(default=0, ge=0)
     reorder_level: int = Field(default=5, ge=0)

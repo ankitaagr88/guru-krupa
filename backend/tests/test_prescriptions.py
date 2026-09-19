@@ -62,14 +62,72 @@ def _set_stock(client, headers, name, target):
     return item["id"]
 
 
+MED_KEYS = {"id", "name", "brand", "composition", "form", "formLabel", "strength", "packSize", "manufacturer",
+            "displayName"}
+
+
 def test_medicines_search(client, admin_headers):
     assert client.get("/api/medicines").status_code == 401
     rows = client.get("/api/medicines", headers=admin_headers).json()
-    assert len(rows) >= 10 and {"id", "name"} == set(rows[0])
+    assert len(rows) >= 12 and MED_KEYS == set(rows[0])
+    generic = next(r for r in rows if r["name"] == MOXI)
+    assert generic["brand"] is None and generic["composition"] == MOXI and generic["form"] == "drops"
+    assert generic["formLabel"] == "Drops" and generic["displayName"] == MOXI
+    # "moxi" hits the generic (name prefix) AND the brand MOSI LP (composition substring); brand/name prefix first
     hits = client.get("/api/medicines?q=moxi", headers=admin_headers).json()
-    assert [h["name"] for h in hits] == [MOXI]
+    assert [h["name"] for h in hits] == [MOXI, "MOSI LP"]
     assert MOXI in [h["name"] for h in client.get("/api/medicines?q=EYE DROPS", headers=admin_headers).json()]
     assert client.get("/api/medicines?q=zzz", headers=admin_headers).json() == []
+
+
+def test_medicines_search_by_brand_and_composition(client, admin_headers):
+    by_brand = client.get("/api/medicines?q=aqua", headers=admin_headers).json()
+    assert [h["name"] for h in by_brand] == ["Aquaray Gel"]
+    a = by_brand[0]
+    assert a == {"id": a["id"], "name": "Aquaray Gel", "brand": "Aquaray Gel",
+                 "composition": "Carboxymethylcellulose sodium eye drops IP", "form": "gel", "formLabel": "Gel",
+                 "strength": "0.5%", "packSize": "10 ml", "manufacturer": "Raymed",
+                 "displayName": "Aquaray Gel (Carboxymethylcellulose sodium eye drops IP)"}
+    # composition search: the generic CMC row (name prefix) first, then the brand whose composition matches
+    names = [h["name"] for h in client.get("/api/medicines?q=carboxymethyl", headers=admin_headers).json()]
+    assert names == ["Carboxymethylcellulose 0.5% (tear drops)", "Aquaray Gel"]
+    names = [h["name"] for h in client.get("/api/medicines?q=loteprednol", headers=admin_headers).json()]
+    assert names == ["MOSI LP"]
+    assert client.get("/api/medicines?q=mosi lp", headers=admin_headers).json()[0]["manufacturer"] == "FDC"
+
+
+def test_prescription_matches_brand_and_prints_composition(client, admin_headers, doctor_headers):
+    vid = _visit(client, admin_headers, "Brand Patient")
+    body = {"lines": [
+        {"name": "aquaray gel", "dosage": "1 drop both eyes, thrice daily", "qtyGiven": 0},  # brand, any case
+        {"name": "Moxifloxacin Hydrochloride & Loteprednol Etabonate ophthalmic suspension",  # composition
+         "dosage": "1 drop right eye, four times daily", "qtyGiven": 0},
+        {"name": "Ofloxacin eye ointment", "dosage": "ointment both eyes, at night", "qtyGiven": 0},  # generic
+        {"name": "Unknown brand", "dosage": "x", "qtyGiven": 0},
+    ]}
+    r = client.post(f"/api/visits/{vid}/prescription", json=body, headers=doctor_headers)
+    assert r.status_code == 201, r.text
+    lines = r.json()["lines"]
+    assert [(ln["name"], ln["matched"]) for ln in lines] == [
+        ("Aquaray Gel", True), ("MOSI LP", True), ("Ofloxacin eye ointment", True), ("Unknown brand", False)]
+    assert [(ln["form"], ln["formLabel"]) for ln in lines] == [
+        ("gel", "Gel"), ("suspension", "Suspension"), ("ointment", "Ointment"), (None, None)]
+    assert all(ln["medicineId"] for ln in lines[:3]) and lines[3]["medicineId"] is None
+
+    p = client.get(f"/api/visits/{vid}/prescription/print?lang=english", headers=admin_headers).json()
+    assert set(p["lines"][0]) == {"name", "dosage", "dosageLocal", "qtyGiven", "brand", "composition", "form",
+                                  "formLabel", "packSize"}
+    assert p["lines"][0] == {"name": "Aquaray Gel", "brand": "Aquaray Gel",
+                             "composition": "Carboxymethylcellulose sodium eye drops IP", "form": "gel",
+                             "formLabel": "Gel", "packSize": "10 ml", "dosage": "1 drop both eyes, thrice daily",
+                             "dosageLocal": "1 drop both eyes, thrice daily", "qtyGiven": 0}
+    assert p["lines"][1]["brand"] == "MOSI LP" and p["lines"][1]["packSize"] == "5 ml"
+    assert p["lines"][1]["composition"].startswith("Moxifloxacin Hydrochloride")
+    # generic-only row: no brand to print bold, composition == name
+    assert p["lines"][2]["brand"] is None and p["lines"][2]["composition"] == "Ofloxacin eye ointment"
+    assert p["lines"][2]["form"] == "ointment" and p["lines"][2]["packSize"] is None
+    # unmatched free text: nothing but the typed name
+    assert p["lines"][3]["brand"] is None and p["lines"][3]["composition"] is None and p["lines"][3]["form"] is None
 
 
 def test_save_decrements_stock_and_reports_low(client, admin_headers, doctor_headers, db):

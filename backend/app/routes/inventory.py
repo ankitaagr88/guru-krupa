@@ -38,6 +38,7 @@ def low_stock(db: Session = Depends(get_db)):
 
 @router.post("", response_model=InventoryItemOut, status_code=status.HTTP_201_CREATED)
 def create_item(data: InventoryItemIn, db: Session = Depends(get_db), user: Staff = Depends(require_role(*FRONT_DESK))):
+    """`addInventoryItem`; with only `medicineId` the item takes the medicine's name."""
     try:
         item = svc.create_item(db, name=data.name, unit=data.unit, stock=data.stock,
                                reorder_level=data.reorder_level, medicine_id=data.medicine_id, by=user)

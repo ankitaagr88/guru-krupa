@@ -37,8 +37,9 @@ def _prescription(db: Session, visit_id: int):
 
 @router.get("/medicines", response_model=list[MedicineOut])
 def medicines(q: str = Query("", max_length=160), db: Session = Depends(get_db)):
-    """`buildMedDatalist`: master list, optionally filtered by prefix/substring."""
-    return svc.search_medicines(db, q)
+    """`buildMedDatalist`: active master list; `q` matches name, brand or composition (brand hits first)."""
+    labels = svc.form_labels(db)
+    return [svc.medicine_out(m, labels) for m in svc.search_medicines(db, q)]
 
 
 @router.post("/visits/{visit_id}/prescription", response_model=PrescriptionOut,
@@ -54,19 +55,19 @@ def save_prescription(visit_id: int, data: PrescriptionIn, db: Session = Depends
                             f"{exc.needed} requested")
     except svc.BadValue as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))
-    return svc.prescription_out(rx, low)
+    return svc.prescription_out(db, rx, low)
 
 
 @router.get("/visits/{visit_id}/prescription", response_model=PrescriptionOut)
 def get_prescription(visit_id: int, db: Session = Depends(get_db)):
-    return svc.prescription_out(_prescription(db, visit_id))
+    return svc.prescription_out(db, _prescription(db, visit_id))
 
 
 @router.get("/visits/{visit_id}/prescription/print", response_model=PrintPayload)
 def print_prescription(visit_id: int, lang: str | None = Query(None), db: Session = Depends(get_db)):
     """`openPrescriptionModal` + `setLanguage`: JSON the client renders as the printed sheet."""
     try:
-        return svc.print_payload(_prescription(db, visit_id), lang)
+        return svc.print_payload(db, _prescription(db, visit_id), lang)
     except svc.BadValue as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))
 

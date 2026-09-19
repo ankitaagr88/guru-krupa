@@ -107,6 +107,57 @@ class PasswordIn(CamelModel):
     password: str = Field(min_length=4)
 
 
+# --------------------------------------------------------------------------- medicine forms
+class MedicineFormIn(CamelModel):
+    key: str = Field(min_length=1, max_length=40, pattern=r"^[a-z0-9_\-]+$")
+    label: str = Field(min_length=1, max_length=60)
+
+
+class MedicineFormPatch(CamelModel):
+    label: str | None = Field(default=None, min_length=1, max_length=60)
+    active: bool | None = None
+
+
+class MedicineFormOut(CamelModel):
+    id: int
+    key: str
+    label: str
+    sort_order: int
+    active: bool
+
+
+class MedicineFormBrief(CamelModel):
+    key: str
+    label: str
+
+
+# --------------------------------------------------------------------------- medicines
+class MedicineIn(CamelModel):
+    """A pack as an MR brings it: brand + generic composition (+ form / strength / pack / maker).
+
+    `name` (the unique display name) defaults to the brand, else the composition.
+    """
+
+    name: str | None = Field(default=None, min_length=1, max_length=160)
+    brand: str | None = Field(default=None, min_length=1, max_length=120)
+    composition: str = Field(min_length=1)
+    form: str = "drops"  # an active MedicineForm key (GET /config -> medicineForms)
+    strength: str | None = Field(default=None, max_length=40)
+    pack_size: str | None = Field(default=None, max_length=30)
+    manufacturer: str | None = Field(default=None, max_length=120)
+
+
+class MedicinePatch(CamelModel):
+    name: str | None = Field(default=None, min_length=1, max_length=160)
+    brand: str | None = Field(default=None, max_length=120)  # "" clears the brand
+    composition: str | None = Field(default=None, min_length=1)
+    form: str | None = None
+    strength: str | None = Field(default=None, max_length=40)
+    pack_size: str | None = Field(default=None, max_length=30)
+    manufacturer: str | None = Field(default=None, max_length=120)
+    active: bool | None = None
+
+
 # --------------------------------------------------------------------------- /config
 class ConfigOut(CamelModel):
     stages: list[StageOut]
@@ -114,3 +165,4 @@ class ConfigOut(CamelModel):
     referral_sources: list[ReferralSourceOut]
     lens_tiers: list[LensTierOut]
     conditions: list[str]
+    medicine_forms: list[MedicineFormBrief]  # active types for the medicine picker / admin form

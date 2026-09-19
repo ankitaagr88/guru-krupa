@@ -13,7 +13,8 @@ def _seed():
         seed_reference(db)
     yield
     with SessionLocal() as db:  # leave the reference tables as seeded for test_models
-        for item in db.scalars(select(InventoryItem).where(InventoryItem.name.like("Test Lubricant Gel%"))):
+        for item in db.scalars(select(InventoryItem).where(InventoryItem.name.like("Test Lubricant Gel%")
+                                                            | InventoryItem.name.in_(["Aquaray Gel", "MOSI LP"]))):
             for m in db.scalars(select(StockMovement).where(StockMovement.item_id == item.id)):
                 db.delete(m)
             db.delete(item)
@@ -86,3 +87,17 @@ def test_create_patch_adjust_movements(client, admin_headers, doctor_headers):
     assert client.get("/api/inventory/999999", headers=admin_headers).status_code == 404
     assert client.post("/api/inventory/999999/adjust", json={"delta": 1, "reason": "received"},
                        headers=admin_headers).status_code == 404
+
+
+def test_create_from_medicine_id_defaults_name(client, admin_headers):
+    meds = {m["name"]: m for m in client.get("/api/medicines", headers=admin_headers).json()}
+    aquaray = meds["Aquaray Gel"]
+    r = client.post("/api/inventory", json={"medicineId": aquaray["id"], "unit": "tubes", "stock": 3, "reorderLevel": 2},
+                    headers=admin_headers)
+    assert r.status_code == 201, r.text
+    assert r.json()["name"] == "Aquaray Gel" and r.json()["medicineId"] == aquaray["id"] and r.json()["unit"] == "tubes"
+    # explicit name still wins; a name is required when there is no medicine
+    r = client.post("/api/inventory", json={"medicineId": meds["MOSI LP"]["id"], "name": "MOSI LP"}, headers=admin_headers)
+    assert r.status_code == 201 and r.json()["name"] == "MOSI LP"
+    assert client.post("/api/inventory", json={"medicineId": aquaray["id"]}, headers=admin_headers).status_code == 409
+    assert client.post("/api/inventory", json={"unit": "bottles"}, headers=admin_headers).status_code == 422
