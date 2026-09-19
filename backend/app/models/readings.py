@@ -5,7 +5,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base, DateTime, utcnow
 
-READING_SOURCES = ("scanned", "manual")
+READING_SOURCES = ("scanned", "manual", "corrected")
 READING_STATUSES = ("pending", "processing", "done", "failed")
 # One key per machine in TEST_TYPES; the display label lives with the OCR template.
 MACHINE_KEYS = ("hnt1p_tono", "hrk8000a_ref", "hrk8000a_ker", "clm1_lensmeter",

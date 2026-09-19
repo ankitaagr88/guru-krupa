@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     TESSERACT_CMD: str | None = None
     CLINIC_TZ: str = "Asia/Kolkata"  # clinic day boundary, independent of server TZ
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    USE_X_ACCEL: bool = False  # prod: empty body + X-Accel-Redirect so Nginx streams /uploads (deploy/README.md)
 
 
 settings = Settings()

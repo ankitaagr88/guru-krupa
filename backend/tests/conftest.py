@@ -5,8 +5,11 @@ app.db is created against the test file.
 """
 import os
 import pathlib
+import tempfile
 
-os.environ["DATABASE_URL"] = "sqlite:///./test.db"
+# Per-process DB file so parallel pytest runs (or several agents) never share state.
+_TEST_DB = pathlib.Path(tempfile.gettempdir()) / f"gurukrupa-test-{os.getpid()}.db"
+os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DB.as_posix()}"
 os.environ["SECRET_KEY"] = "test-secret"
 
 import pytest  # noqa: E402
@@ -23,7 +26,7 @@ def _create_schema():
     Base.metadata.create_all(bind=engine)
     yield
     engine.dispose()
-    pathlib.Path("test.db").unlink(missing_ok=True)
+    _TEST_DB.unlink(missing_ok=True)
 
 
 @pytest.fixture

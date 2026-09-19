@@ -46,6 +46,7 @@ class OtCase(Base):
     post_op: Mapped[dict] = mapped_column(default=empty_post_op)
     billing: Mapped[dict] = mapped_column(default=empty_billing)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     patient = relationship("Patient")
     consent_photos: Mapped[list["OtConsentPhoto"]] = relationship(

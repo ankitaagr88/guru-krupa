@@ -51,7 +51,7 @@ def test_patient_visit_reading_prescription(db):
                       occupation="Homemaker", screen_hours=1, language="gujarati",
                       referral_source_id=doctor.id, referral_detail="Dr. Shah",
                       existing_conditions=["Diabetes", "Hypertension"])
-    visit = Visit(patient=patient, date=date(2026, 9, 19), token="#014", note="First visit", va_r="6/9", va_l="6/6")
+    visit = Visit(patient=patient, date=date(2020, 1, 15), token="#014", note="First visit", va_r="6/9", va_l="6/6")
     reading = Reading(visit=visit, machine_key="hrk8000a_ref", source="scanned", status="done", confidence=0.93,
                       values=[{"l": "SPH (R)", "v": "-1.00"}, {"l": "CYL (R)", "v": "-0.50"}, {"l": "PD", "v": "64mm"}])
     timolol = db.scalar(select(Medicine).filter_by(name="Timolol 0.5% eye drops"))
@@ -76,7 +76,7 @@ def test_patient_visit_reading_prescription(db):
 
 
 def test_ot_case_json_defaults(db):
-    case = OtCase(patient_name="Rujavana Madhani", age=52, sex="F", date=date(2026, 9, 19), time_slot="9:00 AM",
+    case = OtCase(patient_name="Rujavana Madhani", age=52, sex="F", date=date(2020, 1, 15), time_slot="9:00 AM",
                   procedure="Cataract — Phaco with IOL (OD)",
                   pre_op_biometry={"AL": {"R": "22.90mm", "L": "22.80mm"}, "ACD": {"R": "2.70mm", "L": "2.77mm"},
                                    "K1": {"R": "43.27D", "L": "43.34D"}, "K2": {"R": "43.48D", "L": "43.93D"},
