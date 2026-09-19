@@ -1,0 +1,143 @@
+# Guru Krupa Eye Hospital & Laser Center, Vesu, Surat — WhatsApp new-patient intake.
+# Scripts follow patient-intake-form-CLAUDE.md exactly (native script, English loanwords in Roman).
+# Placeholders: {name} = first name typed by the patient; {name_hon} = first name + honorific,
+# but the honorific is only added once the gender question has been answered (until then it is
+# just the name). ${ENV_VAR} values come from the .env file.
+
+id: gurukrupa
+name: "Guru Krupa Eye Hospital & Laser Center"
+name_local:
+  gujarati: "ગુરુ કૃપા આઈ હોસ્પિટલ"
+  hindi: "गुरु कृपा आई हॉस्पिटल"
+whatsapp_number: "919328621216"      # wa.me number, digits only with country code
+timezone: Asia/Kolkata
+
+languages: [gujarati, hindi]
+default_language: gujarati
+triggers: ["Hi", "Hello", "નમસ્તે", "नमस्ते", "Start"]
+qr_trigger: "Hi"
+session_timeout_minutes: 30
+
+name_key: name
+gender_key: gender
+honorifics:
+  gujarati:
+    by_gender: { M: "ભાઈ", F: "બેન", O: "" }   # "Other" -> no honorific (spec: skip if unclear)
+    separator: ""                              # રમેશભાઈ / રમીલાબેન
+    use_first_name: true
+  hindi:
+    by_gender: { M: "जी", F: "जी", O: "जी" }
+    separator: " "                             # रमेश जी
+    use_first_name: true
+
+messages:
+  language_prompt:
+    gujarati: "🙏 નમસ્તે! ચેટ કઈ ભાષામાં કરીએ?"
+    hindi: "🙏 नमस्ते! चैट किस भाषा में करें?"
+  language_choices:
+    - value: gujarati
+      label: { gujarati: "ગુજરાતી", hindi: "ગુજરાતી" }
+    - value: hindi
+      label: { gujarati: "हिन्दी", hindi: "हिन्दी" }
+  list_button:
+    gujarati: "પસંદ કરો"
+    hindi: "चुनें"
+  invalid_text:
+    gujarati: "માફ કરજો, સમજાયું નહીં. ફરી એક વાર લખશો?"
+    hindi: "माफ़ कीजिए, समझ नहीं आया। एक बार फिर लिखेंगे?"
+  invalid_number:
+    gujarati: "માફ કરજો, ફક્ત આંકડામાં લખશો? જેમ કે 45"
+    hindi: "माफ़ कीजिए, सिर्फ़ अंकों में लिखेंगे? जैसे 45"
+  invalid_phone:
+    gujarati: "માફ કરજો, 10 આંકડાનો mobile number લખશો? જેમ કે 9876543210"
+    hindi: "माफ़ कीजिए, 10 अंकों का mobile number लिखेंगे? जैसे 9876543210"
+  invalid_choice:
+    gujarati: "માફ કરજો, નીચેના બટનમાંથી એક દબાવશો?"
+    hindi: "माफ़ कीजिए, नीचे के बटन में से एक दबाएँगे?"
+  expired_restart:
+    gujarati: "કોઈ વાંધો નહીં, થોડો સમય થઈ ગયો એટલે ફરીથી શરૂ કરીએ. 🙏"
+    hindi: "कोई बात नहीं, थोड़ा समय हो गया इसलिए फिर से शुरू करते हैं। 🙏"
+  already_registered:
+    gujarati: "{name_hon}, તમે આજે નોંધાઈ ગયા છો. આરામથી બેસો, ડૉક્ટર તમને થોડી જ વારમાં બોલાવશે. 🙏"
+    hindi: "{name_hon}, आप आज रजिस्टर हो चुके हैं। आराम से बैठिए, डॉक्टर आपको जल्द ही बुलाएंगे। 🙏"
+  closing:
+    gujarati: "બસ, થઈ ગયું! તમે નોંધાઈ ગયા છો. આરામથી બેસો, ડૉક્ટર તમને થોડી જ વારમાં બોલાવશે. 🙏"
+    hindi: "बस, हो गया! आप रजिस्टर हो चुके हैं। आराम से बैठिए, डॉक्टर आपको जल्द ही बुलाएंगे। 🙏"
+
+questions:
+  - key: name
+    type: text
+    min_length: 2
+    text:
+      gujarati: "બહુ સરસ. કોઈ ઉતાવળ નથી, તમે આરામથી જવાબ આપશો તો પણ ચાલશે. સૌથી પહેલા — તમારું પૂરું નામ શું છે?"
+      hindi: "बहुत अच्छा। कोई जल्दी नहीं है, आप आराम से जवाब दीजिए तो भी चलेगा। सबसे पहले — आपका पूरा नाम क्या है?"
+
+  - key: age
+    type: number
+    min: 0
+    max: 120
+    text:
+      # Gender is not known yet, so {name_hon} renders as the plain name here.
+      gujarati: "આભાર, {name_hon}. હવે તમારી ઉંમર શું છે?"
+      hindi: "धन्यवाद, {name_hon}। अब आपकी उम्र क्या है?"
+
+  - key: gender
+    type: choice
+    text:
+      gujarati: "હવે નીચેથી એક પસંદ કરો:"
+      hindi: "अब नीचे से एक चुनें:"
+    choices:
+      - { value: M, label: { gujarati: "Male",   hindi: "Male" } }
+      - { value: F, label: { gujarati: "Female", hindi: "Female" } }
+      - { value: O, label: { gujarati: "Other",  hindi: "Other" } }
+
+  - key: address
+    type: text
+    min_length: 3
+    text:
+      # Gender is known now, so {name_hon} becomes રમેશભાઈ / રમીલાબેન / रमेश जी.
+      gujarati: "{name_hon}, તમે હમણાં ક્યાં રહો છો? તમારું સરનામું કહી શકશો?"
+      hindi: "{name_hon}, आप अभी कहाँ रहते हैं? अपना पता बता सकते हैं?"
+
+  - key: contact
+    type: phone
+    text:
+      gujarati: "એક કોન્ટેક્ટ નંબર આપશો, જેથી જરૂર પડે તો અમે તમને કૉલ કરી શકીએ."
+      hindi: "एक संपर्क नंबर दीजिए, जिससे ज़रूरत पड़ने पर हम आपको कॉल कर सकें।"
+
+  - key: source
+    type: choice          # 4 options -> sent as a WhatsApp list (buttons allow max 3)
+    text:
+      gujarati: "એક છેલ્લી વાત — અમને તમારા વિશે કેવી રીતે ખબર પડી?"
+      hindi: "एक आख़िरी बात — आपको हमारे बारे में कैसे पता चला?"
+    choices:
+      - { value: google,        label: { gujarati: "ગૂગલ",           hindi: "गूगल" } }
+      - { value: social,        label: { gujarati: "સોશિયલ મીડિયા",   hindi: "सोशल मीडिया" } }
+      - { value: friend_family, label: { gujarati: "મિત્ર/કુટુંબ",     hindi: "दोस्त/परिवार" } }
+      - { value: doctor,        label: { gujarati: "ડૉક્ટરની ભલામણ",  hindi: "डॉक्टर की सिफ़ारिश" } }
+
+provider:
+  kind: "${WHATSAPP_PROVIDER:-meta_cloud}"    # meta_cloud | console
+  phone_number_id: "${META_PHONE_NUMBER_ID}"
+  token: "${META_TOKEN}"
+  verify_token: "${WEBHOOK_VERIFY_TOKEN}"
+  api_version: "${META_API_VERSION:-v20.0}"
+
+destination:
+  kind: gurukrupa_api            # gurukrupa_api | google_sheet | csv
+  api_url: "${GURUKRUPA_API_URL:-http://localhost:8000/api}"
+  username: "${GURUKRUPA_API_USER}"
+  password: "${GURUKRUPA_API_PASSWORD}"
+  note: "Registered via WhatsApp intake"
+  attempts: 3
+  backoff_seconds: 1.0
+  # intake "source" value -> Gurukrupa REFERRAL_SOURCES key (+ detail text)
+  referral_source_map:
+    google:        { key: online,  detail: "Google" }
+    social:        { key: online,  detail: "Social media" }
+    friend_family: { key: patient, detail: "" }
+    doctor:        { key: doctor,  detail: "" }
+
+qr_instructions:
+  gujarati: "નવા દર્દી: આ QR scan કરો અને WhatsApp પર 'Hi' મોકલો."
+  hindi: "नए मरीज़: यह QR scan करें और WhatsApp पर 'Hi' भेजें।"

@@ -1,0 +1,122 @@
+# EXAMPLE second clinic — proves the same code serves a different specialty with different
+# wording, an extra question, different "source" options, and a Google-Sheet destination.
+# Copy this file, change the values, restart the service: nothing in the code changes.
+
+id: allergy-clinic
+name: "Dr Milan Modi Allergy Clinic"
+name_local:
+  gujarati: "ડૉ. મિલન મોદી એલર્જી ક્લિનિક"
+  hindi: "डॉ. मिलन मोदी एलर्जी क्लिनिक"
+whatsapp_number: "919999900000"
+timezone: Asia/Kolkata
+
+languages: [gujarati, hindi]
+default_language: gujarati
+triggers: ["Hi", "Hello", "નમસ્તે", "नमस्ते"]
+qr_trigger: "Hi"
+session_timeout_minutes: 30
+
+name_key: name
+gender_key: gender
+honorifics:
+  gujarati: { by_gender: { M: "ભાઈ", F: "બેન", O: "" }, separator: "", use_first_name: true }
+  hindi:    { by_gender: { M: "जी", F: "जी", O: "जी" }, separator: " ", use_first_name: true }
+
+messages:
+  language_prompt:
+    gujarati: "🙏 નમસ્તે! ડૉ. મિલન મોદી એલર્જી ક્લિનિકમાં સ્વાગત છે. ચેટ કઈ ભાષામાં કરીએ?"
+    hindi: "🙏 नमस्ते! डॉ. मिलन मोदी एलर्जी क्लिनिक में स्वागत है। चैट किस भाषा में करें?"
+  language_choices:
+    - { value: gujarati, label: { gujarati: "ગુજરાતી", hindi: "ગુજરાતી" } }
+    - { value: hindi,    label: { gujarati: "हिन्दी",  hindi: "हिन्दी" } }
+  list_button: { gujarati: "પસંદ કરો", hindi: "चुनें" }
+  invalid_text:
+    gujarati: "માફ કરજો, સમજાયું નહીં. ફરી એક વાર લખશો?"
+    hindi: "माफ़ कीजिए, समझ नहीं आया। एक बार फिर लिखेंगे?"
+  invalid_number:
+    gujarati: "માફ કરજો, ફક્ત આંકડામાં લખશો? જેમ કે 45"
+    hindi: "माफ़ कीजिए, सिर्फ़ अंकों में लिखेंगे? जैसे 45"
+  invalid_phone:
+    gujarati: "માફ કરજો, 10 આંકડાનો mobile number લખશો? જેમ કે 9876543210"
+    hindi: "माफ़ कीजिए, 10 अंकों का mobile number लिखेंगे? जैसे 9876543210"
+  invalid_choice:
+    gujarati: "માફ કરજો, નીચેના બટનમાંથી એક દબાવશો?"
+    hindi: "माफ़ कीजिए, नीचे के बटन में से एक दबाएँगे?"
+  expired_restart:
+    gujarati: "કોઈ વાંધો નહીં, થોડો સમય થઈ ગયો એટલે ફરીથી શરૂ કરીએ. 🙏"
+    hindi: "कोई बात नहीं, थोड़ा समय हो गया इसलिए फिर से शुरू करते हैं। 🙏"
+  already_registered:
+    gujarati: "{name_hon}, તમે આજે નોંધાઈ ગયા છો. આરામથી બેસો, ડૉક્ટર તમને થોડી જ વારમાં બોલાવશે. 🙏"
+    hindi: "{name_hon}, आप आज रजिस्टर हो चुके हैं। आराम से बैठिए, डॉक्टर आपको जल्द ही बुलाएंगे। 🙏"
+  closing:
+    gujarati: "બસ, થઈ ગયું! તમે નોંધાઈ ગયા છો. આરામથી બેસો, ડૉક્ટર તમને થોડી જ વારમાં બોલાવશે. 🙏"
+    hindi: "बस, हो गया! आप रजिस्टर हो चुके हैं। आराम से बैठिए, डॉक्टर आपको जल्द ही बुलाएंगे। 🙏"
+
+questions:
+  - key: name
+    type: text
+    min_length: 2
+    text:
+      gujarati: "બહુ સરસ. કોઈ ઉતાવળ નથી. સૌથી પહેલા — તમારું પૂરું નામ શું છે?"
+      hindi: "बहुत अच्छा। कोई जल्दी नहीं है। सबसे पहले — आपका पूरा नाम क्या है?"
+  - key: age
+    type: number
+    min: 0
+    max: 120
+    text:
+      gujarati: "આભાર, {name_hon}. હવે તમારી ઉંમર શું છે?"
+      hindi: "धन्यवाद, {name_hon}। अब आपकी उम्र क्या है?"
+  - key: gender
+    type: choice
+    text: { gujarati: "હવે નીચેથી એક પસંદ કરો:", hindi: "अब नीचे से एक चुनें:" }
+    choices:
+      - { value: M, label: { gujarati: "Male",   hindi: "Male" } }
+      - { value: F, label: { gujarati: "Female", hindi: "Female" } }
+      - { value: O, label: { gujarati: "Other",  hindi: "Other" } }
+  - key: address
+    type: text
+    min_length: 3
+    text:
+      gujarati: "{name_hon}, તમારું સરનામું કહી શકશો?"
+      hindi: "{name_hon}, अपना पता बता सकते हैं?"
+  - key: contact
+    type: phone
+    text:
+      gujarati: "એક કોન્ટેક્ટ નંબર આપશો."
+      hindi: "एक संपर्क नंबर दीजिए।"
+  # Specialty-specific extra question (spec: "add only if a client asks")
+  - key: allergy_type
+    type: choice
+    text:
+      gujarati: "તમને મુખ્યત્વે કઈ તકલીફ છે?"
+      hindi: "आपको मुख्य रूप से कौन-सी तकलीफ़ है?"
+    choices:
+      - { value: skin,       label: { gujarati: "ચામડી (Skin)",   hindi: "त्वचा (Skin)" } }
+      - { value: breathing,  label: { gujarati: "શ્વાસ / છીંક",   hindi: "साँस / छींक" } }
+      - { value: food,       label: { gujarati: "ખોરાક (Food)",   hindi: "खाना (Food)" } }
+      - { value: other,      label: { gujarati: "બીજું કંઈક",     hindi: "कुछ और" } }
+  - key: source
+    type: choice
+    text:
+      gujarati: "એક છેલ્લી વાત — અમને તમારા વિશે કેવી રીતે ખબર પડી?"
+      hindi: "एक आख़िरी बात — आपको हमारे बारे में कैसे पता चला?"
+    choices:
+      - { value: google,        label: { gujarati: "ગૂગલ",          hindi: "गूगल" } }
+      - { value: friend_family, label: { gujarati: "મિત્ર/કુટુંબ",    hindi: "दोस्त/परिवार" } }
+      - { value: doctor,        label: { gujarati: "ડૉક્ટરની ભલામણ", hindi: "डॉक्टर की सिफ़ारिश" } }
+
+provider:
+  kind: "${WHATSAPP_PROVIDER:-meta_cloud}"
+  phone_number_id: "${ALLERGY_META_PHONE_NUMBER_ID:-}"
+  token: "${META_TOKEN}"
+  verify_token: "${WEBHOOK_VERIFY_TOKEN}"
+
+destination:
+  kind: google_sheet
+  webhook_url: "${GOOGLE_SHEET_WEBHOOK_URL}"
+  attempts: 3
+  backoff_seconds: 1.0
+
+qr_instructions:
+  gujarati: "નવા દર્દી: આ QR scan કરો અને WhatsApp પર 'Hi' મોકલો."
+  hindi: "नए मरीज़: यह QR scan करें और WhatsApp पर 'Hi' भेजें।"
