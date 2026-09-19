@@ -7,7 +7,7 @@ Updated at the end of every working session, together with `task-list-backend-fr
 ## Session 1 — 2026-09-19 (final update at session end)
 
 ### Where things stand (plain language)
-The core tool is built end to end and runs on your PC against a real database: staff logins, patient queue, appointments, dilation timers, machine-printout reading (now accurate on the clinic's real slips), OT scheduling with biometry auto-fill, prescriptions with brand/generic/type and Hinglish/Gujlish printing, stock, admin settings, MR visits. A separate WhatsApp new-patient intake tool is also built and tested. **Overall progress: 70%.** All work is saved in git (14 commits) but **not yet on GitHub** — see "Waiting on you".
+The core tool is built end to end and runs on your PC against a real database: staff logins, patient queue, appointments, dilation timers, machine-printout reading (now accurate on the clinic's real slips), OT scheduling with biometry auto-fill, prescriptions with brand/generic/type and Hinglish/Gujlish printing, stock, admin settings, MR visits. A separate WhatsApp new-patient intake tool is also built and tested. **Overall progress: 68%.** All work is saved in git (14 commits) but **not yet on GitHub** — see "Waiting on you".
 
 ### Done this session
 1. Whole backend (server side) and every screen, built by parallel agents, merged and tested (backend 121 automated checks, screens 71, WhatsApp tool 38 — all passing).
@@ -19,9 +19,16 @@ The core tool is built end to end and runs on your PC against a real database: s
 7. Rules captured from you (saved for future sessions): everything category-like is admin-configurable; printout photos deleted once approved; medicines/patients/stock will be imported from **KivHealth**; no medicine box-photo reading; updates to you in plain language; agents run one at a time when they share files; handoff + task list updated every session.
 
 ### Stopped at your request
-- F13 (Approve button on the Machines screen + "Scan biometry report" in OT) was just starting; the agent was stopped before it saved anything, so the code is clean. The server side for both is already done.
+- F13 (Approve button on the Machines screen + "Scan biometry report" in OT) was just starting; stopped before it saved anything. The server side for both is already done.
+- F16 (re-dressing the app in the official design system) was also just starting; stopped before it changed any screen. The design system itself is now copied into the repo at `gurukrupa-system\design-system\` (with your logo JPG added under `assets/Logos/`).
+
+### Design system — decisions taken so the restyle can start straight away
+- Hospital name everywhere: **Guru Krupa Eye Hospital & Laser Center** (logo and client notes agree; the prototype's "Research Center" is wrong).
+- Logo: your `logo.jpg` for now; ask the clinic for a **vector** logo (SVG/AI/PDF) — the design system needs it for the side menu, favicon and prescription head.
+- No emoji in the product; buttons say what they do ("Add to queue", "Print prescription").
 
 ### Next session — do in this order
+0. **F16** — re-dress the app in the design system (one agent, it touches every screen). Do this first so later screen work is built on the final look.
 1. **F13** — Approve button on Machines (photo disappears after approval) + "Scan biometry report" button in OT pre-op.
 2. **F11** — switch the app from demo data to the real server and click through every screen; fix the small mismatches that always show up here.
 3. **B12** — OT time slots and procedure list editable by the admin.
@@ -34,6 +41,7 @@ The core tool is built end to end and runs on your PC against a real database: s
 - **KivHealth sample export** (Excel/CSV) from the clinic team → drop in `ref files\`.
 - **Dr Anu:** confirm staff roles and who sees which screens; decide whether OT consent photos are kept and for how long exam photos are kept.
 - **WhatsApp intake decisions:** data destination (Gurukrupa app assumed); official WhatsApp Business API vs linked-phone pilot, and which provider is behind the Postman link; extra questions; whose number. Also: should gender be asked before age so the honorific can be used earlier?
+- **Vector logo** from the clinic (SVG preferred).
 - **More printout photos:** YPC-100K (none yet), HNT-1P with different row counts, HRK with one eye only / plus values, phone photos at an angle or with glare, a post-cataract biometry report.
 - Change the admin password (`admin` / `admin123`) before anything goes near the clinic.
 

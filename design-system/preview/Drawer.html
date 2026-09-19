@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Drawer — Gurukrupa Care System</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../components/bundle.css">
+<style>html,body{margin:0;background:var(--canvas);}</style>
+</head>
+<body>
+<!-- @dsCard group="Surfaces" height=520 -->
+<div class="gk-root" style="background:var(--canvas);padding:16px;display:flex;justify-content:center;">
+  <div class="drawer-demo">
+    <div class="drawer-head">
+      <button class="drawer-close" aria-label="Close">✕</button>
+      <div class="name">Bharat Oza</div>
+      <div class="meta">#009 · 71M · With Doctor</div>
+    </div>
+    <div class="drawer-body">
+      <div class="summary-card" style="margin-bottom:14px;">
+        <div class="summary-card-title">At a glance</div>
+        <div class="summary-line">Last visit <b>42 days ago</b></div>
+        <div class="summary-line">Conditions: <b>Diabetes</b>, <b>Hypertension</b></div>
+      </div>
+      <div class="field-label">Readings</div>
+      <div class="reading-card">
+        <div class="reading-head"><span class="m">HNT-1P — Tono-Pachy</span><span class="src">scanned, 10:05 AM</span></div>
+        <div class="reading-vals">
+          <span class="reading-val"><label for="dw1">IOP (R)</label><input id="dw1" value="24"></span>
+          <span class="reading-val"><label for="dw2">IOP (L)</label><input id="dw2" value="26"></span>
+        </div>
+      </div>
+      <div class="field-label">Prescription</div>
+      <div class="med-row">
+        <div class="med-main">
+          <div class="med-name">Timolol 0.5% <span class="match-tag">Matched</span></div>
+          <input class="dosage-input" id="dw3" value="1 drop both eyes, twice daily">
+        </div>
+        <button class="rm" aria-label="Remove">✕</button>
+      </div>
+    </div>
+    <div class="drawer-foot">Saved automatically · last change 11:44 AM</div>
+  </div>
+</div>
+
+</body>
+</html>

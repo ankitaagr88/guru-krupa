@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PatientCard — Gurukrupa Care System</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../components/bundle.css">
+<style>html,body{margin:0;background:var(--canvas);}</style>
+</head>
+<body>
+<!-- @dsCard group="Queue" height=430 -->
+<div class="gk-root" style="background:var(--canvas);padding:16px;">
+  <div class="patient-cards" style="max-width:360px;margin:0 auto;">
+    <div class="patient-card">
+      <div class="pc-top"><div class="pc-name">Rasilaben Patel</div><div class="pc-token">#014</div></div>
+      <div class="pc-row"><span class="pc-label">Age / Sex</span><span class="pc-val">62 F</span></div>
+      <div class="pc-row"><span class="pc-label">Phone</span><span class="pc-val num">98250 12345</span></div>
+      <div class="pc-row"><span class="pc-label">Waiting</span><span class="pc-val num">6m</span></div>
+      <div class="pc-status"><span class="status-pill">First visit</span></div>
+    </div>
+    <div class="patient-card dilating">
+      <div class="pc-top"><div class="pc-name">Sangita Rana</div><div class="pc-token">#007</div></div>
+      <div class="pc-row"><span class="pc-label">Drop</span><span class="pc-val">Cyclopentolate 1%</span></div>
+      <div class="pc-row"><span class="pc-label">Time left</span><span class="pc-val num">9m</span></div>
+      <div class="pc-status"><span class="status-pill gold">Dilating · drop 2</span></div>
+    </div>
+    <div class="patient-card overdue">
+      <div class="pc-top"><div class="pc-name">Ilaben Chauhan</div><div class="pc-token">#005</div></div>
+      <div class="pc-row"><span class="pc-label">Drop</span><span class="pc-val">Cyclopentolate 1%</span></div>
+      <div class="pc-row"><span class="pc-label">Over by</span><span class="pc-val num">11m</span></div>
+      <div class="pc-status"><span class="status-pill alert">Overdue</span><span class="status-pill info">Elsewhere</span></div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

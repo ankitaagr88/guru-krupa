@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AppointmentCard — Gurukrupa Care System</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../components/bundle.css">
+<style>html,body{margin:0;background:var(--canvas);}</style>
+</head>
+<body>
+<!-- @dsCard group="Queue" height=320 -->
+<div class="gk-root" style="background:var(--canvas);padding:16px;display:flex;flex-direction:column;gap:10px;">
+  <div class="appt-card">
+    <div class="appt-time" style="font-variant-numeric:tabular-nums;">09:30 AM</div>
+    <div class="appt-info"><div class="n">Hasmukh Parekh</div><div class="p">Post-op review, day 7</div></div>
+    <span class="channel-tag whatsapp">WhatsApp</span>
+    <button class="appt-checkin done" disabled>Checked in</button>
+  </div>
+  <div class="appt-card">
+    <div class="appt-time" style="font-variant-numeric:tabular-nums;">10:30 AM</div>
+    <div class="appt-info"><div class="n">Nilima Bhatt</div><div class="p">Routine checkup</div></div>
+    <span class="channel-tag call">Phone call</span>
+    <button class="appt-checkin">Check in</button>
+  </div>
+  <div class="appt-card">
+    <div class="appt-time" style="font-variant-numeric:tabular-nums;">11:15 AM</div>
+    <div class="appt-info"><div class="n">Jayesh Solanki</div><div class="p">Glaucoma follow-up, IOP check</div></div>
+    <span class="channel-tag walkin">Walk-in</span>
+    <button class="appt-checkin">Check in</button>
+  </div>
+</div>
+
+</body>
+</html>

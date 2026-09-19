@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AdminRow — Gurukrupa Care System</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../components/bundle.css">
+<style>html,body{margin:0;background:var(--canvas);}</style>
+</head>
+<body>
+<!-- @dsCard group="Queue" height=250 -->
+<div class="gk-root" style="background:var(--canvas);padding:16px;max-width:420px;display:flex;flex-direction:column;gap:8px;">
+  <div class="admin-row">
+    <span class="step-order">1</span>
+    <input type="text" value="Tropicamide 0.8%" aria-label="Step 1 name">
+    <span class="mins"><input type="text" value="5" aria-label="Minutes">min</span>
+    <button class="admin-del" aria-label="Delete Tropicamide step">✕</button>
+  </div>
+  <div class="admin-row">
+    <span class="step-order">2</span>
+    <input type="text" value="Cyclopentolate 1%" aria-label="Step 2 name">
+    <span class="mins"><input type="text" value="20" aria-label="Minutes">min</span>
+    <button class="admin-del" aria-label="Delete Cyclopentolate step">✕</button>
+  </div>
+  <div class="admin-row">
+    <span class="grip" aria-hidden="true">⠿</span>
+    <input type="text" value="Pre-testing" aria-label="Stage name">
+    <button class="admin-del" aria-label="Delete Pre-testing stage">✕</button>
+  </div>
+  <button class="dashed-action">+ Add a step</button>
+</div>
+
+</body>
+</html>

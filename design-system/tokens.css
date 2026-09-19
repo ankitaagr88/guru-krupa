@@ -1,0 +1,115 @@
+/* Gurukrupa Care System — compiled custom properties.
+   Generated from tokens.json. Import this first, then components/bundle.css. */
+
+@import url("https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap");
+
+:root, [data-theme="light"] {
+  --canvas: #f2f0eb;
+  --surface: #fdfcfa;
+  --surface-sunk: #eae7e0;
+  --line: #e3dfd6;
+  --line-strong: #cfc9bc;
+  --ink: #16203d;
+  --ink-soft: #4c5670;
+  --ink-faint: #5a6382;
+  --sapphire: #1c4bb5;
+  --sapphire-deep: #14357f;
+  --sapphire-ink: #0c1d4a;
+  --sapphire-wash: #e6ecfa;
+  --sapphire-line: #c3d0f0;
+  --on-sapphire: #ffffff;
+  --gold: #b8811f;
+  --gold-bright: #e6be68;
+  --gold-deep: #7f5a16;
+  --gold-wash: #f9efd9;
+  --gold-line: #e8d3a4;
+  --on-gold: #16203d;
+  --alert: #b93b28;
+  --alert-ink: #97301f;
+  --alert-wash: #fbe8e3;
+  --alert-line: #efc0b4;
+  --done: #0d6e72;
+  --done-ink: #0a585c;
+  --done-wash: #e0f0f1;
+  --done-line: #b2d8da;
+  --whatsapp-ink: #16794a;
+  --whatsapp-wash: #e6f5ec;
+  --call-ink: #2a5fa8;
+  --call-wash: #e8f0fb;
+  --nav-surface: #0c1d4a;
+  --nav-active: #1a2e63;
+  --nav-ink: #ffffff;
+  --nav-ink-soft: #a8b6df;
+  --focus: #2f6be0;
+  --focus-inverse: #e6be68;
+  --scrim: rgba(12, 29, 74, 0.38);
+  --scrim-strong: rgba(12, 29, 74, 0.48);
+  --mark-gold: #c9922f;
+  --mark-sapphire: #1b4fc4;
+  --mark-silver: #9aa3aa;
+  --mark-silver-dim: #6b7379;
+
+  --shadow-sm: 0 1px 2px rgba(22, 32, 61, 0.06);
+  --shadow-md: 0 4px 12px -4px rgba(22, 32, 61, 0.12);
+  --shadow-lg: 0 18px 40px -12px rgba(12, 29, 74, 0.22);
+  --shadow-knob: 0 1px 2px rgba(22, 32, 61, 0.25);
+}
+
+:root {
+  --space-0.5: 2px;
+  --space-1: 4px;
+  --space-1.5: 6px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-pill: 9999px;
+  --radius-full: 50%;
+
+  --font-serif: "Source Serif 4", "Iowan Old Style", Georgia, serif;
+  --font-ui: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+/* Type styles — one class per named style. */
+/* Display */
+.page-title { font-family: var(--font-serif); font-size: 22px; line-height: 28px; font-weight: 600; }
+.drawer-title { font-family: var(--font-serif); font-size: 20px; line-height: 26px; font-weight: 600; }
+.rx-title { font-family: var(--font-serif); font-size: 19px; line-height: 25px; font-weight: 700; }
+.modal-title { font-family: var(--font-serif); font-size: 18px; line-height: 24px; font-weight: 600; }
+.card-title { font-family: var(--font-serif); font-size: 17px; line-height: 23px; font-weight: 600; }
+.section-title { font-family: var(--font-serif); font-size: 16px; line-height: 22px; font-weight: 600; }
+.row-title { font-family: var(--font-serif); font-size: 15px; line-height: 21px; font-weight: 600; }
+
+/* Interface */
+.button { font-family: var(--font-ui); font-size: 14px; line-height: 20px; font-weight: 600; }
+.button-sm { font-family: var(--font-ui); font-size: 13px; line-height: 18px; font-weight: 600; }
+.option { font-family: var(--font-ui); font-size: 14px; line-height: 20px; font-weight: 500; }
+.body { font-family: var(--font-ui); font-size: 14px; line-height: 21px; font-weight: 400; }
+.body-strong { font-family: var(--font-ui); font-size: 14px; line-height: 21px; font-weight: 600; }
+.meta { font-family: var(--font-ui); font-size: 13px; line-height: 19px; font-weight: 400; }
+.caption { font-family: var(--font-ui); font-size: 12px; line-height: 17px; font-weight: 400; }
+.field-label { font-family: var(--font-ui); font-size: 12px; line-height: 16px; font-weight: 600; }
+.table-header { font-family: var(--font-ui); font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.3px; }
+.eyebrow { font-family: var(--font-ui); font-size: 11px; line-height: 15px; font-weight: 600; letter-spacing: 0.6px; }
+.tag { font-family: var(--font-ui); font-size: 12px; line-height: 16px; font-weight: 500; }
+.tag-sm { font-family: var(--font-ui); font-size: 11px; line-height: 15px; font-weight: 500; }
+
+/* Measurement */
+.reading { font-family: var(--font-mono); font-size: 14px; line-height: 20px; font-weight: 500; }
+.amount { font-family: var(--font-mono); font-size: 15px; line-height: 20px; font-weight: 500; }
+.token { font-family: var(--font-mono); font-size: 13px; line-height: 18px; font-weight: 500; }
+.time { font-family: var(--font-mono); font-size: 13px; line-height: 18px; font-weight: 400; }
+.stamp { font-family: var(--font-mono); font-size: 11px; line-height: 15px; font-weight: 400; }
+
+/* Brand */
+.wordmark { font-family: var(--font-serif); font-size: 26px; line-height: 28px; font-weight: 700; letter-spacing: 0.3px; }
+.byline { font-family: var(--font-ui); font-size: 12px; line-height: 16px; font-weight: 400; }

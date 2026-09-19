@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BillItem — Gurukrupa Care System</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../components/bundle.css">
+<style>html,body{margin:0;background:var(--canvas);}</style>
+</head>
+<body>
+<!-- @dsCard group="Billing" height=250 -->
+<div class="gk-root" style="background:var(--surface);padding:16px;max-width:360px;display:flex;flex-direction:column;gap:6px;">
+  <div class="bill-item">
+    <span class="bi-label">Consultation fee</span>
+    <span class="bi-right"><span class="bi-amt">₹500</span><button aria-label="Remove consultation fee">✕</button></span>
+  </div>
+  <div class="bill-item">
+    <span class="bi-label">Pre-test charges</span>
+    <span class="bi-right"><span class="bi-amt">₹250</span><button aria-label="Remove pre-test charges">✕</button></span>
+  </div>
+  <div class="bill-item">
+    <span class="bi-label">Tono-Pachy</span>
+    <span class="bi-right"><span class="bi-amt">₹300</span><button aria-label="Remove Tono-Pachy">✕</button></span>
+  </div>
+  <div class="bill-total" style="margin-top:4px;"><span>Total</span><span class="amt">₹1,050</span></div>
+</div>
+
+</body>
+</html>

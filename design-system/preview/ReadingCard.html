@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ReadingCard — Gurukrupa Care System</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../components/bundle.css">
+<style>html,body{margin:0;background:var(--canvas);}</style>
+</head>
+<body>
+<!-- @dsCard group="Clinical" height=320 -->
+<div class="gk-root" style="background:var(--surface);padding:16px;max-width:380px;display:flex;flex-direction:column;gap:8px;">
+  <div class="reading-card">
+    <div class="reading-head"><span class="m">HRK-8000A — Refraction (REF)</span><span class="src">scanned, 11:42 AM</span></div>
+    <div class="reading-vals">
+      <span class="reading-val"><label for="rv1">SPH (R)</label><input id="rv1" value="-1.00"></span>
+      <span class="reading-val"><label for="rv2">CYL (R)</label><input id="rv2" value="-0.50"></span>
+      <span class="reading-val"><label for="rv3">AX (R)</label><input id="rv3" value="90"></span>
+      <span class="reading-val"><label for="rv4">SPH (L)</label><input id="rv4" value="-0.75"></span>
+      <span class="reading-val"><label for="rv5">CYL (L)</label><input id="rv5" value="-0.50"></span>
+      <span class="reading-val"><label for="rv6">AX (L)</label><input id="rv6" value="85"></span>
+      <span class="reading-val"><label for="rv7">PD</label><input id="rv7" value="64mm"></span>
+    </div>
+  </div>
+  <div class="reading-card">
+    <div class="reading-head"><span class="m">HNT-1P — Tono-Pachy (IOP &amp; CCT)</span><span class="src">scanned, 10:05 AM</span></div>
+    <div class="reading-vals">
+      <span class="reading-val"><label for="rv8">IOP (R)</label><input id="rv8" value="24"></span>
+      <span class="reading-val"><label for="rv9">IOP (L)</label><input id="rv9" value="26"></span>
+      <span class="reading-val"><label for="rv10">CCT (R)</label><input id="rv10" value="520"></span>
+      <span class="reading-val"><label for="rv11">CCT (L)</label><input id="rv11" value="515"></span>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

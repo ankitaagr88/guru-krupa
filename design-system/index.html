@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gurukrupa Care System</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="components/bundle.css">
+<style>
+  html,body{margin:0;background:var(--canvas);}
+  body{font-family:var(--font-ui);color:var(--ink);}
+  .wrap{max-width:1100px;margin:0 auto;padding-block:40px;padding-inline:24px;}
+  header h1{font-family:var(--font-serif);font-weight:700;font-size:44px;line-height:1;margin:0 0 10px;}
+  header p{margin:0;color:var(--ink-soft);font-size:15px;max-width:60ch;}
+  header .how{margin-top:20px;background:var(--surface);border:1px solid var(--line);
+    border-radius:14px;padding:16px 18px;font-size:13px;color:var(--ink-soft);}
+  header .how code{font-family:var(--font-mono);font-size:12px;color:var(--ink);
+    background:var(--surface-sunk);padding:2px 6px;border-radius:5px;}
+  section{margin-top:44px;}
+  section h2{margin:0 0 16px;color:var(--ink);}
+  .card{margin:0 0 16px;background:var(--surface);border:1px solid var(--line);
+    border-radius:14px;overflow:hidden;}
+  figcaption{padding:11px 16px;border-bottom:1px solid var(--line);
+    font-family:var(--font-ui);font-weight:600;font-size:13px;background:var(--surface-sunk);}
+  figcaption a{color:var(--sapphire);text-decoration:none;}
+  figcaption a:hover{text-decoration:underline;}
+  iframe{display:block;width:100%;border:0;background:var(--canvas);}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Gurukrupa Care System</h1>
+      <p>Where is this patient, and what happens to them next. 33 components, compiled tokens, and the brand book.</p>
+      <div class="how">
+        Open this folder in VS Code and run it with <strong>Live Server</strong> — the previews below are iframes and need a local server, not <code>file://</code>.
+        To use the system in your own code, link <code>tokens.css</code> first, then <code>components/bundle.css</code>.
+      </div>
+    </header>
+    <section>
+      <h2 class="section-title">Overview</h2>
+      <figure class="card">
+        <figcaption><a href="preview/Cover.html" target="_blank" rel="noopener">Cover</a></figcaption>
+        <iframe src="preview/Cover.html" title="Cover" loading="lazy" style="height:288px"></iframe>
+      </figure>
+    </section>
+    <section>
+      <h2 class="section-title">Navigation</h2>
+      <figure class="card">
+        <figcaption><a href="preview/BottomTabBar.html" target="_blank" rel="noopener">BottomTabBar</a></figcaption>
+        <iframe src="preview/BottomTabBar.html" title="BottomTabBar" loading="lazy" style="height:220px"></iframe>
+      </figure>
+      <figure class="card">
+        <figcaption><a href="preview/SideNav.html" target="_blank" rel="noopener">SideNav</a></figcaption>
+        <iframe src="preview/SideNav.html" title="SideNav" loading="lazy" style="height:560px"></iframe>
+      </figure>
+      <figure class="card">
+        <figcaption><a href="preview/StageStrip.html" target="_blank" rel="noopener">StageStrip</a></figcaption>
+        <iframe src="preview/StageStrip.html" title="StageStrip" loading="lazy" style="height:180px"></iframe>
+      </figure>
+      <figure class="card">
+        <figcaption><a href="preview/TopBar.html" target="_blank" rel="noopener">TopBar</a></figcaption>
+        <iframe src="preview/TopBar.html" title="TopBar" loading="lazy" style="height:300px"></iframe>
+      </figure>
+    </section>
+    <section>
+      <h2 class="section-title">Actions</h2>
+      <figure class="card">
+        <figcaption><a href="preview/Button.html" target="_blank" rel="noopener">Button</a></figcaption>
+        <iframe src="preview/Button.html" title="Button" loading="lazy" style="height:200px"></iframe>
+      </figure>
+      <figure class="card">
+        <figcaption><a href="preview/DashedAction.html" target="_blank" rel="noopener">DashedAction</a></figcaption>
+        <iframe src="preview/DashedAction.html" title="DashedAction" loading="lazy" style="height:200px"></iframe>
+      </figure>
+      <figure class="card">
+        <figcaption><a href="preview/IconButton.html" target="_blank" rel="noopener">IconButton</a></figcaption>
+        <iframe src="preview/IconButton.html" title="IconButton" loading="lazy" style="height:140px"></iframe>
+      </figure>
+    </section>
+    <section>
+      <h2 class="section-title">Forms</h2>
+      <figure class="card">
+        <figcaption><a href="preview/ConditionChip.html" target="_blank" rel="noopener">ConditionChip</a></figcaption>
+        <iframe src="preview/ConditionChip.html" title="ConditionChip" loading="lazy" style="height:260px"></iframe>
+      </figure>
+      <figure class="card">
+        <figcaption><a href="preview/DropSelect.html" target="_blank" rel="noopener">DropSelect</a></figcaption>
+        <iframe src="preview/DropSelect.html" title="DropSelect" loading="lazy" style="height:210px"></iframe>
+      </figure>
+      <figure class="card">
+        <figcaption><a href="preview/SegmentedToggle.html" target="_blank" rel="noopener">SegmentedToggle</a></figcaption>
+        <iframe src="preview/SegmentedToggle.html" title="SegmentedToggle" loading="lazy" style="height:300px"></iframe>
+      </figure>
+      <figure class="card">
+        <figcaption><a href="preview/Switch.html" target="_blank" rel="noopener">Switch</a></figcaption>
+        <iframe src="preview/Switch.html" title="Switch" loading="lazy" style="height:210px"></iframe>
+      </figure>
+      <figure class="card">
+        <figcaption><a href="preview/TextField.html" target="_blank" rel="noopener">TextField</a></figcaption>
+        <iframe src="preview/TextField.html" title="TextField" loading="lazy" style="height:300px"></iframe>
+      </figure>
+    </section>
+    <section>
+      <h2 class="section-title">Status</h2>
+      <figure class="card">
+        <figcaption><a href="preview/ChannelTag.html" target="_blank" rel="noopener">ChannelTag</a></figcaption>
+        <iframe src="preview/ChannelTag.html" title="ChannelTag" loading="lazy" style="height:130px"></iframe>
+      </figure>
+      <figure class="card">
+        <figcaption><a href="preview/StatusPill.html" target="_blank" rel="noopener">StatusPill</a></figcaption>
+        <iframe src="preview/StatusPill.html" title="StatusPill" loading="lazy" style="height:200px"></iframe>
+      </figure>
+      <figure class="card">
+        <figcaption><a href="preview/TimerRing.html" target="_blank" rel="noopener">TimerRing</a></figcaption>
+        <iframe src="preview/TimerRing.html" title="TimerRing" loading="lazy" style="height:180px"></iframe>
+      </figure>
+      <figure class="card">
+        <figcaption><a href="preview/Toast.html" target="_blank" rel="noopener">Toast</a></figcaption>
+        <iframe src="preview/Toast.html" title="Toast" loading="lazy" style="height:280px"></iframe>
+      </figure>
+    </section>
+    <section>
+      <h2 class="section-title">Queue</h2>
+      <figure class="card">
+        <figcaption><a href="preview/AdminRow.html" target="_blank" rel="noopener">AdminRow</a></figcaption>
+        <iframe src="preview/AdminRow.html" title="AdminRow" loading="lazy" style="height:250px"></iframe>
+      </figure>
+      <figure class="card">
+        <figcaption><a href="preview/AppointmentCard.html" target="_blank" rel="noopener">AppointmentCard</a></figcaption>
+        <iframe src="preview/AppointmentCard.html" title="AppointmentCard" loading="lazy" style="height:320px"></iframe>
+      </figure>
+      <figure class="card">
+        <figcaption><a href="preview/DatePill.html" target="_blank" rel="noopener">DatePill</a></figcaption>
+        <iframe src="preview/DatePill.html" title="DatePill" loading="lazy" style="height:140px"></iframe>
+      </figure>
+      <figure class="card">
+        <figcaption><a href="preview/EmptySlot.html" target="_blank" rel="noopener">EmptySlot</a></figcaption>
+        <iframe src="preview/EmptySlot.html" title="EmptySlot" loading="lazy" style="height:170px"></iframe>
+      </figure>
+      <figure class="card">
+        <figcaption><a href="preview/PatientCard.html" target="_blank" rel="noopener">PatientCard</a></figcaption>
+        <iframe src="preview/PatientCard.html" title="PatientCard" loading="lazy" style="height:430px"></iframe>
+      </figure>
+      <figure class="card">
+        <figcaption><a href="preview/QueueTable.html" target="_blank" rel="noopener">QueueTable</a></figcaption>
+        <iframe src="preview/QueueTable.html" title="QueueTable" loading="lazy" style="height:320px"></iframe>
+      </figure>
+    </section>
+    <section>
+      <h2 class="section-title">Clinical</h2>
+      <figure class="card">
+        <figcaption><a href="preview/DilationStep.html" target="_blank" rel="noopener">DilationStep</a></figcaption>
+        <iframe src="preview/DilationStep.html" title="DilationStep" loading="lazy" style="height:330px"></iframe>
+      </figure>
+      <figure class="card">
+        <figcaption><a href="preview/MedRow.html" target="_blank" rel="noopener">MedRow</a></figcaption>
+        <iframe src="preview/MedRow.html" title="MedRow" loading="lazy" style="height:270px"></iframe>
+      </figure>
+      <figure class="card">
+        <figcaption><a href="preview/ReadingCard.html" target="_blank" rel="noopener">ReadingCard</a></figcaption>
+        <iframe src="preview/ReadingCard.html" title="ReadingCard" loading="lazy" style="height:320px"></iframe>
+      </figure>
+      <figure class="card">
+        <figcaption><a href="preview/SummaryCard.html" target="_blank" rel="noopener">SummaryCard</a></figcaption>
+        <iframe src="preview/SummaryCard.html" title="SummaryCard" loading="lazy" style="height:200px"></iframe>
+      </figure>
+      <figure class="card">
+        <figcaption><a href="preview/TestOption.html" target="_blank" rel="noopener">TestOption</a></figcaption>
+        <iframe src="preview/TestOption.html" title="TestOption" loading="lazy" style="height:240px"></iframe>
+      </figure>
+    </section>
+    <section>
+      <h2 class="section-title">Billing</h2>
+      <figure class="card">
+        <figcaption><a href="preview/BillItem.html" target="_blank" rel="noopener">BillItem</a></figcaption>
+        <iframe src="preview/BillItem.html" title="BillItem" loading="lazy" style="height:250px"></iframe>
+      </figure>
+    </section>
+    <section>
+      <h2 class="section-title">Surfaces</h2>
+      <figure class="card">
+        <figcaption><a href="preview/Card.html" target="_blank" rel="noopener">Card</a></figcaption>
+        <iframe src="preview/Card.html" title="Card" loading="lazy" style="height:250px"></iframe>
+      </figure>
+      <figure class="card">
+        <figcaption><a href="preview/Drawer.html" target="_blank" rel="noopener">Drawer</a></figcaption>
+        <iframe src="preview/Drawer.html" title="Drawer" loading="lazy" style="height:520px"></iframe>
+      </figure>
+      <figure class="card">
+        <figcaption><a href="preview/Modal.html" target="_blank" rel="noopener">Modal</a></figcaption>
+        <iframe src="preview/Modal.html" title="Modal" loading="lazy" style="height:380px"></iframe>
+      </figure>
+      <figure class="card">
+        <figcaption><a href="preview/PrescriptionSheet.html" target="_blank" rel="noopener">PrescriptionSheet</a></figcaption>
+        <iframe src="preview/PrescriptionSheet.html" title="PrescriptionSheet" loading="lazy" style="height:400px"></iframe>
+      </figure>
+    </section>
+  </div>
+</body>
+</html>

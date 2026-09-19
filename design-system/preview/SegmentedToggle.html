@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SegmentedToggle — Gurukrupa Care System</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../components/bundle.css">
+<style>html,body{margin:0;background:var(--canvas);}</style>
+</head>
+<body>
+<!-- @dsCard group="Forms" height=300 -->
+<div class="gk-root" style="background:var(--surface);padding:16px;max-width:380px;">
+  <div class="field-label">Sex</div>
+  <div class="seg-toggle" role="group" aria-label="Sex">
+    <button type="button" class="active" aria-pressed="true">F</button>
+    <button type="button" aria-pressed="false">M</button>
+    <button type="button" aria-pressed="false">Other</button>
+  </div>
+  <div class="field-label">Preferred language</div>
+  <div class="seg-toggle" role="group" aria-label="Preferred language">
+    <button type="button" aria-pressed="false">English</button>
+    <button type="button" aria-pressed="false">हिंदी</button>
+    <button type="button" class="active" aria-pressed="true">ગુજરાતી</button>
+  </div>
+  <div class="field-label">Booking channel</div>
+  <div class="seg-toggle" role="group" aria-label="Booking channel">
+    <button type="button" class="active whatsapp" aria-pressed="true">WhatsApp</button>
+    <button type="button" aria-pressed="false">Call</button>
+    <button type="button" aria-pressed="false">Walk-in</button>
+  </div>
+</div>
+
+</body>
+</html>

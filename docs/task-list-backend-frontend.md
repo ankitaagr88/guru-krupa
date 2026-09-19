@@ -11,15 +11,15 @@ Source of truth for every screen's look and behaviour: `guru-krupa-eye-hospital-
 
 ## Summary
 
-**Overall progress: 70%** (32 of 46 tasks done)
+**Overall progress: 68%** (32 of 47 tasks done)
 
 | Area | Done | In progress | Not started | Blocked | % complete |
 |---|---|---|---|---|---|
 | Backend (server side) | 14 | 0 | 3 | 0 | 82% |
-| Frontend (screens) | 13 | 0 | 3 | 0 | 81% |
+| Frontend (screens) | 13 | 0 | 4 | 0 | 76% |
 | Data & go-live | 2 | 0 | 4 | 2 | 25% |
 | WhatsApp intake | 3 | 0 | 1 | 1 | 60% |
-| **Total** | **32** | **0** | **11** | **3** | **70%** |
+| **Total** | **32** | **0** | **12** | **3** | **68%** |
 
 How the % is worked out: done = 1, in progress = ½, not started / blocked = 0, divided by the number of tasks in that area.
 
@@ -67,6 +67,7 @@ How the % is worked out: done = 1, in progress = ½, not started / blocked = 0, 
 | F13 | "Approve reading" button on Machines (photo disappears after approval); scan biometry report in OT | ⏳ | **First task next session** (server side is ready) |
 | F14 | Open prescription from the Queue drawer; "Rx" in the mobile menu | ✅ | |
 | F15 | KivHealth import screen (upload, match columns, preview) | ⏳ | After B13 |
+| F16 | Re-dress every screen in the official design system (`gurukrupa-design-system`: colours, 3 typefaces, 32 components, new side menu + bottom tab bar, wording rules) | ⏳ | Design system copied into the repo; name settled as "Guru Krupa Eye Hospital & Laser Center"; vector logo still needed |
 
 ## Data & go-live
 
