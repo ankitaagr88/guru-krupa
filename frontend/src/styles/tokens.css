@@ -1,0 +1,66 @@
+/* Design tokens — ported 1:1 from docs/mockup-reference.html :root.
+   NOTE: the mockup's "--teal" is actually a deep blue (#1E3A8A); the name is
+   kept so class names and future ports from the mockup keep working. */
+:root {
+  --bg: #f1f4fb;
+  --surface: #ffffff;
+  --ink: #16214a;
+  --muted: #57628c;
+  --faint: #93a0c6;
+  --line: #e1e7f7;
+  --teal: #1e3a8a;
+  --teal-deep: #10173d;
+  --teal-wash: #e7ecfb;
+  --amber: #e0a458;
+  --amber-wash: #fbf0df;
+  --amber-ink: #9a6a1e;
+  --coral: #d9614f;
+  --coral-wash: #fbe7e3;
+  --coral-line: #efb6ac;
+  --sage: #2e9b6f;
+  --sage-wash: #e5f5ee;
+  --whatsapp: #1f9254;
+  --whatsapp-wash: #e7f7ec;
+  --call: #2a5fa8;
+  --call-wash: #e8f0fb;
+
+  /* Rail palette */
+  --rail-fg: #b9cfc5;
+  --rail-nav-fg: #cfe0d8;
+  --rail-brand-accent: #8cd98a;
+
+  /* Stage colours (STAGES[].cls) — one hue per stage for pills, badges and
+     future board columns. The mockup defines the classes but no colours, so
+     these are derived from the existing palette. */
+  --stage-reg: var(--teal);
+  --stage-reg-wash: var(--teal-wash);
+  --stage-pretest: #2a5fa8;
+  --stage-pretest-wash: #e8f0fb;
+  --stage-doctor: #6b3fa0;
+  --stage-doctor-wash: #efe8fb;
+  --stage-dilate: var(--amber);
+  --stage-dilate-wash: var(--amber-wash);
+  --stage-billing: var(--coral);
+  --stage-billing-wash: var(--coral-wash);
+  --stage-done: var(--sage);
+  --stage-done-wash: var(--sage-wash);
+
+  /* Typography */
+  --font-head: 'Manrope', 'Inter', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-brand: 'Sora', 'Manrope', sans-serif;
+
+  /* Layout */
+  --rail-w: 76px;
+  --drawer-w: 360px;
+  --mobile-nav-h: 60px;
+  --radius: 12px;
+  --radius-sm: 9px;
+  --shadow-card: 0 1px 2px rgba(28, 42, 36, 0.04);
+  --shadow-toast: 0 14px 30px -10px rgba(20, 28, 24, 0.25);
+  --z-overlay: 5;
+  --z-drawer: 6;
+  --z-modal: 10;
+  --z-mobile-nav: 15;
+  --z-toast: 20;
+}
