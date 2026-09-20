@@ -237,9 +237,11 @@ def save_prescription(db: Session, visit: Visit, lines: list[PrescriptionLineIn]
                       by: Staff | int | None, diagnosis_id: int | None = None) -> tuple[Prescription, list[InventoryItem]]:
     """Create or replace the visit's prescription in one transaction.
 
-    Replacing reverses the earlier stock movements (compensating "adjusted" rows), drops the old
-    lines and dispenses the new ones. Raises InsufficientStock before anything is written.
-    Returns (prescription, items now at/below their reorder level).
+    Saving never moves stock: `qty_given` is the doctor's "to give from clinic". Stock moves only
+    when the front desk confirms a line with `dispense_line`. Replacing keeps the confirmed
+    (dispensed) state of lines that are still on the new prescription and reverses the stock of
+    confirmed lines that were removed. Returns (prescription, []) — the low-stock list now comes
+    from `dispense_line`.
     """
     staff_id = _staff_id(by)
     lang = LANGUAGE_ALIASES.get((print_language or "").lower()) if print_language else None
@@ -259,36 +261,27 @@ def save_prescription(db: Session, visit: Visit, lines: list[PrescriptionLineIn]
             if lang:
                 rx.print_language = lang
             rx.diagnosis_id = diagnosis_id
-            _reverse_movements(db, rx, staff_id)
-            for old in list(rx.lines):
-                db.delete(old)
-            db.flush()
 
-        # Resolve every line, aggregate the stock needed per item, and check before writing.
-        resolved: list[tuple[PrescriptionLineIn, Medicine | None, InventoryItem | None]] = []
-        needed: dict[int, int] = defaultdict(int)
-        items: dict[int, InventoryItem] = {}
+        # Carry the front desk's confirmations over to lines that are still there; give the
+        # stock back for confirmed lines the doctor removed.
+        confirmed: dict[str, PrescriptionLine] = {ln.name.lower(): ln for ln in rx.lines if ln.dispensed_qty > 0}
+        new_names = {(_medicine_for(db, line) or line).name.strip().lower() for line in lines}
+        for key, old in confirmed.items():
+            if key not in new_names:
+                _undo_dispense_stock(db, rx, old, staff_id)
+        for old in list(rx.lines):
+            db.delete(old)
+        db.flush()
+
         for line in lines:
             med = _medicine_for(db, line)
-            item = _item_for(db, line.name, med) if line.qty_given > 0 else None
-            if item is not None:
-                needed[item.id] += line.qty_given
-                items[item.id] = item
-            resolved.append((line, med, item))
-        for item_id, qty in needed.items():
-            item = items[item_id]
-            if item.stock - qty < 0:
-                raise InsufficientStock(item.name, item.stock, qty)
-
-        for line, med, item in resolved:
-            rx.lines.append(PrescriptionLine(medicine_id=med.id if med else None,
-                                             name=med.name if med else line.name.strip(),
-                                             matched=med is not None, dosage=line.dosage.strip(),
-                                             qty_given=line.qty_given))
-            if item is not None:
-                item.stock -= line.qty_given
-                db.add(StockMovement(item_id=item.id, delta=-line.qty_given, reason=DISPENSE_REASON,
-                                     ref_prescription_id=rx.id, by_staff_id=staff_id))
+            name = med.name if med else line.name.strip()
+            keep = confirmed.get(name.lower())
+            rx.lines.append(PrescriptionLine(medicine_id=med.id if med else None, name=name, matched=med is not None,
+                                             dosage=line.dosage.strip(), qty_given=line.qty_given,
+                                             dispensed_qty=keep.dispensed_qty if keep else 0,
+                                             dispensed_at=keep.dispensed_at if keep else None,
+                                             dispensed_by_id=keep.dispensed_by_id if keep else None))
         db.add(AuditLog(staff_id=staff_id, action="prescription.save", entity="prescription", entity_id=rx.id,
                         detail={"visitId": visit.id, "lines": len(lines)}))
         db.commit()
@@ -296,22 +289,58 @@ def save_prescription(db: Session, visit: Visit, lines: list[PrescriptionLineIn]
         db.rollback()
         raise
     db.refresh(rx)
-    low = [it for it in items.values() if it.stock <= it.reorder_level]
-    return rx, low
+    return rx, []
 
 
-def _reverse_movements(db: Session, rx: Prescription, staff_id: int | None) -> None:
-    moves = list(db.scalars(select(StockMovement).where(StockMovement.ref_prescription_id == rx.id)))
-    net: dict[int, int] = defaultdict(int)
-    for m in moves:
-        net[m.item_id] += m.delta
-    for item_id, delta in net.items():
-        if delta == 0:
-            continue
-        item = db.get(InventoryItem, item_id)
-        item.stock -= delta  # delta is negative for dispensed -> stock goes back up
-        db.add(StockMovement(item_id=item_id, delta=-delta, reason=REVERSAL_REASON, ref_prescription_id=rx.id,
-                             by_staff_id=staff_id))
+def _undo_dispense_stock(db: Session, rx: Prescription, line: PrescriptionLine, staff_id: int | None) -> None:
+    item = _item_for(db, line.name, line.medicine)
+    if item is not None and line.dispensed_qty > 0:
+        item.stock += line.dispensed_qty
+        db.add(StockMovement(item_id=item.id, delta=line.dispensed_qty, reason=REVERSAL_REASON,
+                             ref_prescription_id=rx.id, by_staff_id=staff_id))
+
+
+def dispense_line(db: Session, rx: Prescription, line: PrescriptionLine, qty: int,
+                  by: Staff | int | None) -> tuple[PrescriptionLine, InventoryItem | None]:
+    """The front desk confirms the patient bought `qty` of this medicine here: stock goes down by
+    `qty` (409 when there is not enough), the line records who confirmed and when."""
+    if line.prescription_id != rx.id:
+        raise BadValue("Line is not on this prescription")
+    if line.dispensed_qty > 0:
+        raise BadValue(f"'{line.name}' is already marked as bought here — undo it first")
+    item = _item_for(db, line.name, line.medicine)
+    if item is None:
+        raise BadValue(f"'{line.name}' is not a stock item — nothing to deduct")
+    if item.stock - qty < 0:
+        raise InsufficientStock(item.name, item.stock, qty)
+    staff_id = _staff_id(by)
+    item.stock -= qty
+    db.add(StockMovement(item_id=item.id, delta=-qty, reason=DISPENSE_REASON, ref_prescription_id=rx.id,
+                         by_staff_id=staff_id))
+    line.dispensed_qty = qty
+    line.dispensed_at = utcnow()
+    line.dispensed_by_id = staff_id
+    db.add(AuditLog(staff_id=staff_id, action="prescription.dispense", entity="prescription_line", entity_id=line.id,
+                    detail={"qty": qty, "item": item.name, "stock": item.stock}))
+    db.commit()
+    return line, item
+
+
+def undo_dispense(db: Session, rx: Prescription, line: PrescriptionLine, by: Staff | int | None) -> PrescriptionLine:
+    """Take back a "bought here" confirmation: stock goes back up."""
+    if line.prescription_id != rx.id:
+        raise BadValue("Line is not on this prescription")
+    if line.dispensed_qty <= 0:
+        return line
+    staff_id = _staff_id(by)
+    _undo_dispense_stock(db, rx, line, staff_id)
+    db.add(AuditLog(staff_id=staff_id, action="prescription.undispense", entity="prescription_line",
+                    entity_id=line.id, detail={"qty": line.dispensed_qty}))
+    line.dispensed_qty = 0
+    line.dispensed_at = None
+    line.dispensed_by_id = None
+    db.commit()
+    return line
 
 
 def _line_form(ln: PrescriptionLine, labels: dict[str, str]) -> tuple[str | None, str | None]:
@@ -326,8 +355,12 @@ def prescription_out(db: Session, rx: Prescription, low: list[InventoryItem] | N
     lines = []
     for ln in rx.lines:
         form, form_label = _line_form(ln, labels)
+        item = _item_for(db, ln.name, ln.medicine)
         lines.append(PrescriptionLineOut(id=ln.id, medicine_id=ln.medicine_id, name=ln.name, matched=ln.matched,
-                                         dosage=ln.dosage, qty_given=ln.qty_given, form=form, form_label=form_label))
+                                         dosage=ln.dosage, qty_given=ln.qty_given, form=form, form_label=form_label,
+                                         dispensed_qty=ln.dispensed_qty, dispensed_at=ln.dispensed_at,
+                                         dispensed_by=ln.dispensed_by.name if ln.dispensed_by else None,
+                                         in_stock=item.stock if item is not None else None))
     return PrescriptionOut(id=rx.id, visit_id=rx.visit_id, print_language=rx.print_language, created_at=rx.created_at,
                            diagnosis_id=rx.diagnosis_id, diagnosis_name=rx.diagnosis.name if rx.diagnosis else None,
                            lines=lines, low_stock=[it.name for it in (low or [])])
@@ -370,7 +403,8 @@ def list_inventory(db: Session, low_only: bool = False) -> list[InventoryItem]:
 def inventory_out(item: InventoryItem) -> InventoryItemOut:
     return InventoryItemOut(id=item.id, name=item.name, unit=item.unit, stock=item.stock,
                             reorder_level=item.reorder_level, low=item.stock <= item.reorder_level,
-                            medicine_id=item.medicine_id)
+                            medicine_id=item.medicine_id, ordered_at=item.ordered_at,
+                            ordered_qty=item.ordered_qty, on_order=item.ordered_at is not None)
 
 
 def create_item(db: Session, *, name: str | None, unit: str, stock: int, reorder_level: int,
@@ -426,6 +460,14 @@ def adjust_stock(db: Session, item: InventoryItem, delta: int, reason: str, note
     if item.stock + delta < 0:
         raise NegativeStock(item.name)
     item.stock += delta
+    if reason == "received" and delta > 0 and item.ordered_at is not None:
+        # The order (or part of it) has arrived; anything short stays on order.
+        remaining = (item.ordered_qty or 0) - delta
+        if remaining > 0:
+            item.ordered_qty = remaining
+        else:
+            item.ordered_at = None
+            item.ordered_qty = None
     move = StockMovement(item_id=item.id, delta=delta, reason=reason, by_staff_id=_staff_id(by))
     db.add(move)
     db.add(AuditLog(staff_id=_staff_id(by), action="stock.adjust", entity="inventory_item", entity_id=item.id,
@@ -478,3 +520,16 @@ def bill_out(bill: Bill) -> BillOut:
                    total=sum(i.amount for i in bill.items), payment_mode=bill.payment_mode, paid_at=bill.paid_at,
                    paid=bill.paid_at is not None)
 
+
+
+def mark_ordered(db: Session, item: InventoryItem, ordered: bool, by: Staff | int | None,
+                 qty: int | None = None) -> InventoryItem:
+    """`ordered=True`: an order for `qty` has been placed — the low-stock alert stays quiet until stock
+    is received (an adjust with reason "received" clears it, or reduces the outstanding quantity).
+    `ordered=False` undoes that."""
+    item.ordered_at = utcnow() if ordered else None
+    item.ordered_qty = (qty or None) if ordered else None
+    db.add(AuditLog(staff_id=_staff_id(by), action="stock.ordered" if ordered else "stock.order_cleared",
+                    entity="inventory_item", entity_id=item.id, detail={"stock": item.stock, "qty": qty}))
+    db.commit()
+    return item

@@ -35,7 +35,7 @@ def test_list_shape_and_low(client, admin_headers):
     rows = client.get("/api/inventory", headers=admin_headers).json()
     assert len(rows) >= 12
     row = next(r for r in rows if r["name"] == "Tropicamide 0.8%")
-    assert set(row) == {"id", "name", "unit", "stock", "reorderLevel", "low", "medicineId"}
+    assert set(row) == {"id", "name", "unit", "stock", "reorderLevel", "low", "medicineId", "orderedAt", "orderedQty", "onOrder"}
     assert row["medicineId"] is None and row["unit"] == "bottles"  # dilation drop, not a prescribed medicine
     moxi = next(r for r in rows if r["name"] == "Moxifloxacin 0.5% eye drops")
     assert moxi["medicineId"] is not None
@@ -101,3 +101,28 @@ def test_create_from_medicine_id_defaults_name(client, admin_headers):
     assert r.status_code == 201 and r.json()["name"] == "MOSI LP"
     assert client.post("/api/inventory", json={"medicineId": aquaray["id"]}, headers=admin_headers).status_code == 409
     assert client.post("/api/inventory", json={"unit": "bottles"}, headers=admin_headers).status_code == 422
+
+
+def test_order_placed_silences_low_until_received(client, admin_headers):
+    items = client.get("/api/inventory", headers=admin_headers).json()
+    item = next(i for i in items if i["name"] == "Cyclopentolate 1%")  # seeded 3 of reorder 5 -> low
+    assert item["low"] and not item["onOrder"]
+    r = client.post(f"/api/inventory/{item['id']}/ordered", json={"qty": 10}, headers=admin_headers)
+    assert r.status_code == 200 and r.json()["onOrder"] and r.json()["orderedAt"] and r.json()["low"]
+    assert r.json()["orderedQty"] == 10
+    # still listed as low, but flagged on order
+    again = next(i for i in client.get("/api/inventory", headers=admin_headers).json() if i["id"] == item["id"])
+    assert again["onOrder"] is True
+    # undo
+    assert client.delete(f"/api/inventory/{item['id']}/ordered", headers=admin_headers).json()["onOrder"] is False
+    client.post(f"/api/inventory/{item['id']}/ordered", json={"qty": 10}, headers=admin_headers)
+    # a plain adjustment leaves the order as it is
+    r = client.post(f"/api/inventory/{item['id']}/adjust", json={"delta": 1, "reason": "adjusted"}, headers=admin_headers)
+    assert r.json()["onOrder"] is True and r.json()["orderedQty"] == 10
+    # only 6 of the 10 arrive -> 4 still on order; the rest arriving clears it
+    r = client.post(f"/api/inventory/{item['id']}/adjust", json={"delta": 6, "reason": "received"}, headers=admin_headers)
+    assert r.json()["onOrder"] is True and r.json()["orderedQty"] == 4
+    r = client.post(f"/api/inventory/{item['id']}/adjust", json={"delta": 4, "reason": "received"}, headers=admin_headers)
+    assert r.json()["onOrder"] is False and r.json()["orderedQty"] is None and r.json()["low"] is False
+    # tidy up for the other tests
+    client.post(f"/api/inventory/{item['id']}/adjust", json={"delta": -11, "reason": "adjusted"}, headers=admin_headers)

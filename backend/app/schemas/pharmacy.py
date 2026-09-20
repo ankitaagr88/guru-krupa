@@ -44,7 +44,11 @@ class PrescriptionLineOut(CamelModel):
     name: str
     matched: bool
     dosage: str
-    qty_given: int
+    qty_given: int  # the doctor's "to give from clinic"
+    dispensed_qty: int = 0  # confirmed bought here by the front desk (this is what moved stock)
+    dispensed_at: datetime | None = None
+    dispensed_by: str | None = None
+    in_stock: int | None = None  # current clinic stock of this medicine, None when not stocked
     form: str | None = None  # from the matched medicine; None for free-text lines
     form_label: str | None = None
 
@@ -58,6 +62,12 @@ class PrescriptionOut(CamelModel):
     diagnosis_name: str | None = None
     lines: list[PrescriptionLineOut]
     low_stock: list[str] = []  # item names now at/below reorder level (`pushLowStockToast`)
+
+
+class DispenseIn(CamelModel):
+    """`POST /visits/{id}/prescription/lines/{line_id}/dispense`: the patient bought `qty` here."""
+
+    qty: int = Field(ge=1)
 
 
 class PrintLine(CamelModel):
@@ -103,6 +113,13 @@ class InventoryItemOut(CamelModel):
     reorder_level: int
     low: bool
     medicine_id: int | None
+    ordered_at: datetime | None = None  # "order placed" — alerts stay quiet until stock is received
+    ordered_qty: int | None = None  # still to arrive
+    on_order: bool = False
+
+
+class OrderPlacedIn(CamelModel):
+    qty: int = Field(ge=1)
 
 
 class StockAdjustIn(CamelModel):

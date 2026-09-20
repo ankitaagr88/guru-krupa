@@ -130,7 +130,7 @@ def test_prescription_matches_brand_and_prints_composition(client, admin_headers
     assert p["lines"][3]["brand"] is None and p["lines"][3]["composition"] is None and p["lines"][3]["form"] is None
 
 
-def test_save_decrements_stock_and_reports_low(client, admin_headers, doctor_headers, db):
+def test_save_does_not_touch_stock_front_desk_confirms(client, admin_headers, doctor_headers, db):
     moxi_id = _set_stock(client, admin_headers, MOXI, 7)  # reorder 6 -> dispensing 2 crosses the line
     pred_id = _set_stock(client, admin_headers, PRED, 10)
     vid = _visit(client, admin_headers)
@@ -143,75 +143,89 @@ def test_save_decrements_stock_and_reports_low(client, admin_headers, doctor_hea
     assert r.status_code == 201, r.text
     rx = r.json()
     assert rx["visitId"] == vid and rx["printLanguage"] == "gujarati"
-    names = [(ln["name"], ln["matched"], ln["qtyGiven"]) for ln in rx["lines"]]
-    assert names == [(MOXI, True, 2), (PRED, True, 1), ("Some compounded gel", False, 0)]
-    assert rx["lines"][0]["medicineId"] and rx["lines"][2]["medicineId"] is None
-    assert rx["lowStock"] == [MOXI]
+    names = [(ln["name"], ln["matched"], ln["qtyGiven"], ln["dispensedQty"]) for ln in rx["lines"]]
+    assert names == [(MOXI, True, 2, 0), (PRED, True, 1, 0), ("Some compounded gel", False, 0, 0)]
+    assert rx["lines"][0]["inStock"] == 7 and rx["lines"][2]["inStock"] is None
+    # the doctor saving moves nothing
+    assert _stock(client, admin_headers, MOXI)["stock"] == 7 and _stock(client, admin_headers, PRED)["stock"] == 10
+    assert rx["lowStock"] == []
 
+    # front desk confirms MOXI was bought here (2) -> stock 5, now low
+    moxi_line = rx["lines"][0]["id"]
+    r = client.post(f"/api/visits/{vid}/prescription/lines/{moxi_line}/dispense", json={"qty": 2}, headers=admin_headers)
+    assert r.status_code == 200, r.text
+    out = r.json()
+    assert out["lines"][0]["dispensedQty"] == 2 and out["lines"][0]["dispensedBy"] == "Admin" and out["lines"][0]["dispensedAt"]
+    assert out["lowStock"] == [MOXI]
     assert _stock(client, admin_headers, MOXI)["stock"] == 5 and _stock(client, admin_headers, MOXI)["low"] is True
-    assert _stock(client, admin_headers, PRED)["stock"] == 9
+    # confirming twice is refused; PRED was not bought here -> untouched
+    assert client.post(f"/api/visits/{vid}/prescription/lines/{moxi_line}/dispense", json={"qty": 1},
+                       headers=admin_headers).status_code == 422
+    assert _stock(client, admin_headers, PRED)["stock"] == 10
     moves = list(db.scalars(select(StockMovement).where(StockMovement.ref_prescription_id == rx["id"])))
-    assert sorted((m.item_id, m.delta, m.reason) for m in moves) == sorted(
-        [(moxi_id, -2, "dispensed"), (pred_id, -1, "dispensed")])
+    assert [(m.item_id, m.delta, m.reason) for m in moves] == [(moxi_id, -2, "dispensed")]
     assert all(m.by_staff_id is not None for m in moves)
+    # a free-text line has no stock to deduct
+    gel_line = rx["lines"][2]["id"]
+    assert client.post(f"/api/visits/{vid}/prescription/lines/{gel_line}/dispense", json={"qty": 1},
+                       headers=admin_headers).status_code == 422
+
+    # undo puts it back
+    r = client.delete(f"/api/visits/{vid}/prescription/lines/{moxi_line}/dispense", headers=admin_headers)
+    assert r.status_code == 200 and r.json()["lines"][0]["dispensedQty"] == 0
+    assert _stock(client, admin_headers, MOXI)["stock"] == 7
 
     r = client.get(f"/api/visits/{vid}/prescription", headers=admin_headers)
     assert r.status_code == 200 and r.json()["id"] == rx["id"] and len(r.json()["lines"]) == 3
     v = client.get(f"/api/visits/{vid}", headers=admin_headers).json()
     assert v["hasPrescription"] is True
     assert db.scalar(select(AuditLog).where(AuditLog.entity == "prescription", AuditLog.entity_id == rx["id"]))
+    assert pred_id  # (kept for symmetry with the stock helper)
 
 
-def test_insufficient_stock_is_atomic(client, admin_headers, doctor_headers, db):
+def test_dispense_checks_stock_atomically(client, admin_headers, doctor_headers, db):
     r = client.post("/api/inventory", json={"name": "Rx Scarce Drop", "unit": "bottles", "stock": 1, "reorderLevel": 1},
                     headers=admin_headers)
     assert r.status_code == 201, r.text
     scarce = r.json()["id"]
-    _set_stock(client, admin_headers, PRED, 10)
     vid = _visit(client, admin_headers, "Atomic Patient")
-    body = {"lines": [{"name": PRED, "dosage": "1 drop both eyes, once daily", "qtyGiven": 3},
-                      {"name": "rx scarce drop", "dosage": "1 drop left eye, at night", "qtyGiven": 2}]}
-    r = client.post(f"/api/visits/{vid}/prescription", json=body, headers=doctor_headers)
+    body = {"lines": [{"name": "rx scarce drop", "dosage": "1 drop left eye, at night", "qtyGiven": 2}]}
+    rx = client.post(f"/api/visits/{vid}/prescription", json=body, headers=doctor_headers).json()
+    line = rx["lines"][0]["id"]
+    r = client.post(f"/api/visits/{vid}/prescription/lines/{line}/dispense", json={"qty": 2}, headers=admin_headers)
     assert r.status_code == 409, r.text
     assert "Rx Scarce Drop" in r.json()["detail"]
-    # nothing written: no prescription, no movements, stock untouched
-    assert client.get(f"/api/visits/{vid}/prescription", headers=admin_headers).status_code == 404
-    assert _stock(client, admin_headers, PRED)["stock"] == 10
     assert client.get(f"/api/inventory/{scarce}", headers=admin_headers).json()["stock"] == 1
     assert db.scalar(select(StockMovement).where(StockMovement.item_id == scarce, StockMovement.reason == "dispensed")) is None
+    # the front desk can confirm a smaller quantity
+    r = client.post(f"/api/visits/{vid}/prescription/lines/{line}/dispense", json={"qty": 1}, headers=admin_headers)
+    assert r.status_code == 200 and r.json()["lines"][0]["dispensedQty"] == 1
 
 
-def test_repost_replaces_and_restores_stock(client, admin_headers, doctor_headers, db):
-    moxi_id = _set_stock(client, admin_headers, MOXI, 10)
-    pred_id = _set_stock(client, admin_headers, PRED, 10)
+def test_repost_keeps_confirmations_and_restores_removed_lines(client, admin_headers, doctor_headers, db):
+    _set_stock(client, admin_headers, MOXI, 10)
+    _set_stock(client, admin_headers, PRED, 10)
     vid = _visit(client, admin_headers, "Replace Patient")
     first = client.post(f"/api/visits/{vid}/prescription",
-                        json={"lines": [{"name": MOXI, "dosage": "1 drop both eyes, twice daily", "qtyGiven": 3}]},
+                        json={"lines": [{"name": MOXI, "dosage": "1 drop both eyes, twice daily", "qtyGiven": 3},
+                                        {"name": PRED, "dosage": "at night", "qtyGiven": 1}]},
                         headers=doctor_headers).json()
-    assert _stock(client, admin_headers, MOXI)["stock"] == 7
+    for ln in first["lines"]:
+        client.post(f"/api/visits/{vid}/prescription/lines/{ln['id']}/dispense", json={"qty": ln["qtyGiven"]},
+                    headers=admin_headers)
+    assert _stock(client, admin_headers, MOXI)["stock"] == 7 and _stock(client, admin_headers, PRED)["stock"] == 9
 
+    # doctor edits: keeps PRED (new dosage), drops MOXI
     second = client.post(f"/api/visits/{vid}/prescription",
                          json={"lines": [{"name": PRED, "dosage": "1 drop both eyes, once daily", "qtyGiven": 1}]},
                          headers=doctor_headers)
     assert second.status_code == 201, second.text
     assert second.json()["id"] == first["id"]  # same prescription row, lines replaced
-    assert [ln["name"] for ln in second.json()["lines"]] == [PRED]
-    assert _stock(client, admin_headers, MOXI)["stock"] == 10  # restored
+    lines = second.json()["lines"]
+    assert [ln["name"] for ln in lines] == [PRED]
+    assert lines[0]["dispensedQty"] == 1 and lines[0]["dosage"] == "1 drop both eyes, once daily"  # confirmation kept
+    assert _stock(client, admin_headers, MOXI)["stock"] == 10  # removed line's stock restored
     assert _stock(client, admin_headers, PRED)["stock"] == 9
-
-    moves = list(db.scalars(select(StockMovement).where(StockMovement.ref_prescription_id == first["id"])
-                            .order_by(StockMovement.id)))
-    assert [(m.item_id, m.delta, m.reason) for m in moves] == [
-        (moxi_id, -3, "dispensed"), (moxi_id, 3, "adjusted"), (pred_id, -1, "dispensed")]
-    assert len(client.get(f"/api/visits/{vid}/prescription", headers=admin_headers).json()["lines"]) == 1
-
-    # re-posting the same lines again when stock would run out is still atomic
-    _set_stock(client, admin_headers, PRED, 1)  # 1 in stock, 1 already dispensed on this rx -> 2 after reversal
-    r = client.post(f"/api/visits/{vid}/prescription",
-                    json={"lines": [{"name": PRED, "dosage": "x", "qtyGiven": 5}]}, headers=doctor_headers)
-    assert r.status_code == 409
-    assert _stock(client, admin_headers, PRED)["stock"] == 1
-    assert [ln["qtyGiven"] for ln in client.get(f"/api/visits/{vid}/prescription", headers=admin_headers).json()["lines"]] == [1]
 
 
 def test_print_payload_localised(client, admin_headers, doctor_headers):

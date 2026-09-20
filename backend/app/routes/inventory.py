@@ -8,7 +8,7 @@ from app.db import get_db
 from app.models.pharmacy import InventoryItem
 from app.models.staff import Staff
 from app.routes import register
-from app.schemas.pharmacy import InventoryItemIn, InventoryItemOut, InventoryItemPatch, MovementOut, StockAdjustIn
+from app.schemas.pharmacy import OrderPlacedIn, InventoryItemIn, InventoryItemOut, InventoryItemPatch, MovementOut, StockAdjustIn
 from app.services import pharmacy as svc
 
 router = register(APIRouter(prefix="/inventory", tags=["inventory"], dependencies=[Depends(get_current_user)]))
@@ -78,6 +78,18 @@ def adjust(item_id: int, data: StockAdjustIn, db: Session = Depends(get_db),
     except svc.BadValue as exc:
         raise _422(exc)
     return svc.inventory_out(item)
+
+
+@router.post("/{item_id}/ordered", response_model=InventoryItemOut)
+def mark_ordered(item_id: int, data: OrderPlacedIn, db: Session = Depends(get_db),
+                 user: Staff = Depends(require_role(*FRONT_DESK))):
+    """An order for `qty` has been placed: the low-stock alert stays quiet until stock is received."""
+    return svc.inventory_out(svc.mark_ordered(db, _get(db, item_id), True, user, data.qty))
+
+
+@router.delete("/{item_id}/ordered", response_model=InventoryItemOut)
+def clear_ordered(item_id: int, db: Session = Depends(get_db), user: Staff = Depends(require_role(*FRONT_DESK))):
+    return svc.inventory_out(svc.mark_ordered(db, _get(db, item_id), False, user))
 
 
 @router.get("/{item_id}/movements", response_model=list[MovementOut])

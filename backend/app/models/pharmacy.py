@@ -68,6 +68,9 @@ class InventoryItem(Base):
     unit: Mapped[str] = mapped_column(String(20), default="bottles")
     stock: Mapped[int] = mapped_column(Integer, default=0)
     reorder_level: Mapped[int] = mapped_column(Integer, default=0)
+    # Set when someone marks "order placed"; the low-stock alert stays quiet until stock is received.
+    ordered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ordered_qty: Mapped[int | None] = mapped_column(Integer)  # how many were ordered (still to arrive)
 
     medicine = relationship("Medicine")
     movements: Mapped[list["StockMovement"]] = relationship(back_populates="item", order_by="StockMovement.at")
@@ -112,10 +115,15 @@ class PrescriptionLine(Base):
     name: Mapped[str] = mapped_column(String(160))  # free text; matched=True when it hit the master list
     matched: Mapped[bool] = mapped_column(Boolean, default=False)
     dosage: Mapped[str] = mapped_column(Text, default="")
-    qty_given: Mapped[int] = mapped_column(Integer, default=0)
+    qty_given: Mapped[int] = mapped_column(Integer, default=0)  # the doctor's "to give from clinic"
+    # What the front desk confirmed the patient actually bought here; only this moves stock.
+    dispensed_qty: Mapped[int] = mapped_column(Integer, default=0)
+    dispensed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    dispensed_by_id: Mapped[int | None] = mapped_column(ForeignKey("staff.id"))
 
     prescription: Mapped["Prescription"] = relationship(back_populates="lines")
     medicine = relationship("Medicine")
+    dispensed_by = relationship("Staff")
 
 
 class Diagnosis(Base):

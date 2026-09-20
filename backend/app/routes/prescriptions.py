@@ -12,8 +12,8 @@ from app.db import get_db
 from app.models.patients import Visit
 from app.models.staff import Staff
 from app.routes import register
-from app.schemas.pharmacy import (BillIn, BillOut, BillPayIn, MedicineOut, PrescriptionIn, PrescriptionOut,
-                                  PrintPayload)
+from app.schemas.pharmacy import (BillIn, BillOut, BillPayIn, DispenseIn, MedicineOut, PrescriptionIn,
+                                  PrescriptionOut, PrintPayload)
 from app.services import pharmacy as svc
 
 router = register(APIRouter(tags=["prescriptions"], dependencies=[Depends(get_current_user)]))
@@ -56,6 +56,40 @@ def save_prescription(visit_id: int, data: PrescriptionIn, db: Session = Depends
     except svc.BadValue as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))
     return svc.prescription_out(db, rx, low)
+
+
+def _line(rx, line_id: int):
+    line = next((ln for ln in rx.lines if ln.id == line_id), None)
+    if line is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Prescription line not found")
+    return line
+
+
+@router.post("/visits/{visit_id}/prescription/lines/{line_id}/dispense", response_model=PrescriptionOut)
+def dispense(visit_id: int, line_id: int, data: DispenseIn, db: Session = Depends(get_db),
+             user: Staff = Depends(require_role(*ANY_STAFF))):
+    """Front desk: the patient bought this medicine here — deduct `qty` from stock."""
+    rx = _prescription(db, visit_id)
+    try:
+        _, item = svc.dispense_line(db, rx, _line(rx, line_id), data.qty, user)
+    except svc.InsufficientStock as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            f"Only {exc.available} of '{exc.item_name}' in stock, {exc.needed} asked for")
+    except svc.BadValue as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))
+    low = [item] if item is not None and item.stock <= item.reorder_level else []
+    return svc.prescription_out(db, rx, low)
+
+
+@router.delete("/visits/{visit_id}/prescription/lines/{line_id}/dispense", response_model=PrescriptionOut)
+def undispense(visit_id: int, line_id: int, db: Session = Depends(get_db),
+               user: Staff = Depends(require_role(*ANY_STAFF))):
+    rx = _prescription(db, visit_id)
+    try:
+        svc.undo_dispense(db, rx, _line(rx, line_id), user)
+    except svc.BadValue as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))
+    return svc.prescription_out(db, rx)
 
 
 @router.get("/visits/{visit_id}/prescription", response_model=PrescriptionOut)
