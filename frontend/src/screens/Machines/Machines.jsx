@@ -344,6 +344,7 @@ function CaptureArea({ patient, machines, stages, isMobile, onChangePatient }) {
                 key={r.id}
                 reading={r}
                 machines={machines}
+                showImage={!isMobile}
                 onChange={upsert}
                 onRemove={(gone, created) => {
                   setList((cur) => cur.filter((x) => x.id !== gone.id));

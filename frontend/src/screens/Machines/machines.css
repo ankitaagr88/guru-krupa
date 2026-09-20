@@ -69,3 +69,5 @@ body.mobile-mode .install-prompt { width: 100%; justify-content: space-between; 
 .intake-row { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
 .intake-row .drop-select { flex: 1; }
 .intake-row .btn-primary { flex-shrink: 0; }
+
+.reading-thumb.large { max-height: 320px; cursor: zoom-in; }

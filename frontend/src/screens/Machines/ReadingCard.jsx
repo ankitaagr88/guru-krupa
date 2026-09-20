@@ -9,7 +9,7 @@ import { STATUS_META, fmtWhen, isBusy, isLowValue, readingLabel, readingValues, 
    → PATCH /readings/{id}/values, "Approve" → POST /readings/{id}/approve (the
    printout photo is deleted once a person has approved), manual fallback for
    failed OCR, delete. */
-export default function ReadingCard({ reading: r, machines, onChange, onRemove }) {
+export default function ReadingCard({ reading: r, machines, onChange, onRemove, showImage = false }) {
   const meta = STATUS_META[r.status] || { label: r.status, cls: '' };
   const values = readingValues(r);
   const [edits, setEdits] = useState({});
@@ -17,7 +17,7 @@ export default function ReadingCard({ reading: r, machines, onChange, onRemove }
   const [approving, setApproving] = useState(false);
   const [err, setErr] = useState('');
   const [manual, setManual] = useState(false);
-  const [showImg, setShowImg] = useState(false);
+  const [showImg, setShowImg] = useState(showImage);
   const img = useAuthedImage(showImg ? r : null);
   const machine = machines.find((m) => m.key === r.machineKey);
 
@@ -194,11 +194,15 @@ export default function ReadingCard({ reading: r, machines, onChange, onRemove }
       {hasImage && !isBusy(r) && (
         <div className="reading-actions">
           <button type="button" className="machine-type-link" style={{ margin: 0 }} onClick={() => setShowImg((s) => !s)}>
-            {showImg ? 'Hide photo' : 'Show photo'}
+            {showImg ? 'Hide printout' : 'Show printout'}
           </button>
         </div>
       )}
-      {showImg && img && <img className="reading-thumb" src={img} alt="Printout" />}
+      {showImg && img && (
+        <a href={img} target="_blank" rel="noreferrer" title="Open the printout full size">
+          <img className={`reading-thumb${showImage ? ' large' : ''}`} src={img} alt="Printout" />
+        </a>
+      )}
     </div>
   );
 }
