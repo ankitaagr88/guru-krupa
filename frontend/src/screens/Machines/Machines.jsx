@@ -61,6 +61,7 @@ function CaptureArea({ patient, machines, stages, isMobile, onChangePatient }) {
   const [flash, setFlash] = useState(null); // {spin, text}
   const [manualFor, setManualFor] = useState(null); // machine
   const [pending, setPending] = useState([]);
+  const [intakeMachine, setIntakeMachine] = useState(''); // desktop: which machine the image is from
   const fileRef = useRef(null);
   const captureFor = useRef(null);
   const visitId = patient.id;
@@ -187,7 +188,7 @@ function CaptureArea({ patient, machines, stages, isMobile, onChangePatient }) {
   return (
     <div id="machineCaptureArea" style={{ marginTop: 16 }}>
       <div className="summary-card" style={{ marginBottom: 14 }}>
-        <div className="summary-card-title">Capturing for</div>
+        <div className="summary-card-title">{isMobile ? 'Capturing for' : 'Readings for'}</div>
         <div className="summary-line">
           <b>
             <PatientLink id={patient.patientId} name={patient.name} />
@@ -196,13 +197,7 @@ function CaptureArea({ patient, machines, stages, isMobile, onChangePatient }) {
         </div>
       </div>
 
-      <p className="label">Photograph the machine&apos;s printout to scan it in</p>
-      {!isMobile && (
-        <div className="desktop-capture-note" style={{ marginBottom: 12 }}>
-          Use your phone to photograph printouts — open this screen there (or install the app). On desktop you can
-          pick an image file below to test the flow.
-        </div>
-      )}
+      {isMobile && <p className="label">Photograph the machine&apos;s printout to scan it in</p>}
       <input
         ref={fileRef}
         type="file"
@@ -214,7 +209,42 @@ function CaptureArea({ patient, machines, stages, isMobile, onChangePatient }) {
         aria-label="Printout photo"
       />
 
-      <div className="machine-opts" id="machineOptZone">
+      {!isMobile && (
+        <div className="intake-row" data-testid="intake-row">
+          <select
+            className="drop-select"
+            value={intakeMachine}
+            onChange={(e) => setIntakeMachine(e.target.value)}
+            aria-label="Machine the printout is from"
+          >
+            <option value="">— which machine is the printout from? —</option>
+            {machines
+              .filter((m) => !m.manualOnly)
+              .map((m) => (
+                <option key={m.key} value={m.key}>
+                  {m.label}
+                </option>
+              ))}
+          </select>
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={!intakeMachine}
+            onClick={() => pickMachine(machines.find((m) => m.key === intakeMachine))}
+            data-testid="intake-add"
+          >
+            Add printout image
+          </button>
+        </div>
+      )}
+      {!isMobile && (
+        <p className="hint" style={{ margin: '6px 0 14px' }}>
+          Readings photographed on the phone appear here on their own. The values are extracted and shown below for
+          checking and approval.
+        </p>
+      )}
+
+      <div className="machine-opts" id="machineOptZone" style={isMobile ? undefined : { display: 'none' }}>
         {machines.map((m) => {
           const r = latestFor(m.key);
           let tag = null;
@@ -240,7 +270,7 @@ function CaptureArea({ patient, machines, stages, isMobile, onChangePatient }) {
         })}
         {machines.length === 0 && <p className="machine-list-empty">Loading machines…</p>}
       </div>
-      {machines.some((m) => !m.manualOnly) && !manualFor && (
+      {isMobile && machines.some((m) => !m.manualOnly) && !manualFor && (
         <button
           type="button"
           className="machine-type-link"
@@ -301,7 +331,7 @@ function CaptureArea({ patient, machines, stages, isMobile, onChangePatient }) {
         </div>
       )}
 
-      <p className="field-label">Already captured for this patient</p>
+      <p className="field-label">{isMobile ? 'Already captured for this patient' : 'Values read for this patient'}</p>
       <div id="machineReadingsList">
         {list.length === 0 ? (
           <p className="machine-list-empty">None yet</p>
@@ -345,7 +375,9 @@ export default function Machines() {
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState(null);
 
-  useTopbar({ sub: 'Machines · capture a reading for any patient, any stage' });
+  useTopbar({
+    sub: isMobile ? 'Machines · capture a reading for any patient, any stage' : 'Machines · values read from printouts, for checking and approval',
+  });
 
   useEffect(() => {
     let alive = true;
@@ -387,16 +419,15 @@ export default function Machines() {
     <div className="appt-wrap machines-wrap" id="machinesWrap">
       <div className="appt-head">
         <h2>Machine readings</h2>
-        <div className="machines-head-right">
-          <InstallPrompt />
-        </div>
+        <div className="machines-head-right">{isMobile && <InstallPrompt />}</div>
       </div>
       <p className="hint" style={{ margin: '-10px 0 12px' }}>
-        Capture a machine&apos;s printout for any patient currently in the clinic — not tied to one stage, since tests
-        can happen before, during, or after the doctor.
+        {isMobile
+          ? "Capture a machine's printout for any patient currently in the clinic — not tied to one stage, since tests can happen before, during, or after the doctor."
+          : 'Printouts are photographed on the phone; this screen shows the values read from them so they can be checked and approved. An image file can also be added here.'}
       </p>
 
-      <div id="connectivityBanner">
+      <div id="connectivityBanner" style={isMobile ? undefined : { display: 'none' }}>
         {isOffline && (
           <div className="status-pill coral" style={{ marginBottom: 8, display: 'block', width: 'fit-content' }}>
             No connection — photos will save on this device and process automatically once you&apos;re back online
@@ -422,7 +453,7 @@ export default function Machines() {
         />
       ) : (
         <>
-          <p className="label">Which patient is this reading for?</p>
+          <p className="label">{isMobile ? 'Which patient is this reading for?' : 'Patient'}</p>
           <input className="fake-input" id="machinePatientSearch" value={current.name} readOnly />
           <CaptureArea
             patient={current}

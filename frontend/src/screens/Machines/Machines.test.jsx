@@ -13,7 +13,8 @@ import Machines from './Machines';
 
 const file = () => new File(['printout'], 'printout.jpg', { type: 'image/jpeg' });
 
-function renderMachines() {
+function renderMachines({ device = 'mobile' } = {}) {
+  sessionStorage.setItem('gk_device', device); // the capture flows are the phone's; desktop only intakes images
   return renderShell({ route: '/machines', child: <Machines /> });
 }
 
@@ -39,6 +40,24 @@ describe('Machines screen (F5)', () => {
     await userEvent.type(input, 'kiran');
     expect(screen.getByText('Kiran Vaghela')).toBeInTheDocument();
     expect(screen.queryByText('Falguni Shah')).not.toBeInTheDocument();
+  });
+
+  it('desktop: no camera controls — pick the machine, add an image, values appear for approval', async () => {
+    renderMachines({ device: 'desktop' });
+    await userEvent.click(await screen.findByText('Kiran Vaghela'));
+    expect(await screen.findByText('Readings for')).toBeInTheDocument();
+    expect(screen.queryByTestId('offline-toggle')).not.toBeVisible();
+    expect(screen.queryByText(/Photograph the machine/)).toBeNull();
+    const add = screen.getByTestId('intake-add');
+    expect(add).toBeDisabled();
+    await userEvent.selectOptions(screen.getByLabelText('Machine the printout is from'), 'hnt1p_tono');
+    expect(add).toBeEnabled();
+    await userEvent.click(add);
+    fireEvent.change(screen.getByTestId('capture-input'), { target: { files: [file()] } });
+    await waitFor(() => expect(screen.getByTestId('reading-status')).toHaveTextContent('Done'), { timeout: 4000 });
+    const card = screen.getByTestId('reading-status').closest('.reading-card');
+    expect(within(card).getByLabelText('IOP (R)')).toHaveValue('13');
+    expect(within(card).getByTestId('approve-reading')).toBeInTheDocument();
   });
 
   it('captures a printout: reading goes pending → done and the values render', async () => {
