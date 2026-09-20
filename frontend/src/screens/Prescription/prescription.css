@@ -19,6 +19,23 @@
   font-weight: 600;
   font-size: 15px;
 }
+.rx-diagnosis {
+  margin-bottom: 14px;
+}
+.rx-diagnosis .field-label {
+  display: block;
+  margin: 0 0 6px;
+}
+.rx-fill-note {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--sapphire-deep);
+  background: var(--sapphire-wash);
+  border-radius: 8px;
+  padding: 8px 11px;
+  margin: 8px 0 0;
+}
 .rx-cols {
   display: flex;
   justify-content: space-between;

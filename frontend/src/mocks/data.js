@@ -169,6 +169,7 @@ export function seedPatients() {
           ],
         },
       ],
+      diagnosisId: 8,
       medicines: [
         { name: 'Timolol 0.5% eye drops', matched: true, dosage: '1 drop both eyes, twice daily' },
         { name: 'Latanoprost 0.005% eye drops', matched: false, dosage: '1 drop both eyes, at night' },
@@ -327,6 +328,22 @@ export function seedAppointments() {
 }
 
 // Medicine types (backend MedicineForm seed). Admin-editable; `Medicine.form` stores the key.
+/* Starter diagnoses for the treatment standards (admin-editable). Seeded prescriptions below
+   carry a diagnosisId so the history-derived standard has something to count. */
+export const DIAGNOSES = [
+  'Dry eye',
+  'Allergic conjunctivitis',
+  'Bacterial conjunctivitis',
+  'Viral conjunctivitis',
+  'Computer vision syndrome',
+  'Refractive error',
+  'Cataract',
+  'Glaucoma',
+  'Blepharitis',
+  'Stye (hordeolum)',
+  'Post-operative care',
+].map((name, i) => ({ id: i + 1, name, active: true, sortOrder: i }));
+
 export const MEDICINE_FORMS = [
   ['drops', 'Drops'],
   ['gel', 'Gel'],

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { screen, waitFor, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderShell } from '../../test/utils';
-import { admin } from '../../api';
+import { admin, treatments } from '../../api';
 import Admin from './Admin';
 
 const stageLabels = () =>
@@ -130,4 +130,49 @@ describe('Admin', () => {
     expect((await admin.medicines.list()).some((m) => m.name === 'Moxicip D')).toBe(true);
   });
 
+
+  it('diagnoses: add, rename, switch off, and set a standard treatment that then shows as set', async () => {
+    window.confirm = () => true;
+    renderShell({ route: '/admin', child: <Admin /> });
+    await screen.findByText('Diagnoses & treatment standards');
+    expect(await screen.findByLabelText('Diagnosis Dry eye')).toHaveValue('Dry eye');
+
+    await userEvent.type(screen.getByLabelText('New diagnosis'), 'Uveitis');
+    await userEvent.click(screen.getByRole('button', { name: '+ Add a diagnosis' }));
+    const uv = await screen.findByLabelText('Diagnosis Uveitis');
+    expect(uv).toHaveValue('Uveitis');
+    fireEvent.change(uv, { target: { value: 'Anterior uveitis' } });
+    fireEvent.blur(uv);
+    await waitFor(async () =>
+      expect((await treatments.diagnoses()).some((d) => d.name === 'Anterior uveitis')).toBe(true)
+    );
+
+    // standard editor: Glaucoma has history (Bharat Oza's seeded Rx) -> offered as the starting point
+    await userEvent.click(screen.getByLabelText('Standard treatment for Glaucoma'));
+    const dialog = await screen.findByRole('dialog', { name: /Standard treatment · Glaucoma/ });
+    expect(await within(dialog).findByTestId('tx-source')).toHaveTextContent('most common prescription across 1 past prescription');
+    expect(within(dialog).getAllByTestId('tx-line')).toHaveLength(2);
+    await userEvent.click(within(dialog).getByLabelText('Remove Latanoprost 0.005% eye drops'));
+    fireEvent.change(within(dialog).getByLabelText('Dosage for Timolol 0.5% eye drops'), { target: { value: '1 drop, both eyes, 2x daily' } });
+    await userEvent.type(within(dialog).getByLabelText('Add a medicine to the standard'), 'Aquaray');
+    await userEvent.click((await screen.findAllByTestId('med-option'))[0]);
+    expect(within(dialog).getAllByTestId('tx-line')).toHaveLength(2);
+    await userEvent.click(within(dialog).getByTestId('tx-save'));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    const glaucoma = (await treatments.diagnoses()).find((d) => d.name === 'Glaucoma');
+    expect(glaucoma.hasStandard).toBe(true);
+    const std = await treatments.standard(glaucoma.id);
+    expect(std.source).toBe('admin');
+    expect(std.lines.map((l) => l.name).sort()).toEqual(['Aquaray Gel', 'Timolol 0.5% eye drops']);
+    expect(std.lines.find((l) => l.name.startsWith('Timolol')).dosage).toBe('1 drop, both eyes, 2x daily');
+    await waitFor(() =>
+      expect(screen.getByLabelText('Standard treatment for Glaucoma')).toHaveTextContent('Set by doctor')
+    );
+
+    // switch off
+    await userEvent.click(screen.getByLabelText('Diagnosis Anterior uveitis active'));
+    await waitFor(async () =>
+      expect((await treatments.diagnoses()).some((d) => d.name === 'Anterior uveitis')).toBe(false)
+    );
+  });
 });

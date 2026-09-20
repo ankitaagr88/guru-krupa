@@ -21,6 +21,7 @@ export const inventory = pick('inventory');
 export const admin = pick('admin');
 export const mr = pick('mr');
 export const config = pick('config');
+export const treatments = pick('treatments');
 
 export { errorMessage, session } from './client';
 export { default as client } from './client';

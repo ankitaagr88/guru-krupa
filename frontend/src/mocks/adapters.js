@@ -834,15 +834,19 @@ export const prescriptions = {
       id: p.id,
       visitId: p.id,
       printLanguage: p.printLanguage || 'english',
+      diagnosisId: p.diagnosisId ?? null,
+      diagnosisName: S.diagnoses.find((d) => d.id === p.diagnosisId)?.name ?? null,
       lines: (p.medicines || []).map(rxLineOut),
     };
   },
   // lines: [{name, medicineId?, dosage, qtyGiven}] — decrements stock only by qtyGiven.
   // `matched` when the typed name equals a medicine's name, brand or composition; stored name is canonical.
-  async save(patientId, lines, printLanguage) {
+  async save(patientId, lines, printLanguage, diagnosisId = null) {
     await latency();
     const p = S.patients.find((x) => x.id === Number(patientId));
     if (!p) throw httpError(404, 'Patient not found');
+    if (diagnosisId != null && !S.diagnoses.some((d) => d.id === Number(diagnosisId)))
+      throw httpError(422, 'Unknown diagnosis');
     const resolved = lines.map((line) => {
       const med = medById(line.medicineId) || medByText(line.name);
       return {
@@ -871,6 +875,7 @@ export const prescriptions = {
       }
     });
     p.medicines = resolved.map((l, i) => ({ id: i + 1, ...l }));
+    p.diagnosisId = diagnosisId == null ? null : Number(diagnosisId);
     if (printLanguage) p.printLanguage = printLanguage;
     store.notify();
     // lowStock: mock keeps full items (name/stock/unit/reorder); real returns names only
@@ -880,6 +885,8 @@ export const prescriptions = {
       visitId: p.id,
       printLanguage: p.printLanguage || 'english',
       createdAt: new Date().toISOString(),
+      diagnosisId: p.diagnosisId ?? null,
+      diagnosisName: S.diagnoses.find((d) => d.id === p.diagnosisId)?.name ?? null,
       lines: out,
       medicines: out,
       lowStock,
@@ -1323,3 +1330,165 @@ export const mr = {
 /* Store change subscription (used by api/index.js onDataChange). */
 export const subscribeStore = (fn) => store.subscribe(fn);
 export { store as mockStore };
+
+/* ---------------- diagnoses + treatment standards (B15/F17) ---------------- */
+const HISTORY_MIN_SHARE = 0.5;
+const lineKey = (n) => (n || '').toLowerCase().split(/\s+/).join(' ').trim();
+
+function historyStandard(diagnosisId) {
+  const rxs = S.patients.filter((p) => p.diagnosisId === diagnosisId && (p.medicines || []).length);
+  const total = rxs.length;
+  if (!total) return { lines: [], count: 0 };
+  const perRx = {};
+  rxs.forEach((p, i) =>
+    (p.medicines || []).forEach((l) => {
+      const k = lineKey(l.name);
+      if (!k) return;
+      const e = (perRx[k] ||= { name: l.name, rx: new Set(), dosages: {}, qtys: {}, medIds: {}, matched: false });
+      e.rx.add(i);
+      if (l.matched || l.medicineId != null || medByText(l.name)) e.matched = true;
+      e.dosages[l.dosage || ''] = (e.dosages[l.dosage || ''] || 0) + 1;
+      e.qtys[l.qtyGiven || 0] = (e.qtys[l.qtyGiven || 0] || 0) + 1;
+      e.medIds[l.medicineId ?? 'null'] = (e.medIds[l.medicineId ?? 'null'] || 0) + 1;
+    })
+  );
+  const top = (o) => Object.entries(o).sort((a, b) => b[1] - a[1])[0][0];
+  const lines = Object.values(perRx)
+    .map((e) => ({ e, share: e.rx.size / total }))
+    .filter(({ share }) => share >= HISTORY_MIN_SHARE)
+    .map(({ e, share }) => {
+      const mid = top(e.medIds);
+      return {
+        name: e.name,
+        medicineId: mid === 'null' ? null : Number(mid),
+        matched: mid !== 'null' || e.matched,
+        dosage: top(e.dosages),
+        qtyGiven: Number(top(e.qtys)),
+        frequency: Math.round(share * 100) / 100,
+      };
+    })
+    .sort((a, b) => b.frequency - a.frequency || a.name.localeCompare(b.name));
+  return { lines, count: total };
+}
+
+function diagnosisOut(d) {
+  return {
+    ...c(d),
+    prescriptionCount: S.patients.filter((p) => p.diagnosisId === d.id).length,
+    hasStandard: !!S.treatmentStandards[d.id],
+  };
+}
+
+function standardOut(d) {
+  const hist = historyStandard(d.id);
+  const std = S.treatmentStandards[d.id];
+  if (std)
+    return {
+      diagnosisId: d.id,
+      diagnosisName: d.name,
+      source: 'admin',
+      lines: c(std.lines),
+      historyCount: hist.count,
+      updatedAt: std.updatedAt,
+      updatedBy: std.updatedBy,
+      historyLines: hist.lines,
+    };
+  return {
+    diagnosisId: d.id,
+    diagnosisName: d.name,
+    source: hist.lines.length ? 'history' : 'none',
+    lines: hist.lines,
+    historyCount: hist.count,
+    historyLines: hist.lines,
+  };
+}
+
+const diagById = (id) => {
+  const d = S.diagnoses.find((x) => x.id === Number(id));
+  if (!d) throw httpError(404, 'Diagnosis not found');
+  return d;
+};
+
+export const treatments = {
+  async diagnoses({ includeInactive = false } = {}) {
+    return S.diagnoses
+      .filter((d) => includeInactive || d.active !== false)
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id)
+      .map(diagnosisOut);
+  },
+  async standard(id) {
+    await latency(40);
+    return standardOut(diagById(id));
+  },
+  admin: {
+    async create(name) {
+      const n = (name || '').trim().replace(/\s+/g, ' ');
+      if (!n) throw httpError(422, 'Diagnosis name is required');
+      if (S.diagnoses.some((d) => d.name.toLowerCase() === n.toLowerCase()))
+        throw httpError(409, `Diagnosis '${n}' already exists`);
+      const row = {
+        id: store.nextId('diagnosis'),
+        name: n,
+        active: true,
+        sortOrder: S.diagnoses.reduce((m, d) => Math.max(m, d.sortOrder), -1) + 1,
+      };
+      S.diagnoses.push(row);
+      store.notify();
+      return diagnosisOut(row);
+    },
+    async update(id, patch) {
+      const d = diagById(id);
+      if (patch.name !== undefined) {
+        const n = (patch.name || '').trim().replace(/\s+/g, ' ');
+        if (!n) throw httpError(422, 'Diagnosis name is required');
+        if (S.diagnoses.some((x) => x.id !== d.id && x.name.toLowerCase() === n.toLowerCase()))
+          throw httpError(409, `Diagnosis '${n}' already exists`);
+        d.name = n;
+      }
+      if (patch.active !== undefined) d.active = !!patch.active;
+      store.notify();
+      return diagnosisOut(d);
+    },
+    async remove(id) {
+      const d = diagById(id);
+      const used = S.patients.filter((p) => p.diagnosisId === d.id).length;
+      if (used) throw httpError(409, `${used} prescription(s) use '${d.name}' — switch it off instead`);
+      delete S.treatmentStandards[d.id];
+      S.diagnoses.splice(S.diagnoses.indexOf(d), 1);
+      store.notify();
+      return null;
+    },
+    async reorder(ids) {
+      if (ids.length !== S.diagnoses.length || !ids.every((i) => S.diagnoses.some((d) => d.id === i)))
+        throw httpError(422, 'order must list every existing diagnosis exactly once');
+      ids.forEach((i, n) => (S.diagnoses.find((d) => d.id === i).sortOrder = n));
+      store.notify();
+      return treatments.diagnoses({ includeInactive: true });
+    },
+    async saveStandard(id, lines) {
+      await latency(60);
+      const d = diagById(id);
+      const resolved = (lines || [])
+        .filter((l) => (l.name || '').trim())
+        .map((l) => {
+          const med = medById(l.medicineId) || medByText(l.name);
+          return {
+            name: med ? med.name : l.name.trim(),
+            medicineId: med ? med.id : null,
+            matched: !!med,
+            dosage: (l.dosage || '').trim(),
+            qtyGiven: Number(l.qtyGiven) || 0,
+          };
+        });
+      S.treatmentStandards[d.id] = { lines: resolved, updatedAt: new Date().toISOString(), updatedBy: currentUserName() };
+      store.notify();
+      return standardOut(d);
+    },
+    async clearStandard(id) {
+      const d = diagById(id);
+      delete S.treatmentStandards[d.id];
+      store.notify();
+      return standardOut(d);
+    },
+  },
+};

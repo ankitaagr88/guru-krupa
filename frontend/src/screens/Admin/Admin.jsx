@@ -5,6 +5,7 @@ import { useToast } from '../../components/Toast';
 import { ROLES, ROLE_LABELS, useAuth } from '../../auth/AuthContext';
 import { admin as adminApi, patients as patientsApi, onDataChange, errorMessage } from '../../api';
 import { MedicinesSection } from './MedicinesAdmin';
+import { TreatmentsSection } from './TreatmentsAdmin';
 import { EditableText, ReorderBtns } from './pieces';
 import './admin.css';
 
@@ -33,7 +34,7 @@ export default function Admin() {
   const [staffModal, setStaffModal] = useState(false);
   const [pwFor, setPwFor] = useState(null);
 
-  useTopbar({ sub: 'Process stages, dilation drops, referral sources, lens prices, medicines and staff' });
+  useTopbar({ sub: 'Process stages, dilation drops, referral sources, lens prices, medicines, treatment standards and staff' });
 
   const load = useCallback(async () => {
     const safe = (p, fb = []) => p.catch(() => fb);
@@ -420,6 +421,9 @@ export default function Admin() {
         showInactive={showInactiveMeds}
         onShowInactive={setShowInactiveMeds}
       />
+
+      {/* ---------------- diagnoses & treatment standards (B15/F17) ---------------- */}
+      <TreatmentsSection run={run} />
 
       {/* ---------------- staff ---------------- */}
       <section className="admin-block" aria-labelledby="h-staff">

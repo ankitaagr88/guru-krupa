@@ -17,6 +17,8 @@ function createStore() {
     appointments: D.seedAppointments(),
     medicines: D.seedMedicines(), // {id, name, brand, composition, form, strength, packSize, manufacturer, active}
     medicineForms: clone(D.MEDICINE_FORMS),
+    diagnoses: clone(D.DIAGNOSES),
+    treatmentStandards: {}, // diagnosisId -> {lines, updatedAt, updatedBy}
     inventory: clone(D.INVENTORY).map((it, i) => ({ id: i + 1, ...it })),
     stockMovements: [],
     mrVisits: clone(D.MR_VISITS),
@@ -38,6 +40,7 @@ function createStore() {
       referral: D.REFERRAL_SOURCES.length,
       medicine: D.MEDICINE_LIST.length + D.MEDICINE_BRANDS.length,
       medicineForm: D.MEDICINE_FORMS.length,
+      diagnosis: D.DIAGNOSES.length,
     },
   };
 

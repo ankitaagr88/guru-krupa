@@ -1,0 +1,9 @@
+/* Admin › Diagnoses & treatment standards (B15/F17). */
+.tx-std-btn.set { color: var(--done-ink); }
+.tx-std-btn.set:hover { background: var(--done-wash); color: var(--done-ink); }
+.tx-editor { width: 520px; }
+.tx-lines { display: flex; flex-direction: column; gap: 7px; margin: 12px 0 10px; }
+.tx-lines .med-row { margin-bottom: 0; }
+.tx-freq { font-family: var(--font-mono); font-size: 11px; color: var(--ink-soft); background: var(--surface); padding: 2px 7px; border-radius: 5px; }
+.tx-history-hint { font-family: var(--font-ui); font-size: 12px; line-height: 17px; color: var(--ink-soft); margin: 12px 0 0; }
+body.mobile-mode .tx-editor { width: 94vw; }

@@ -145,11 +145,31 @@ export const prescriptions = {
   medicines: ({ q = '' } = {}) => data(client.get('/medicines', { params: { q } })),
   get: (visitId) => data(client.get(`/visits/${visitId}/prescription`)),
   // lines: [{name, medicineId?, dosage, qtyGiven}] → {…, lines:[{…, matched, form, formLabel}], lowStock:[names]}
-  save: (visitId, lines, printLanguage) =>
-    data(client.post(`/visits/${visitId}/prescription`, { lines, printLanguage })),
+  save: (visitId, lines, printLanguage, diagnosisId = null) =>
+    data(client.post(`/visits/${visitId}/prescription`, { lines, printLanguage, diagnosisId })),
   // → {hospital, patient, language, lines:[{name, dosage, dosageLocal, qtyGiven, brand, composition, form, formLabel, packSize}]}
   printPayload: (visitId, lang) =>
     data(client.get(`/visits/${visitId}/prescription/print`, { params: { lang } })),
+};
+
+/* Diagnoses + treatment standards (B15/F17). A standard = the admin-saved lines, else the most
+   common prescription across every past prescription for that diagnosis (counted, not AI). */
+export const treatments = {
+  // → [{id, name, active, sortOrder, prescriptionCount, hasStandard}]
+  diagnoses: ({ includeInactive = false } = {}) =>
+    data(client.get('/diagnoses', includeInactive ? { params: { includeInactive: true } } : undefined)),
+  // → {diagnosisId, diagnosisName, source: 'admin'|'history'|'none', lines:[{name, medicineId, matched, dosage,
+  //    qtyGiven, frequency?}], historyCount, updatedAt?, updatedBy?, historyLines}
+  standard: (diagnosisId) => data(client.get(`/diagnoses/${diagnosisId}/standard`)),
+  admin: {
+    create: (name) => data(client.post('/admin/diagnoses', { name })),
+    update: (id, patch) => data(client.patch(`/admin/diagnoses/${id}`, patch)),
+    remove: (id) => data(client.delete(`/admin/diagnoses/${id}`)),
+    reorder: (ids) => data(client.put('/admin/diagnoses/order', { ids })),
+    // lines: [{name, medicineId?, dosage, qtyGiven?}]
+    saveStandard: (id, lines) => data(client.put(`/admin/diagnoses/${id}/standard`, { lines })),
+    clearStandard: (id) => data(client.delete(`/admin/diagnoses/${id}/standard`)),
+  },
 };
 
 export const inventory = {

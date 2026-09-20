@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, waitFor, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderShell, renderWithProviders, RECEPTION } from '../../test/utils';
-import { inventory, prescriptions } from '../../api';
+import { inventory, prescriptions, treatments } from '../../api';
+import { mockStore } from '../../mocks/adapters';
 import { PrescriptionModal } from './index';
 import PrescriptionsToday from './PrescriptionsToday';
 
@@ -170,6 +171,58 @@ describe('Medicine picker & brand/composition (F12)', () => {
     );
     expect(within(row).getByText('not in list')).toBeInTheDocument();
     expect(within(row).queryByRole('button', { name: /to medicine list/ })).toBeNull();
+  });
+});
+
+describe('Diagnosis auto-fill (B15/F17)', () => {
+  beforeEach(() => {
+    mockStore.reset();
+    window.print = vi.fn();
+  });
+
+  it('picking a diagnosis fills the lines from history, and the diagnosis is saved with the prescription', async () => {
+    // Bharat Oza (id 5) is seeded with a Glaucoma prescription (Timolol + Latanoprost) -> history of 1
+    renderWithProviders(<PrescriptionModal visit={{ id: 7, name: 'Ilaben Chauhan' }} onClose={() => {}} />);
+    const select = await screen.findByLabelText('Diagnosis');
+    expect(select).toHaveValue('');
+    const glaucoma = (await treatments.diagnoses()).find((d) => d.name === 'Glaucoma');
+    await userEvent.selectOptions(select, String(glaucoma.id));
+    const note = await screen.findByTestId('rx-fill-note');
+    expect(note).toHaveTextContent('Filled 2 medicines from the most common prescription across 1 past patient');
+    const rows = await screen.findAllByTestId('med-row');
+    expect(rows).toHaveLength(2);
+    // both appear in 100% of the history -> alphabetical
+    expect(within(rows[0]).getByText(LATANO)).toBeInTheDocument();
+    expect(within(rows[1]).getByText('Timolol 0.5% eye drops')).toBeInTheDocument();
+    expect(screen.getByLabelText('Dosage for Timolol 0.5% eye drops')).toHaveValue('1 drop both eyes, twice daily');
+
+    await userEvent.click(screen.getByRole('button', { name: /^Save/ }));
+    await waitFor(async () => expect((await prescriptions.get(7)).diagnosisId).toBe(glaucoma.id));
+    // now the history counts 2 prescriptions for Glaucoma
+    expect((await treatments.standard(glaucoma.id)).historyCount).toBe(2);
+  });
+
+  it("an admin-set standard wins over history; a diagnosis with nothing says so; existing lines need a confirm", async () => {
+    const dry = (await treatments.diagnoses()).find((d) => d.name === 'Dry eye');
+    await treatments.admin.saveStandard(dry.id, [{ name: LATANO, dosage: '1 drop at night' }]);
+    const cataract = (await treatments.diagnoses()).find((d) => d.name === 'Cataract');
+
+    renderWithProviders(<PrescriptionModal visit={{ id: 1, name: 'Rasilaben Patel' }} onClose={() => {}} />);
+    const select = await screen.findByLabelText('Diagnosis');
+    await userEvent.selectOptions(select, String(cataract.id));
+    expect(await screen.findByTestId('rx-fill-note')).toHaveTextContent('No standard treatment yet');
+
+    await userEvent.selectOptions(select, String(dry.id));
+    expect(await screen.findByTestId('rx-fill-note')).toHaveTextContent("Filled 1 medicine from Dr Anu's standard treatment");
+    expect(within((await screen.findAllByTestId('med-row'))[0]).getByText(LATANO)).toBeInTheDocument();
+
+    // switching diagnosis with lines present asks first; declining keeps them
+    window.confirm = vi.fn(() => false);
+    const glaucoma = (await treatments.diagnoses()).find((d) => d.name === 'Glaucoma');
+    await userEvent.selectOptions(select, String(glaucoma.id));
+    expect(await screen.findByTestId('rx-fill-note')).toHaveTextContent('Kept the medicines already listed');
+    expect(window.confirm).toHaveBeenCalled();
+    expect(screen.getAllByTestId('med-row')).toHaveLength(1);
   });
 });
 
