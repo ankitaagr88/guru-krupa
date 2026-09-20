@@ -56,13 +56,16 @@ def search_patients(db: Session, q: str, limit: int = 20) -> list[Patient]:
     return list(db.scalars(stmt))
 
 
-def last_visit_dates(db: Session, patient_ids: list[int]) -> dict[int, date]:
-    """patient_id -> latest completed visit date (`lookupLastVisit`)."""
+def last_visit_dates(db: Session, patient_ids: list[int], before: date | None = None) -> dict[int, date]:
+    """patient_id -> latest completed visit date (`lookupLastVisit`). `before` excludes visits on/after
+    that day, so today's own (already completed) visit does not read as "Last visit: Today"."""
     if not patient_ids:
         return {}
-    rows = db.execute(select(Visit.patient_id, func.max(Visit.date))
-                      .where(Visit.patient_id.in_(patient_ids), Visit.status == "completed")
-                      .group_by(Visit.patient_id))
+    q = (select(Visit.patient_id, func.max(Visit.date))
+         .where(Visit.patient_id.in_(patient_ids), Visit.status == "completed"))
+    if before is not None:
+        q = q.where(Visit.date < before)
+    rows = db.execute(q.group_by(Visit.patient_id))
     return {pid: d for pid, d in rows}
 
 

@@ -30,7 +30,7 @@ import './prescription.css';
    Each line = { name, medicineId, matched, dosage, qtyGiven, form?, formLabel? }:
      dosage   → the treatment plan printed for the patient
      qtyGiven → what was handed over from clinic stock (decrements inventory)
-   The picker searches GET /medicines by brand or generic (composition); a line
+   The picker searches GET /medicines by name; a line
    is `matched` when the name equals a medicine's name, brand or composition.
    Free-text lines get a "not in list" hint and, for admins, an inline
    "Add to medicine list" form (POST /admin/medicines) that re-matches the line. */
@@ -485,7 +485,7 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved }) {
                 onPick={pickMed}
                 onEnter={addMedManual}
                 reloadKey={medsKey}
-                placeholder="Search brand or generic name, or type a new one…"
+                placeholder="Search or type a medicine name…"
                 ariaLabel="Medicine name"
               />
               <datalist id="rxDosagePresets">

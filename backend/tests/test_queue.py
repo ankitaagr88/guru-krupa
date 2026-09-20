@@ -78,7 +78,8 @@ def test_move_stages_with_audit(client, admin_headers, db):
     r = client.post(f"/api/visits/{vid}/move", json={"stage": "done"}, headers=admin_headers)
     body = r.json()
     assert body["stage"] == "done" and body["status"] == "completed" and body["completedAt"]
-    assert body["patient"]["lastVisitDate"] == body["date"]
+    # "Last visit" means the previous completed visit, not the one just finished (first-timer -> none)
+    assert body["patient"]["lastVisitDate"] is None
 
     rows = list(db.scalars(select(AuditLog).where(AuditLog.entity == "visit", AuditLog.entity_id == vid)
                            .order_by(AuditLog.id)))

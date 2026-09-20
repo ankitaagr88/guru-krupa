@@ -144,6 +144,13 @@ def visit_out(visit: Visit, *, last_visit: date | None = None, now: datetime | N
 
 
 def visits_out(db: Session, visits: list[Visit]) -> list[VisitOut]:
-    last = last_visit_dates(db, list({v.patient_id for v in visits}))
+    # "Last visit" = the most recent completed visit BEFORE the one on the board.
+    by_patient: dict[int, list[Visit]] = {}
+    for v in visits:
+        by_patient.setdefault(v.patient_id, []).append(v)
+    last: dict[int, date] = {}
+    for on in {v.date for v in visits}:
+        ids = [pid for pid, vs in by_patient.items() if any(x.date == on for x in vs)]
+        last.update(last_visit_dates(db, ids, before=on))
     now = utcnow()
     return [visit_out(v, last_visit=last.get(v.patient_id), now=now) for v in visits]
