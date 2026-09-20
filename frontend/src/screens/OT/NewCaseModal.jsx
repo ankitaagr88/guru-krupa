@@ -3,6 +3,7 @@ import Modal from '../../components/Modal';
 import { ot as otApi, patients as patientsApi, errorMessage } from '../../api';
 import { ageSex } from '../../lib/format';
 import { OT_PROCEDURES, slotMinutes } from './constants';
+import { config as configApi } from '../../api';
 
 /* Slot picker: every slot the backend offers for the day, booked ones greyed
    with the patient's name (GET /ot/slots?date=). */
@@ -50,6 +51,7 @@ export default function NewCaseModal({ open, date: initialDate, onClose, onCreat
   const [slots, setSlots] = useState([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [timeSlot, setTimeSlot] = useState('');
+  const [procedures, setProcedures] = useState(OT_PROCEDURES);
   const [procedure, setProcedure] = useState(OT_PROCEDURES[0]);
   const [err, setErr] = useState('');
   const [saving, setSaving] = useState(false);
@@ -64,8 +66,24 @@ export default function NewCaseModal({ open, date: initialDate, onClose, onCreat
     setAge('');
     setSex('');
     setTimeSlot('');
-    setProcedure(OT_PROCEDURES[0]);
     setErr('');
+    // Procedure list is admin-configurable (Admin → OT slots & procedures); fall back to the built-ins.
+    let cancelled = false;
+    configApi
+      .get()
+      .then((cfg) => {
+        if (cancelled) return;
+        const list = Array.isArray(cfg?.otProcedures) && cfg.otProcedures.length ? cfg.otProcedures : OT_PROCEDURES;
+        setProcedures(list);
+        setProcedure(list[0]);
+      })
+      .catch(() => {
+        setProcedures(OT_PROCEDURES);
+        setProcedure(OT_PROCEDURES[0]);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [open, initialDate]);
 
   const loadSlots = (ds) => {
@@ -225,7 +243,7 @@ export default function NewCaseModal({ open, date: initialDate, onClose, onCreat
         onChange={(e) => setProcedure(e.target.value)}
         aria-label="Procedure"
       >
-        {OT_PROCEDURES.map((p) => (
+        {procedures.map((p) => (
           <option key={p}>{p}</option>
         ))}
       </select>

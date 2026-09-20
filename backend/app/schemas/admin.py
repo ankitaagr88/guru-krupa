@@ -159,6 +159,46 @@ class MedicinePatch(CamelModel):
 
 
 # --------------------------------------------------------------------------- /config
+class OtSlotIn(CamelModel):
+    label: str = Field(min_length=1, max_length=20)  # "9:00 AM" — must parse as a time
+
+
+class OtSlotPatch(CamelModel):
+    label: str | None = Field(default=None, min_length=1, max_length=20)
+    active: bool | None = None
+
+
+class OtSlotOutAdmin(CamelModel):
+    id: int
+    label: str
+    active: bool
+    sort_order: int
+
+
+class OtSlotsGenerateIn(CamelModel):
+    """Replace the slot list with a regular grid: start/end "HH:MM" 24h, every N minutes."""
+
+    start: str = Field(pattern=r"^\d{1,2}:\d{2}$")
+    end: str = Field(pattern=r"^\d{1,2}:\d{2}$")
+    every_min: int = Field(ge=5, le=240)
+
+
+class OtProcedureIn(CamelModel):
+    name: str = Field(min_length=1, max_length=160)
+
+
+class OtProcedurePatch(CamelModel):
+    name: str | None = Field(default=None, min_length=1, max_length=160)
+    active: bool | None = None
+
+
+class OtProcedureOut(CamelModel):
+    id: int
+    name: str
+    active: bool
+    sort_order: int
+
+
 class ConfigOut(CamelModel):
     stages: list[StageOut]
     protocol_steps: list[ProtocolStepOut]
@@ -166,3 +206,5 @@ class ConfigOut(CamelModel):
     lens_tiers: list[LensTierOut]
     conditions: list[str]
     medicine_forms: list[MedicineFormBrief]  # active types for the medicine picker / admin form
+    ot_procedures: list[str] = []  # active procedure names for the Schedule-surgery form
+    ot_slots: list[str] = []  # active OT time slots in time order

@@ -6,6 +6,7 @@ import { ROLES, ROLE_LABELS, useAuth } from '../../auth/AuthContext';
 import { admin as adminApi, patients as patientsApi, onDataChange, errorMessage } from '../../api';
 import { MedicinesSection } from './MedicinesAdmin';
 import { TreatmentsSection } from './TreatmentsAdmin';
+import { OtSlotsSection, OtProceduresSection } from './OtAdmin';
 import { EditableText, ReorderBtns } from './pieces';
 import './admin.css';
 
@@ -34,7 +35,7 @@ export default function Admin() {
   const [staffModal, setStaffModal] = useState(false);
   const [pwFor, setPwFor] = useState(null);
 
-  useTopbar({ sub: 'Process stages, dilation drops, referral sources, lens prices, medicines, treatment standards and staff' });
+  useTopbar({ sub: 'Process stages, dilation drops, referral sources, lens prices, OT slots, medicines, treatment standards and staff' });
 
   const load = useCallback(async () => {
     const safe = (p, fb = []) => p.catch(() => fb);
@@ -413,6 +414,10 @@ export default function Admin() {
           + Add a lens tier
         </button>
       </section>
+
+      {/* ---------------- OT slots & procedures (B12) ---------------- */}
+      <OtSlotsSection run={run} />
+      <OtProceduresSection run={run} />
 
       {/* ---------------- medicines (F12) — names only ---------------- */}
       <MedicinesSection

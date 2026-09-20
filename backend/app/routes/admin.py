@@ -14,8 +14,9 @@ from app.routes import register
 from app.schemas.admin import (ConfigOut, IdOrder, LensTierIn, LensTierOut, LensTierPatch, MedicineFormIn,
                                MedicineFormOut, MedicineFormPatch, MedicineIn, MedicinePatch, PasswordIn,
                                ProtocolStepIn, ProtocolStepOut, ProtocolStepPatch, ReferralSourceIn,
-                               ReferralSourceOut, ReferralSourcePatch, StaffIn, StaffPatch, StageIn, StageOrder,
-                               StageOut, StagePatch)
+                               OtProcedureIn, OtProcedureOut, OtProcedurePatch, OtSlotIn, OtSlotOutAdmin,
+                               OtSlotPatch, OtSlotsGenerateIn, ReferralSourceOut, ReferralSourcePatch, StaffIn,
+                               StaffPatch, StageIn, StageOrder, StageOut, StagePatch)
 from app.schemas.auth import StaffOut
 from app.schemas.pharmacy import MedicineOut
 from app.services import admin as svc
@@ -180,6 +181,86 @@ def patch_lens_tier(key: str, data: LensTierPatch, db: Session = Depends(get_db)
 def delete_lens_tier(key: str, db: Session = Depends(get_db), user: Staff = admin_user):
     try:
         svc.delete_lens_tier(db, svc.get_lens_tier(db, key), user)
+    except svc.AdminError as exc:
+        raise _http(exc)
+    return NO_CONTENT
+
+
+# --------------------------------------------------------------------------- OT slots
+@router.get("/ot-slots", response_model=list[OtSlotOutAdmin])
+def list_ot_slots(db: Session = Depends(get_db)):
+    return svc.ot_slots(db)
+
+
+@router.post("/ot-slots", response_model=OtSlotOutAdmin, status_code=status.HTTP_201_CREATED)
+def create_ot_slot(data: OtSlotIn, db: Session = Depends(get_db), user: Staff = admin_user):
+    try:
+        return svc.create_ot_slot(db, data.label, user)
+    except svc.AdminError as exc:
+        raise _http(exc)
+
+
+@router.post("/ot-slots/generate", response_model=list[OtSlotOutAdmin])
+def generate_ot_slots(data: OtSlotsGenerateIn, db: Session = Depends(get_db), user: Staff = admin_user):
+    try:
+        return svc.generate_ot_slots(db, data.start, data.end, data.every_min, user)
+    except svc.AdminError as exc:
+        raise _http(exc)
+
+
+@router.patch("/ot-slots/{slot_id}", response_model=OtSlotOutAdmin)
+def patch_ot_slot(slot_id: int, data: OtSlotPatch, db: Session = Depends(get_db), user: Staff = admin_user):
+    try:
+        return svc.update_ot_slot(db, svc.get_ot_slot(db, slot_id), data.model_dump(exclude_unset=True), user)
+    except svc.AdminError as exc:
+        raise _http(exc)
+
+
+@router.delete("/ot-slots/{slot_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_ot_slot(slot_id: int, db: Session = Depends(get_db), user: Staff = admin_user):
+    try:
+        svc.delete_ot_slot(db, svc.get_ot_slot(db, slot_id), user)
+    except svc.AdminError as exc:
+        raise _http(exc)
+    return NO_CONTENT
+
+
+# --------------------------------------------------------------------------- OT procedures
+@router.get("/ot-procedures", response_model=list[OtProcedureOut])
+def list_ot_procedures(db: Session = Depends(get_db)):
+    return svc.ot_procedures(db)
+
+
+@router.post("/ot-procedures", response_model=OtProcedureOut, status_code=status.HTTP_201_CREATED)
+def create_ot_procedure(data: OtProcedureIn, db: Session = Depends(get_db), user: Staff = admin_user):
+    try:
+        return svc.create_ot_procedure(db, data.name, user)
+    except svc.AdminError as exc:
+        raise _http(exc)
+
+
+@router.put("/ot-procedures/order", response_model=list[OtProcedureOut])
+def reorder_ot_procedures(data: IdOrder, db: Session = Depends(get_db), user: Staff = admin_user):
+    try:
+        return svc.reorder_ot_procedures(db, data.ids, user)
+    except svc.AdminError as exc:
+        raise _http(exc)
+
+
+@router.patch("/ot-procedures/{procedure_id}", response_model=OtProcedureOut)
+def patch_ot_procedure(procedure_id: int, data: OtProcedurePatch, db: Session = Depends(get_db),
+                       user: Staff = admin_user):
+    try:
+        return svc.update_ot_procedure(db, svc.get_ot_procedure(db, procedure_id),
+                                       data.model_dump(exclude_unset=True), user)
+    except svc.AdminError as exc:
+        raise _http(exc)
+
+
+@router.delete("/ot-procedures/{procedure_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_ot_procedure(procedure_id: int, db: Session = Depends(get_db), user: Staff = admin_user):
+    try:
+        svc.delete_ot_procedure(db, svc.get_ot_procedure(db, procedure_id), user)
     except svc.AdminError as exc:
         raise _http(exc)
     return NO_CONTENT

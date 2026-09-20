@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.config import LensTier, ProtocolStep, ReferralSource, Stage
+from app.models.ot import OtProcedure, OtSlot
 from app.models.pharmacy import Diagnosis, InventoryItem, Medicine, MedicineForm, guess_medicine_form
 
 STAGES = [
@@ -117,6 +118,16 @@ DIAGNOSES = [
 ]
 
 
+# OT procedure list for "Schedule surgery" (admin-editable).
+OT_PROCEDURES = [
+    "Cataract — Phaco with IOL (OD)",
+    "Cataract — Phaco with IOL (OS)",
+    "Cataract — Phaco with IOL (OU, staged)",
+    "LASIK",
+    "Other",
+]
+
+
 def _upsert(db: Session, model, lookup: dict, **values):
     row = db.scalar(select(model).filter_by(**lookup))
     if row is None:
@@ -144,6 +155,15 @@ def seed_reference(db: Session) -> None:
     for i, name in enumerate(DIAGNOSES):
         if db.scalar(select(Diagnosis).filter_by(name=name)) is None:
             db.add(Diagnosis(name=name, active=True, sort_order=i))
+    # OT slots / procedures are seeded once; afterwards Admin owns them (no upsert).
+    if db.scalar(select(OtSlot)) is None:
+        from app.services.ot import DEFAULT_OT_SLOTS
+
+        for i, label in enumerate(DEFAULT_OT_SLOTS):
+            db.add(OtSlot(label=label, active=True, sort_order=i))
+    if db.scalar(select(OtProcedure)) is None:
+        for i, name in enumerate(OT_PROCEDURES):
+            db.add(OtProcedure(name=name, active=True, sort_order=i))
     medicines = {}
     for row in medicine_rows():
         name = row.pop("name")

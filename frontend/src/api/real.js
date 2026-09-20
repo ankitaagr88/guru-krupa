@@ -213,6 +213,20 @@ export const admin = {
   },
   // [{id, key, label, sortOrder, active}]; rows addressed by key; DELETE 409s when medicines use the form
   medicineForms: crud('/admin/medicine-forms', 'keys'),
+  // OT time slots [{id, label, active, sortOrder}] — label like "9:00 AM"; 409 when upcoming surgeries use it
+  otSlots: {
+    list: () => data(client.get('/admin/ot-slots')),
+    create: (label) => data(client.post('/admin/ot-slots', { label })),
+    update: (id, patch) => data(client.patch(`/admin/ot-slots/${id}`, patch)),
+    remove: (id) => data(client.delete(`/admin/ot-slots/${id}`)),
+    // replace with a regular grid: start/end "HH:MM" (24h), every N minutes; booked slots are kept
+    generate: (start, end, everyMin) => data(client.post('/admin/ot-slots/generate', { start, end, everyMin })),
+  },
+  // OT procedure list [{id, name, active, sortOrder}]
+  otProcedures: {
+    ...crud('/admin/ot-procedures'),
+    create: (name) => data(client.post('/admin/ot-procedures', { name })),
+  },
   staff: {
     ...crud('/admin/staff'),
     resetPassword: (id, password) => data(client.post(`/admin/staff/${id}/reset-password`, { password })),

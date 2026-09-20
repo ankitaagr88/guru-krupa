@@ -44,7 +44,8 @@ def test_config_shape(client, admin_headers, reception_headers):
     r = client.get("/api/config", headers=reception_headers)
     assert r.status_code == 200, r.text
     c = r.json()
-    assert set(c) == {"stages", "protocolSteps", "referralSources", "lensTiers", "conditions", "medicineForms"}
+    assert set(c) == {"stages", "protocolSteps", "referralSources", "lensTiers", "conditions", "medicineForms",
+                      "otProcedures", "otSlots"}
     assert [s["key"] for s in c["stages"]][:2] == ["reg", "pretest"] and c["stages"][-1]["key"] == "done"
     assert {"id", "key", "label", "cls", "sortOrder"} <= set(c["stages"][0])
     assert c["protocolSteps"][0]["name"] == "Tropicamide 0.8%" and c["protocolSteps"][0]["minutes"] == 5
@@ -319,3 +320,89 @@ def test_reception_denied_admin_writes(client, reception_headers):
     assert client.patch("/api/admin/medicine-forms/drops", json={"label": "X"}, headers=reception_headers).status_code == 403
     assert client.delete("/api/admin/medicine-forms/drops", headers=reception_headers).status_code == 403
     assert client.put("/api/admin/medicine-forms/order", json={"keys": []}, headers=reception_headers).status_code == 403
+
+
+# --------------------------------------------------------------------------- OT slots + procedures (B12)
+def test_ot_slots_admin(client, admin_headers):
+    from app.db import SessionLocal
+    from app.seed.reference import seed_reference
+
+    with SessionLocal() as db:
+        seed_reference(db)
+
+    slots = client.get("/api/admin/ot-slots", headers=admin_headers).json()
+    labels = [s["label"] for s in slots]
+    assert labels[0] == "9:00 AM" and labels[-1] == "4:30 PM" and len(labels) == 11
+    cfg = client.get("/api/config", headers=admin_headers).json()
+    assert cfg["otSlots"] == labels
+    assert cfg["otProcedures"][0].startswith("Cataract")
+
+    # add a slot in 24h form -> normalised; duplicate -> 409; nonsense -> 422
+    r = client.post("/api/admin/ot-slots", json={"label": "17:30"}, headers=admin_headers)
+    assert r.status_code == 201 and r.json()["label"] == "5:30 PM"
+    assert client.post("/api/admin/ot-slots", json={"label": "5:30 pm"}, headers=admin_headers).status_code == 409
+    assert client.post("/api/admin/ot-slots", json={"label": "half past"}, headers=admin_headers).status_code == 422
+    assert client.get("/api/ot/slots", headers=admin_headers).json()[-1]["timeSlot"] == "5:30 PM"
+
+    # switch a slot off -> no longer offered, but a case booked in it still shows that day
+    nine = next(s for s in slots if s["label"] == "9:00 AM")
+    pid = client.post("/api/patients", json={"name": "Slot Test", "age": 60, "sex": "F"}, headers=admin_headers).json()["id"]
+    from app.services.queue import today
+    case = client.post("/api/ot/cases", json={"patientId": pid, "date": today().isoformat(), "timeSlot": "9:00 AM",
+                                              "procedure": "LASIK"}, headers=admin_headers)
+    assert case.status_code == 201, case.text
+    # in use -> cannot delete or rename
+    assert client.delete(f"/api/admin/ot-slots/{nine['id']}", headers=admin_headers).status_code == 409
+    assert client.patch(f"/api/admin/ot-slots/{nine['id']}", json={"label": "9:15 AM"}, headers=admin_headers).status_code == 409
+    r = client.patch(f"/api/admin/ot-slots/{nine['id']}", json={"active": False}, headers=admin_headers)
+    assert r.status_code == 200 and r.json()["active"] is False
+    assert "9:00 AM" not in client.get("/api/config", headers=admin_headers).json()["otSlots"]
+    day = client.get("/api/ot/slots", params={"date": today().isoformat()}, headers=admin_headers).json()
+    nine_day = next(s for s in day if s["timeSlot"] == "9:00 AM")
+    assert nine_day["caseId"] == case.json()["id"]
+
+    # regenerate the grid: 10:00-12:00 every 30 min; the booked 9:00 AM slot survives
+    r = client.post("/api/admin/ot-slots/generate", json={"start": "10:00", "end": "12:00", "everyMin": 30},
+                    headers=admin_headers)
+    assert r.status_code == 200, r.text
+    got = [s["label"] for s in r.json()]
+    assert got == ["9:00 AM", "10:00 AM", "10:30 AM", "11:00 AM", "11:30 AM", "12:00 PM"]
+    assert client.post("/api/admin/ot-slots/generate", json={"start": "12:00", "end": "10:00", "everyMin": 30},
+                       headers=admin_headers).status_code == 422
+    # free slot -> deletable
+    ten = next(s for s in r.json() if s["label"] == "10:00 AM")
+    assert client.delete(f"/api/admin/ot-slots/{ten['id']}", headers=admin_headers).status_code == 204
+
+    # leave the defaults behind for the OT tests (the module shares one database)
+    r = client.post("/api/admin/ot-slots/generate", json={"start": "09:00", "end": "17:00", "everyMin": 45},
+                    headers=admin_headers)
+    nine = next(s for s in r.json() if s["label"] == "9:00 AM")
+    client.patch(f"/api/admin/ot-slots/{nine['id']}", json={"active": True}, headers=admin_headers)
+    assert [s["label"] for s in client.get("/api/admin/ot-slots", headers=admin_headers).json()][:2] == ["9:00 AM", "9:45 AM"]
+
+
+def test_ot_procedures_admin(client, admin_headers):
+    from app.db import SessionLocal
+    from app.seed.reference import seed_reference
+
+    with SessionLocal() as db:
+        seed_reference(db)
+
+    rows = client.get("/api/admin/ot-procedures", headers=admin_headers).json()
+    assert any(p["name"] == "LASIK" for p in rows)
+    r = client.post("/api/admin/ot-procedures", json={"name": "  Pterygium excision "}, headers=admin_headers)
+    assert r.status_code == 201 and r.json()["name"] == "Pterygium excision"
+    pid = r.json()["id"]
+    assert client.post("/api/admin/ot-procedures", json={"name": "pterygium EXCISION"}, headers=admin_headers).status_code == 409
+    r = client.patch(f"/api/admin/ot-procedures/{pid}", json={"name": "Pterygium excision with graft"}, headers=admin_headers)
+    assert r.json()["name"] == "Pterygium excision with graft"
+    r = client.patch(f"/api/admin/ot-procedures/{pid}", json={"active": False}, headers=admin_headers)
+    assert r.json()["active"] is False
+    assert "Pterygium excision with graft" not in client.get("/api/config", headers=admin_headers).json()["otProcedures"]
+    ids = [p["id"] for p in client.get("/api/admin/ot-procedures", headers=admin_headers).json()]
+    r = client.put("/api/admin/ot-procedures/order", json={"ids": list(reversed(ids))}, headers=admin_headers)
+    assert r.status_code == 200 and r.json()[0]["id"] == ids[-1]
+    # LASIK is used by the case from the slot test -> 409; the new one is free -> 204
+    lasik = next(p for p in rows if p["name"] == "LASIK")
+    assert client.delete(f"/api/admin/ot-procedures/{lasik['id']}", headers=admin_headers).status_code == 409
+    assert client.delete(f"/api/admin/ot-procedures/{pid}", headers=admin_headers).status_code == 204

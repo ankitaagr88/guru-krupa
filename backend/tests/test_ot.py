@@ -47,8 +47,8 @@ def _case(client, headers, **body):
 
 
 def test_slots_constant():
-    assert svc.OT_SLOTS[0] == "9:00 AM" and svc.OT_SLOTS[1] == "9:45 AM" and svc.OT_SLOTS[-1] == "4:30 PM"
-    assert "12:00 PM" in svc.OT_SLOTS and "12:45 PM" in svc.OT_SLOTS and len(svc.OT_SLOTS) == 11
+    assert svc.DEFAULT_OT_SLOTS[0] == "9:00 AM" and svc.DEFAULT_OT_SLOTS[1] == "9:45 AM" and svc.DEFAULT_OT_SLOTS[-1] == "4:30 PM"
+    assert "12:00 PM" in svc.DEFAULT_OT_SLOTS and "12:45 PM" in svc.DEFAULT_OT_SLOTS and len(svc.DEFAULT_OT_SLOTS) == 11
 
 
 def test_unauthenticated(client):
@@ -92,7 +92,7 @@ def test_slot_conflict_and_slots_endpoint(client, admin_headers):
     _case(client, admin_headers, patientName="Other Day", timeSlot="2:15 PM", date=D1.isoformat())
 
     slots = client.get(f"/api/ot/slots?date={D0.isoformat()}", headers=admin_headers).json()
-    assert [s["timeSlot"] for s in slots] == svc.OT_SLOTS
+    assert [s["timeSlot"] for s in slots] == svc.DEFAULT_OT_SLOTS
     by = {s["timeSlot"]: s for s in slots}
     assert by["2:15 PM"] == {"timeSlot": "2:15 PM", "caseId": a["id"], "patientName": "Slot Holder"}
     assert by["3:00 PM"] == {"timeSlot": "3:00 PM", "caseId": None, "patientName": None}

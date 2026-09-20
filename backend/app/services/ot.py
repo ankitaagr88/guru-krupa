@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.config import settings
 from app.db import utcnow
 from app.models.config import LensTier
-from app.models.ot import (OT_STATUSES, OtCase, OtConsentPhoto, empty_billing, empty_biometry,
+from app.models.ot import (OT_STATUSES, OtCase, OtConsentPhoto, OtSlot, empty_billing, empty_biometry,
                            empty_operative, empty_post_op)
 from app.models.patients import Patient
 from app.schemas.ot import LensTierOut, OtCaseOut, OtConsentPhotoOut, OtSlotOut
@@ -32,8 +32,16 @@ def _build_slots(start: time, end: time, step_min: int) -> list[str]:
     return slots
 
 
-# "9:00 AM", "9:45 AM", ..., "4:30 PM" (last slot <= 5:00 PM). Admin-configurable later.
-OT_SLOTS: list[str] = _build_slots(SLOT_START, SLOT_END, SLOT_STEP_MIN)
+# Default slots, seeded into `ot_slots` (admin-configurable from there on):
+# "9:00 AM", "9:45 AM", ..., "4:30 PM" (last slot <= 5:00 PM).
+DEFAULT_OT_SLOTS: list[str] = _build_slots(SLOT_START, SLOT_END, SLOT_STEP_MIN)
+
+
+def configured_slots(db: Session) -> list[str]:
+    """Active slots from Admin, in time order; the seeded defaults if the table is empty."""
+    rows = list(db.scalars(select(OtSlot).where(OtSlot.active.is_(True))))
+    labels = [r.label for r in rows] if rows else list(DEFAULT_OT_SLOTS)
+    return sorted(labels, key=slot_sort_key)
 
 ACTIVE_STATUSES = tuple(s for s in OT_STATUSES if s != "cancelled")
 SECTION_FIELDS = ("pre_op_biometry", "operative", "post_op", "billing")
@@ -141,8 +149,10 @@ def counts_between(db: Session, start: date, end: date) -> dict[str, int]:
 def slots_on(db: Session, on: date | None = None) -> list[OtSlotOut]:
     """Occupancy of each configured slot; slots holding cancelled cases show as free."""
     taken = {c.time_slot: c for c in cases_on(db, on) if c.status != "cancelled"}
+    # Active slots, plus any slot a case on that day already holds (e.g. one switched off since).
+    labels = sorted(set(configured_slots(db)) | set(taken), key=slot_sort_key)
     return [OtSlotOut(time_slot=s, case_id=taken[s].id if s in taken else None,
-                      patient_name=taken[s].patient_name if s in taken else None) for s in OT_SLOTS]
+                      patient_name=taken[s].patient_name if s in taken else None) for s in labels]
 
 
 def _conflict(db: Session, on: date, slot: str, exclude_id: int | None = None) -> OtCase | None:

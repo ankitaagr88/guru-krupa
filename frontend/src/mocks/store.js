@@ -18,6 +18,8 @@ function createStore() {
     medicines: D.seedMedicines(), // {id, name, brand, composition, form, strength, packSize, manufacturer, active}
     medicineForms: clone(D.MEDICINE_FORMS),
     diagnoses: clone(D.DIAGNOSES),
+    otSlots: D.OT_TIME_SLOTS.map((label, i) => ({ id: i + 1, label, active: true, sortOrder: i })),
+    otProcedures: D.OT_PROCEDURES.map((name, i) => ({ id: i + 1, name, active: true, sortOrder: i })),
     treatmentStandards: {}, // diagnosisId -> {lines, updatedAt, updatedBy}
     inventory: clone(D.INVENTORY).map((it, i) => ({ id: i + 1, ...it })),
     stockMovements: [],
@@ -41,6 +43,8 @@ function createStore() {
       medicine: D.MEDICINE_LIST.length + D.MEDICINE_BRANDS.length,
       medicineForm: D.MEDICINE_FORMS.length,
       diagnosis: D.DIAGNOSES.length,
+      otSlot: D.OT_TIME_SLOTS.length,
+      otProcedure: D.OT_PROCEDURES.length,
     },
   };
 

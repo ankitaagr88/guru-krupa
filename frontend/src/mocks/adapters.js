@@ -8,8 +8,6 @@ import {
   REFERRAL_NEEDS_DETAIL,
   TEST_TYPES,
   CONDITIONS,
-  OT_TIME_SLOTS,
-  OT_PROCEDURES,
   emptyOtOperative,
   emptyOtPostOp,
   emptyOtBilling,
@@ -303,9 +301,47 @@ export const config = {
       medicineForms: S.medicineForms
         .filter((f) => f.active !== false)
         .map((f) => ({ key: f.key, label: f.label })),
+      otProcedures: S.otProcedures.filter((p) => p.active !== false).map((p) => p.name),
+      otSlots: activeSlotLabels(),
     };
   },
 };
+
+/* ---- OT slots (B12): "9:00 AM" style labels, time-ordered ---- */
+const slotKey = (label) => {
+  const m = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec((label || '').trim());
+  if (!m) return 9999;
+  let h = Number(m[1]) % 12;
+  if (m[3].toUpperCase() === 'PM') h += 12;
+  return h * 60 + Number(m[2]);
+};
+const normSlot = (label) => {
+  const t = (label || '').trim().toUpperCase().replace(/\s+/g, ' ');
+  let m = /^(\d{1,2}):(\d{2})\s?(AM|PM)$/.exec(t);
+  let h;
+  let min;
+  if (m) {
+    h = Number(m[1]) % 12;
+    if (m[3] === 'PM') h += 12;
+    min = Number(m[2]);
+  } else {
+    m = /^(\d{1,2}):(\d{2})$/.exec(t);
+    if (!m) throw httpError(422, `'${label}' is not a time — use e.g. 9:00 AM or 14:15`);
+    h = Number(m[1]);
+    min = Number(m[2]);
+  }
+  if (h > 23 || min > 59) throw httpError(422, `'${label}' is not a time`);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(min).padStart(2, '0')} ${ampm}`;
+};
+const activeSlotLabels = () =>
+  S.otSlots
+    .filter((s) => s.active !== false)
+    .map((s) => s.label)
+    .sort((a, b) => slotKey(a) - slotKey(b));
+const slotInUse = (label) => S.otCases.filter((k) => k.timeSlot === label && k.date >= dateStr(0) && ACTIVE_OT(k)).length;
+const sortedSlots = () => [...S.otSlots].sort((a, b) => slotKey(a.label) - slotKey(b.label) || a.id - b.id);
 
 function recordVisitCompletion(phone) {
   if (!phone) return;
@@ -611,12 +647,15 @@ export const ot = {
   async slots(date) {
     await latency(20);
     const taken = S.otCases.filter((k) => k.date === date && ACTIVE_OT(k));
-    return OT_TIME_SLOTS.map((timeSlot) => {
+    const labels = [...new Set([...activeSlotLabels(), ...taken.map((k) => k.timeSlot)])].sort(
+      (a, b) => slotKey(a) - slotKey(b)
+    );
+    return labels.map((timeSlot) => {
       const k = taken.find((x) => x.timeSlot === timeSlot);
       return { timeSlot, caseId: k ? k.id : null, patientName: k ? k.patientName : null };
     });
   },
-  procedures: () => Promise.resolve([...OT_PROCEDURES]),
+  procedures: () => Promise.resolve(S.otProcedures.filter((p) => p.active !== false).map((p) => p.name)),
   lensTiers: () => Promise.resolve(c(S.lensTiers)),
   async cases({ date } = {}) {
     await latency(50);
@@ -641,7 +680,7 @@ export const ot = {
   async create(data) {
     await latency();
     const timeSlot = data.timeSlot ?? data.time;
-    if (!OT_TIME_SLOTS.includes(timeSlot)) throw httpError(422, 'Unknown time slot');
+    if (!activeSlotLabels().includes(timeSlot)) throw httpError(422, 'Unknown time slot');
     const conflict = S.otCases.find((k) => k.date === data.date && k.timeSlot === timeSlot && ACTIVE_OT(k));
     if (conflict) throw httpError(409, `Time slot '${timeSlot}' is already booked on that date`);
     let patient = null;
@@ -1208,6 +1247,108 @@ export const admin = {
     },
   },
   // /admin/medicine-forms — key ^[a-z0-9_-]+$, 409 dup / in use, PUT /order {keys}
+  otSlots: {
+    list: async () => c(sortedSlots()),
+    create: async (label) => {
+      const l = normSlot(label);
+      if (S.otSlots.some((s) => s.label === l)) throw httpError(409, `Slot ${l} already exists`);
+      const row = { id: store.nextId('otSlot'), label: l, active: true, sortOrder: S.otSlots.length };
+      S.otSlots.push(row);
+      store.notify();
+      return c(row);
+    },
+    update: async (id, patch) => {
+      const row = S.otSlots.find((s) => s.id === Number(id));
+      if (!row) throw httpError(404, 'OT slot not found');
+      if (patch.label !== undefined) {
+        const l = normSlot(patch.label);
+        if (l !== row.label) {
+          if (S.otSlots.some((s) => s.label === l)) throw httpError(409, `Slot ${l} already exists`);
+          if (slotInUse(row.label))
+            throw httpError(409, `Upcoming surgeries are booked at ${row.label} — add a new slot instead of renaming`);
+          row.label = l;
+        }
+      }
+      if (patch.active !== undefined) row.active = !!patch.active;
+      store.notify();
+      return c(row);
+    },
+    remove: async (id) => {
+      const idx = S.otSlots.findIndex((s) => s.id === Number(id));
+      if (idx < 0) throw httpError(404, 'OT slot not found');
+      const n = slotInUse(S.otSlots[idx].label);
+      if (n) throw httpError(409, `${n} upcoming surger${n === 1 ? 'y is' : 'ies are'} booked at ${S.otSlots[idx].label} — switch it off instead`);
+      S.otSlots.splice(idx, 1);
+      store.notify();
+      return null;
+    },
+    generate: async (start, end, everyMin) => {
+      const parse = (t) => {
+        const m = /^(\d{1,2}):(\d{2})$/.exec(t || '');
+        if (!m) throw httpError(422, 'start and end must be HH:MM (24-hour)');
+        return Number(m[1]) * 60 + Number(m[2]);
+      };
+      const a = parse(start);
+      const b = parse(end);
+      if (b < a) throw httpError(422, 'end must be after start');
+      const labels = [];
+      for (let t = a; t <= b; t += everyMin) {
+        const h = Math.floor(t / 60);
+        labels.push(normSlot(`${h}:${String(t % 60).padStart(2, '0')}`));
+      }
+      S.otSlots = S.otSlots.filter((s) => slotInUse(s.label));
+      labels.forEach((label, i) => {
+        if (!S.otSlots.some((s) => s.label === label))
+          S.otSlots.push({ id: store.nextId('otSlot'), label, active: true, sortOrder: i });
+      });
+      store.notify();
+      return c(sortedSlots());
+    },
+  },
+  otProcedures: {
+    list: async () => c([...S.otProcedures].sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id)),
+    create: async (name) => {
+      const n = (name || '').trim().replace(/\s+/g, ' ');
+      if (!n) throw httpError(422, 'Procedure name is required');
+      if (S.otProcedures.some((p) => p.name.toLowerCase() === n.toLowerCase()))
+        throw httpError(409, `Procedure '${n}' already exists`);
+      const row = { id: store.nextId('otProcedure'), name: n, active: true, sortOrder: S.otProcedures.length };
+      S.otProcedures.push(row);
+      store.notify();
+      return c(row);
+    },
+    update: async (id, patch) => {
+      const row = S.otProcedures.find((p) => p.id === Number(id));
+      if (!row) throw httpError(404, 'Procedure not found');
+      if (patch.name !== undefined) {
+        const n = (patch.name || '').trim().replace(/\s+/g, ' ');
+        if (!n) throw httpError(422, 'Procedure name is required');
+        if (S.otProcedures.some((p) => p.id !== row.id && p.name.toLowerCase() === n.toLowerCase()))
+          throw httpError(409, `Procedure '${n}' already exists`);
+        row.name = n;
+      }
+      if (patch.active !== undefined) row.active = !!patch.active;
+      store.notify();
+      return c(row);
+    },
+    remove: async (id) => {
+      const idx = S.otProcedures.findIndex((p) => p.id === Number(id));
+      if (idx < 0) throw httpError(404, 'Procedure not found');
+      const n = S.otCases.filter((k) => k.procedure === S.otProcedures[idx].name).length;
+      if (n) throw httpError(409, `${n} surger${n === 1 ? 'y uses' : 'ies use'} '${S.otProcedures[idx].name}' — switch it off instead`);
+      S.otProcedures.splice(idx, 1);
+      store.notify();
+      return null;
+    },
+    reorder: async (ids) => {
+      ids.forEach((id, i) => {
+        const row = S.otProcedures.find((p) => p.id === id);
+        if (row) row.sortOrder = i;
+      });
+      store.notify();
+      return c([...S.otProcedures].sort((a, b) => a.sortOrder - b.sortOrder));
+    },
+  },
   medicineForms: {
     list: async () => c(S.medicineForms),
     create: async ({ key, label }) => {

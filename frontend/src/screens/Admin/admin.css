@@ -163,3 +163,18 @@ body.mobile-mode .admin-tools {
 body.mobile-mode .med-add-modal {
   width: 94vw;
 }
+
+/* ---- OT slots & procedures (B12) ---- */
+.ot-slot-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.ot-slot-chip { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 6px 6px 6px 10px; }
+.ot-slot-chip.off { background: var(--surface-sunk); }
+.ot-slot-chip.off .ot-slot-input { color: var(--ink-faint); }
+.ot-slot-input { width: 84px; border: none; background: transparent; font-family: var(--font-mono); font-size: 13px; font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
+.ot-slot-input:focus { outline: none; border-bottom: 1.5px solid var(--sapphire); }
+.ot-slot-chip .switch { width: 34px; height: 20px; }
+.ot-slot-chip .switch .knob { width: 14px; height: 14px; }
+.ot-slot-chip .switch.on .knob { left: 17px; }
+.ot-grid-form { margin-top: 10px; align-items: center; }
+.ot-grid-form .admin-check { gap: 8px; }
+.ot-grid-form .fake-input { width: auto; max-width: 130px; margin: 0; padding: 7px 9px; }
+.ot-grid-form .ot-grid-min { width: 70px; }

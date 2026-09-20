@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.auth.security import hash_password
 from app.models.audit import AuditLog
 from app.models.config import LensTier, ProtocolStep, ReferralSource, Stage
+from app.models.ot import OtCase, OtProcedure, OtSlot
 from app.models.patients import Patient, Visit
 from app.models.pharmacy import Medicine, MedicineForm
 from app.models.staff import ROLES, Staff
@@ -432,4 +433,170 @@ def delete_medicine(db: Session, med: Medicine, by) -> None:
 def config(db: Session) -> dict:
     return {"stages": stages(db), "protocol_steps": protocol_steps(db), "referral_sources": referral_sources(db),
             "lens_tiers": lens_tiers(db), "conditions": list(CONDITIONS),
-            "medicine_forms": medicine_forms(db, active_only=True)}
+            "medicine_forms": medicine_forms(db, active_only=True),
+            "ot_procedures": [p.name for p in ot_procedures(db) if p.active],
+            "ot_slots": ot_slot_labels(db)}
+
+
+# --------------------------------------------------------------------------- OT slots
+def _parse_slot(label: str) -> str:
+    """Normalise "9:00 am" / "09:00 AM" / "14:15" to the app's "H:MM AM" form; BadValue otherwise."""
+    from datetime import datetime as _dt
+
+    text = " ".join((label or "").split()).upper()
+    for fmt in ("%I:%M %p", "%I:%M%p", "%H:%M"):
+        try:
+            return _dt.strptime(text, fmt).strftime("%I:%M %p").lstrip("0")
+        except ValueError:
+            continue
+    raise BadValue(f"'{label}' is not a time — use e.g. 9:00 AM or 14:15")
+
+
+def ot_slots(db: Session) -> list[OtSlot]:
+    from app.services.ot import slot_sort_key
+
+    return sorted(db.scalars(select(OtSlot)), key=lambda r: (slot_sort_key(r.label), r.id))
+
+
+def ot_slot_labels(db: Session) -> list[str]:
+    from app.services.ot import configured_slots
+
+    return configured_slots(db)
+
+
+def get_ot_slot(db: Session, slot_id: int) -> OtSlot:
+    return _get_or_404(db, OtSlot, slot_id, "OT slot")
+
+
+def _slot_in_use(db: Session, label: str) -> int:
+    from app.services.ot import ACTIVE_STATUSES
+    from app.services.queue import today
+
+    return db.scalar(select(func.count()).select_from(OtCase).where(
+        OtCase.time_slot == label, OtCase.date >= today(), OtCase.status.in_(ACTIVE_STATUSES))) or 0
+
+
+def create_ot_slot(db: Session, label: str, by) -> OtSlot:
+    label = _parse_slot(label)
+    if db.scalar(select(OtSlot).filter_by(label=label)):
+        raise Conflict(f"Slot {label} already exists")
+    row = OtSlot(label=label, active=True, sort_order=_next_order(db, OtSlot))
+    db.add(row)
+    db.flush()
+    _audit(db, by, "ot_slot.create", "ot_slot", row.id, label=label)
+    db.commit()
+    return row
+
+
+def update_ot_slot(db: Session, row: OtSlot, values: dict, by) -> OtSlot:
+    changed = {}
+    if values.get("label") is not None:
+        label = _parse_slot(values["label"])
+        if label != row.label:
+            if db.scalar(select(OtSlot).filter_by(label=label)):
+                raise Conflict(f"Slot {label} already exists")
+            if _slot_in_use(db, row.label):
+                raise Conflict(f"Upcoming surgeries are booked at {row.label} — add a new slot instead of renaming")
+            row.label = changed["label"] = label
+    if values.get("active") is not None and values["active"] != row.active:
+        row.active = changed["active"] = values["active"]
+    if changed:
+        _audit(db, by, "ot_slot.update", "ot_slot", row.id, **changed)
+        db.commit()
+    return row
+
+
+def delete_ot_slot(db: Session, row: OtSlot, by) -> None:
+    n = _slot_in_use(db, row.label)
+    if n:
+        raise Conflict(f"{n} upcoming surger{'y is' if n == 1 else 'ies are'} booked at {row.label} — switch it off instead")
+    _audit(db, by, "ot_slot.delete", "ot_slot", row.id, label=row.label)
+    db.delete(row)
+    db.commit()
+
+
+def generate_ot_slots(db: Session, start: str, end: str, every_min: int, by) -> list[OtSlot]:
+    """Replace the slot list with a regular grid. Slots holding upcoming surgeries are kept."""
+    from datetime import date as _date, datetime as _dt, timedelta
+
+    try:
+        t = _dt.combine(_date(2000, 1, 1), _dt.strptime(start, "%H:%M").time())
+        end_dt = _dt.combine(_date(2000, 1, 1), _dt.strptime(end, "%H:%M").time())
+    except ValueError:
+        raise BadValue("start and end must be HH:MM (24-hour)")
+    if end_dt < t:
+        raise BadValue("end must be after start")
+    labels = []
+    while t <= end_dt:
+        labels.append(t.strftime("%I:%M %p").lstrip("0"))
+        t += timedelta(minutes=every_min)
+    keep = {r.label for r in db.scalars(select(OtSlot)) if _slot_in_use(db, r.label)}
+    for r in list(db.scalars(select(OtSlot))):
+        if r.label not in keep:
+            db.delete(r)
+    db.flush()
+    existing = {r.label for r in db.scalars(select(OtSlot))}
+    for i, label in enumerate(labels):
+        if label not in existing:
+            db.add(OtSlot(label=label, active=True, sort_order=i))
+    _audit(db, by, "ot_slot.generate", "ot_slot", None, start=start, end=end, every_min=every_min, count=len(labels))
+    db.commit()
+    return ot_slots(db)
+
+
+# --------------------------------------------------------------------------- OT procedures
+def ot_procedures(db: Session) -> list[OtProcedure]:
+    return _ordered(db, OtProcedure)
+
+
+def get_ot_procedure(db: Session, procedure_id: int) -> OtProcedure:
+    return _get_or_404(db, OtProcedure, procedure_id, "Procedure")
+
+
+def _procedure_name(db: Session, name: str, except_id: int | None = None) -> str:
+    name = " ".join((name or "").split())
+    if not name:
+        raise BadValue("Procedure name is required")
+    q = select(OtProcedure).where(func.lower(OtProcedure.name) == name.lower())
+    if except_id is not None:
+        q = q.where(OtProcedure.id != except_id)
+    if db.scalar(q):
+        raise Conflict(f"Procedure '{name}' already exists")
+    return name
+
+
+def create_ot_procedure(db: Session, name: str, by) -> OtProcedure:
+    name = _procedure_name(db, name)
+    row = OtProcedure(name=name, active=True, sort_order=_next_order(db, OtProcedure))
+    db.add(row)
+    db.flush()
+    _audit(db, by, "ot_procedure.create", "ot_procedure", row.id, name=name)
+    db.commit()
+    return row
+
+
+def update_ot_procedure(db: Session, row: OtProcedure, values: dict, by) -> OtProcedure:
+    changed = {}
+    if values.get("name") is not None:
+        name = _procedure_name(db, values["name"], row.id)
+        if name != row.name:
+            row.name = changed["name"] = name
+    if values.get("active") is not None and values["active"] != row.active:
+        row.active = changed["active"] = values["active"]
+    if changed:
+        _audit(db, by, "ot_procedure.update", "ot_procedure", row.id, **changed)
+        db.commit()
+    return row
+
+
+def delete_ot_procedure(db: Session, row: OtProcedure, by) -> None:
+    n = db.scalar(select(func.count()).select_from(OtCase).where(OtCase.procedure == row.name)) or 0
+    if n:
+        raise Conflict(f"{n} surger{'y uses' if n == 1 else 'ies use'} '{row.name}' — switch it off instead")
+    _audit(db, by, "ot_procedure.delete", "ot_procedure", row.id, name=row.name)
+    db.delete(row)
+    db.commit()
+
+
+def reorder_ot_procedures(db: Session, ids: list[int], by) -> list[OtProcedure]:
+    return _reorder(db, OtProcedure, ids, "id", by, "ot_procedure.reorder", "ot_procedure")

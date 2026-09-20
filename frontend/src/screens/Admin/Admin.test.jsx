@@ -175,4 +175,36 @@ describe('Admin', () => {
       expect((await treatments.diagnoses()).some((d) => d.name === 'Anterior uveitis')).toBe(false)
     );
   });
+
+  it('OT slots & procedures: add a slot, switch one off (it leaves the picker), add and reorder procedures', async () => {
+    window.confirm = () => true;
+    renderShell({ route: '/admin', child: <Admin /> });
+    await screen.findByText('OT time slots');
+    expect(await screen.findByLabelText('Slot 9:00 AM')).toHaveValue('9:00 AM');
+
+    await userEvent.type(screen.getByLabelText('New slot time'), '17:30');
+    await userEvent.click(screen.getByRole('button', { name: '+ Add a slot' }));
+    expect(await screen.findByLabelText('Slot 5:30 PM')).toHaveValue('5:30 PM');
+    await userEvent.type(screen.getByLabelText('New slot time'), 'half past');
+    await userEvent.click(screen.getByRole('button', { name: '+ Add a slot' }));
+    expect(await screen.findByText(/is not a time/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByLabelText('Slot 9:45 AM active'));
+    await waitFor(async () => expect((await admin.otSlots.list()).find((s) => s.label === '9:45 AM').active).toBe(false));
+    const offered = (await (await import('../../api')).ot.slots('2030-01-01')).map((s) => s.timeSlot);
+    expect(offered).not.toContain('9:45 AM');
+    expect(offered).toContain('5:30 PM');
+
+    await userEvent.type(screen.getByLabelText('New procedure'), 'Pterygium excision');
+    await userEvent.click(screen.getByRole('button', { name: '+ Add a procedure' }));
+    expect(await screen.findByLabelText('Procedure Pterygium excision')).toHaveValue('Pterygium excision');
+    await userEvent.click(screen.getByLabelText('Move procedure Pterygium excision up'));
+    await waitFor(async () => {
+      const names = (await admin.otProcedures.list()).map((p) => p.name);
+      expect(names.indexOf('Pterygium excision')).toBe(names.length - 2);
+    });
+    // switched-off procedures leave the Schedule-surgery list
+    await userEvent.click(screen.getByLabelText('Procedure LASIK active'));
+    await waitFor(async () => expect((await (await import('../../api')).config.get()).otProcedures).not.toContain('LASIK'));
+  });
 });
