@@ -14,7 +14,7 @@ from app.db import utcnow
 from app.models.audit import AuditLog
 from app.models.billing import PAYMENT_MODES, Bill, BillItem
 from app.models.patients import Visit
-from app.models.pharmacy import (INVENTORY_UNITS, STOCK_REASONS, InventoryItem, Medicine, MedicineForm,
+from app.models.pharmacy import (INVENTORY_UNITS, STOCK_REASONS, Diagnosis, InventoryItem, Medicine, MedicineForm,
                                  Prescription, PrescriptionLine, StockMovement)
 from app.models.staff import Staff
 from app.schemas.pharmacy import (BillItemOut, BillOut, InventoryItemOut, MedicineOut, MovementOut,
@@ -234,7 +234,7 @@ def _staff_id(by: Staff | int | None) -> int | None:
 
 
 def save_prescription(db: Session, visit: Visit, lines: list[PrescriptionLineIn], print_language: str | None,
-                      by: Staff | int | None) -> tuple[Prescription, list[InventoryItem]]:
+                      by: Staff | int | None, diagnosis_id: int | None = None) -> tuple[Prescription, list[InventoryItem]]:
     """Create or replace the visit's prescription in one transaction.
 
     Replacing reverses the earlier stock movements (compensating "adjusted" rows), drops the old
@@ -248,13 +248,17 @@ def save_prescription(db: Session, visit: Visit, lines: list[PrescriptionLineIn]
 
     rx = get_prescription(db, visit)
     try:
+        if diagnosis_id is not None and db.get(Diagnosis, diagnosis_id) is None:
+            raise BadValue("Unknown diagnosis")
         if rx is None:
-            rx = Prescription(visit_id=visit.id, print_language=lang or visit.patient.language or "english")
+            rx = Prescription(visit_id=visit.id, print_language=lang or visit.patient.language or "english",
+                              diagnosis_id=diagnosis_id)
             db.add(rx)
             db.flush()
         else:
             if lang:
                 rx.print_language = lang
+            rx.diagnosis_id = diagnosis_id
             _reverse_movements(db, rx, staff_id)
             for old in list(rx.lines):
                 db.delete(old)
@@ -325,6 +329,7 @@ def prescription_out(db: Session, rx: Prescription, low: list[InventoryItem] | N
         lines.append(PrescriptionLineOut(id=ln.id, medicine_id=ln.medicine_id, name=ln.name, matched=ln.matched,
                                          dosage=ln.dosage, qty_given=ln.qty_given, form=form, form_label=form_label))
     return PrescriptionOut(id=rx.id, visit_id=rx.visit_id, print_language=rx.print_language, created_at=rx.created_at,
+                           diagnosis_id=rx.diagnosis_id, diagnosis_name=rx.diagnosis.name if rx.diagnosis else None,
                            lines=lines, low_stock=[it.name for it in (low or [])])
 
 

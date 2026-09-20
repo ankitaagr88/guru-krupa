@@ -94,8 +94,11 @@ class Prescription(Base):
     visit_id: Mapped[int] = mapped_column(ForeignKey("visits.id"), index=True)
     print_language: Mapped[str] = mapped_column(String(20), default="english")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # The diagnosis this prescription was written for (drives the treatment standards).
+    diagnosis_id: Mapped[int | None] = mapped_column(ForeignKey("diagnoses.id"), index=True)
 
     visit = relationship("Visit", back_populates="prescriptions")
+    diagnosis = relationship("Diagnosis")
     lines: Mapped[list["PrescriptionLine"]] = relationship(
         back_populates="prescription", cascade="all, delete-orphan", order_by="PrescriptionLine.id")
 
@@ -112,4 +115,47 @@ class PrescriptionLine(Base):
     qty_given: Mapped[int] = mapped_column(Integer, default=0)
 
     prescription: Mapped["Prescription"] = relationship(back_populates="lines")
+    medicine = relationship("Medicine")
+
+
+class Diagnosis(Base):
+    """Admin-configurable diagnosis / symptom the doctor picks when writing a prescription."""
+
+    __tablename__ = "diagnoses"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(160), unique=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class TreatmentStandard(Base):
+    """The doctor's own standard prescription for a diagnosis (wins over the history-derived one)."""
+
+    __tablename__ = "treatment_standards"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    diagnosis_id: Mapped[int] = mapped_column(ForeignKey("diagnoses.id"), unique=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+    updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("staff.id"))
+
+    diagnosis = relationship("Diagnosis")
+    updated_by = relationship("Staff")
+    lines: Mapped[list["TreatmentStandardLine"]] = relationship(
+        back_populates="standard", cascade="all, delete-orphan",
+        order_by="TreatmentStandardLine.sort_order, TreatmentStandardLine.id")
+
+
+class TreatmentStandardLine(Base):
+    __tablename__ = "treatment_standard_lines"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    standard_id: Mapped[int] = mapped_column(ForeignKey("treatment_standards.id"), index=True)
+    medicine_id: Mapped[int | None] = mapped_column(ForeignKey("medicines.id"))
+    name: Mapped[str] = mapped_column(String(160))
+    dosage: Mapped[str] = mapped_column(Text, default="")
+    qty_given: Mapped[int] = mapped_column(Integer, default=0)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+
+    standard: Mapped["TreatmentStandard"] = relationship(back_populates="lines")
     medicine = relationship("Medicine")

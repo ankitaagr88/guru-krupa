@@ -21,4 +21,5 @@ from app.routes import ot as _ot  # noqa: E402,F401
 from app.routes import patients as _patients  # noqa: E402,F401
 from app.routes import prescriptions as _prescriptions  # noqa: E402,F401
 from app.routes import readings as _readings  # noqa: E402,F401
+from app.routes import treatments as _treatments  # noqa: E402,F401
 from app.routes import visits as _visits  # noqa: E402,F401

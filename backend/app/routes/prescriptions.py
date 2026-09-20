@@ -48,7 +48,7 @@ def save_prescription(visit_id: int, data: PrescriptionIn, db: Session = Depends
                       user: Staff = Depends(require_role(*PRESCRIBERS))):
     visit = _visit(db, visit_id)
     try:
-        rx, low = svc.save_prescription(db, visit, data.lines, data.print_language, user)
+        rx, low = svc.save_prescription(db, visit, data.lines, data.print_language, user, data.diagnosis_id)
     except svc.InsufficientStock as exc:
         raise HTTPException(status.HTTP_409_CONFLICT,
                             f"Insufficient stock for '{exc.item_name}': {exc.available} available, "

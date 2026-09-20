@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.config import LensTier, ProtocolStep, ReferralSource, Stage
-from app.models.pharmacy import InventoryItem, Medicine, MedicineForm, guess_medicine_form
+from app.models.pharmacy import Diagnosis, InventoryItem, Medicine, MedicineForm, guess_medicine_form
 
 STAGES = [
     ("reg", "Registration", "reg"),
@@ -100,6 +100,23 @@ LENS_TIERS = [
 ]
 
 
+# Starter diagnoses / symptoms for the treatment standards. Admin-editable; Dr Anu will
+# rename, add and remove as she sets her standards.
+DIAGNOSES = [
+    "Dry eye",
+    "Allergic conjunctivitis",
+    "Bacterial conjunctivitis",
+    "Viral conjunctivitis",
+    "Computer vision syndrome",
+    "Refractive error",
+    "Cataract",
+    "Glaucoma",
+    "Blepharitis",
+    "Stye (hordeolum)",
+    "Post-operative care",
+]
+
+
 def _upsert(db: Session, model, lookup: dict, **values):
     row = db.scalar(select(model).filter_by(**lookup))
     if row is None:
@@ -124,6 +141,9 @@ def seed_reference(db: Session) -> None:
 
     for i, (key, label) in enumerate(MEDICINE_FORMS):
         _upsert(db, MedicineForm, {"key": key}, label=label, sort_order=i, active=True)
+    for i, name in enumerate(DIAGNOSES):
+        if db.scalar(select(Diagnosis).filter_by(name=name)) is None:
+            db.add(Diagnosis(name=name, active=True, sort_order=i))
     medicines = {}
     for row in medicine_rows():
         name = row.pop("name")

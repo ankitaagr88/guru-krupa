@@ -35,6 +35,7 @@ class PrescriptionLineIn(CamelModel):
 class PrescriptionIn(CamelModel):
     lines: list[PrescriptionLineIn] = []
     print_language: str | None = None  # hinglish|gujlish|english (or hindi|gujarati)
+    diagnosis_id: int | None = None  # what this prescription treats (feeds the treatment standards)
 
 
 class PrescriptionLineOut(CamelModel):
@@ -53,6 +54,8 @@ class PrescriptionOut(CamelModel):
     visit_id: int
     print_language: str
     created_at: datetime
+    diagnosis_id: int | None = None
+    diagnosis_name: str | None = None
     lines: list[PrescriptionLineOut]
     low_stock: list[str] = []  # item names now at/below reorder level (`pushLowStockToast`)
 
