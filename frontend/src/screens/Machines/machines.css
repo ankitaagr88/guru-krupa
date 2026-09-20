@@ -1,5 +1,5 @@
 /* Machines screen (F5) — extends the shared .test-opt / .reading-card / .capture-flash styles. */
-.machines-wrap { max-width: 760px; }
+.machines-wrap { max-width: 1100px; }
 .machines-head-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 .machine-demo-btn { font-size: 12px; line-height: 16px; padding: 7px 12px; width: auto; margin-bottom: 12px; flex: none; }

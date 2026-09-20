@@ -1,6 +1,6 @@
 /* Admin (F9) — additions to the shared .admin-* styles in global.css. */
 .admin-wrap {
-  max-width: 800px;
+  max-width: 1320px; /* use the screen; tables stretch to it */
 }
 /* The page scrolls (not this box), so the jump list can stick under the top bar. */
 .main .admin-wrap {

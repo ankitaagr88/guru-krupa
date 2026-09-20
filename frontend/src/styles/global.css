@@ -129,7 +129,7 @@ a { color: var(--sapphire); }
 
 /* ---------- Content wraps ---------- */
 .board-wrap, .appt-wrap { flex: 1; padding: 24px 32px 32px; overflow: auto; }
-.admin-wrap { flex: 1; padding: 24px 32px 32px; overflow: auto; max-width: 720px; }
+.admin-wrap { flex: 1; padding: 24px 32px 32px; overflow: auto; max-width: 1320px; }
 .stage-summary { display: flex; gap: 8px; margin-bottom: 20px; overflow-x: auto; padding-bottom: 4px; }
 .pill { display: flex; align-items: center; gap: 9px; background: var(--surface); border: 1px solid var(--line); border-radius: 9999px; padding: 8px 14px 8px 17px; font-family: var(--font-ui); font-size: 14px; color: var(--ink-soft); cursor: pointer; flex-shrink: 0; white-space: nowrap; transition: border-color 0.15s, background 0.15s, color 0.15s; }
 .pill:hover { border-color: var(--sapphire); color: var(--sapphire-deep); }

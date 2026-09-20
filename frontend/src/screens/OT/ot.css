@@ -1,6 +1,6 @@
 /* OT / surgery screen (F6). Reuses the shared date-strip, data-table, drawer,
    stage-btn, channel-toggle and switch styles; adds tabs + the slot picker. */
-.ot-wrap { max-width: 900px; }
+.ot-wrap { max-width: 1320px; }
 .ot-list-empty { text-align: center; }
 .ot-open-btn { background: var(--sapphire-wash); color: var(--sapphire-deep); border: none; border-radius: 10px; padding: 8px 13px; font-family: var(--font-ui); font-weight: 600; font-size: 13px; cursor: pointer; white-space: nowrap; }
 .ot-open-btn:hover { background: var(--sapphire); color: var(--on-sapphire); }

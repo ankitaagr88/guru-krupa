@@ -448,7 +448,7 @@ export default function Admin() {
             <tr>
               <th>Name</th>
               <th>Username</th>
-              <th style={{ width: 150 }}>Mobile</th>
+              <th style={{ width: 180 }}>Mobile</th>
               <th style={{ width: 150 }}>Role</th>
               <th style={{ width: 90 }}>Active</th>
               <th style={{ width: 130 }}></th>
