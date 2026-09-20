@@ -172,6 +172,19 @@ export const treatments = {
   },
 };
 
+/* Spreadsheet import (B13/F15), admin only. upload → {token, filename, headers, rowCount, sample, suggested};
+   preview/run → {target, total, new, update, skip, written, rows:[{row, action, label, reason}]} */
+export const imports = {
+  targets: () => data(client.get('/admin/import/targets')),
+  upload: (file) => {
+    const fd = new FormData();
+    fd.append('file', file, file.name || 'import.csv');
+    return data(client.post('/admin/import/files', fd, { headers: { 'Content-Type': 'multipart/form-data' } }));
+  },
+  preview: (token, target, mapping) => data(client.post('/admin/import/preview', { token, target, mapping })),
+  run: (token, target, mapping) => data(client.post('/admin/import/run', { token, target, mapping })),
+};
+
 export const inventory = {
   list: () => data(client.get('/inventory')),
   low: () => data(client.get('/inventory/low')),

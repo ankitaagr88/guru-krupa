@@ -1,0 +1,14 @@
+/* Admin › Import from KiviHealth (B13/F15). */
+.imp-step { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin-bottom: 12px; }
+.imp-step-head { display: flex; align-items: center; gap: 10px; font-family: var(--font-serif); font-size: 16px; font-weight: 600; margin-bottom: 12px; }
+.imp-file-note { font-family: var(--font-ui); font-size: 13px; line-height: 19px; color: var(--ink-soft); margin: 10px 0 0; }
+.imp-targets { max-width: 620px; }
+.imp-map td { vertical-align: top; }
+.imp-req { font-family: var(--font-ui); font-size: 12px; color: var(--alert-ink); font-weight: 500; }
+.imp-hint { font-family: var(--font-ui); font-size: 12px; line-height: 17px; color: var(--ink-faint); }
+.imp-example { font-family: var(--font-mono); font-size: 12px; color: var(--ink-soft); }
+.imp-summary { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.imp-rows .imp-row-skip td { color: var(--ink-soft); }
+.imp-reason { font-family: var(--font-ui); font-size: 13px; color: var(--ink-soft); }
+.imp-rows tbody tr { cursor: default; }
+.imp-rows tbody tr:hover { background: transparent; }

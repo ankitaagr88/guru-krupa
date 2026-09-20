@@ -7,6 +7,7 @@ import { admin as adminApi, patients as patientsApi, onDataChange, errorMessage 
 import { MedicinesSection } from './MedicinesAdmin';
 import { TreatmentsSection } from './TreatmentsAdmin';
 import { OtSlotsSection, OtProceduresSection } from './OtAdmin';
+import { ImportSection } from './ImportAdmin';
 import { EditableText, ReorderBtns } from './pieces';
 import './admin.css';
 
@@ -429,6 +430,9 @@ export default function Admin() {
 
       {/* ---------------- diagnoses & treatment standards (B15/F17) ---------------- */}
       <TreatmentsSection run={run} />
+
+      {/* ---------------- import from KiviHealth (B13/F15) ---------------- */}
+      <ImportSection />
 
       {/* ---------------- staff ---------------- */}
       <section className="admin-block" aria-labelledby="h-staff">

@@ -1477,7 +1477,10 @@ const HISTORY_MIN_SHARE = 0.5;
 const lineKey = (n) => (n || '').toLowerCase().split(/\s+/).join(' ').trim();
 
 function historyStandard(diagnosisId) {
-  const rxs = S.patients.filter((p) => p.diagnosisId === diagnosisId && (p.medicines || []).length);
+  const rxs = [
+    ...S.patients.filter((p) => p.diagnosisId === diagnosisId && (p.medicines || []).length),
+    ...importedRx.filter((r) => r.diagnosisId === diagnosisId),
+  ];
   const total = rxs.length;
   if (!total) return { lines: [], count: 0 };
   const perRx = {};
@@ -1515,7 +1518,7 @@ function historyStandard(diagnosisId) {
 function diagnosisOut(d) {
   return {
     ...c(d),
-    prescriptionCount: S.patients.filter((p) => p.diagnosisId === d.id).length,
+    prescriptionCount: S.patients.filter((p) => p.diagnosisId === d.id).length + importedRx.filter((r) => r.diagnosisId === d.id).length,
     hasStandard: !!S.treatmentStandards[d.id],
   };
 }
@@ -1633,3 +1636,339 @@ export const treatments = {
     },
   },
 };
+
+/* ---------------- spreadsheet import (B13/F15) — demo-mode version ----------------
+   Parses CSV in the browser and applies the same rules as the server (patients by
+   KiviHealth id or name+phone, medicines by name, stock levels, prescription rows
+   grouped per patient + day). Excel needs the real server. */
+const IMPORT_FIELDS = {
+  patients: {
+    label: 'Patients',
+    fields: [
+      { key: 'external_id', label: 'KiviHealth id', hint: 'Local Id, e.g. GK2341 — keeps re-imports from duplicating', syn: ['local id', 'localid', 'patient id', 'id', 'uhid'] },
+      { key: 'name', label: 'Name', required: true, syn: ['name', 'patient name', 'patient'] },
+      { key: 'phone', label: 'Phone', syn: ['contact', 'mobile', 'phone', 'mobile no', 'phone number'] },
+      { key: 'sex', label: 'Gender', syn: ['gender', 'sex'] },
+      { key: 'age', label: 'Age', syn: ['age', 'age(y)', 'age (y)'] },
+      { key: 'dob', label: 'Date of birth', hint: 'used to work out the age when Age is empty', syn: ['dob', 'date of birth'] },
+      { key: 'address', label: 'Address', syn: ['address'] },
+      { key: 'area', label: 'Area', hint: 'joined into the address', syn: ['area', 'locality'] },
+      { key: 'city', label: 'City', hint: 'joined into the address', syn: ['city', 'town'] },
+      { key: 'note', label: 'Note', syn: ['note', 'notes', 'remarks'] },
+    ],
+  },
+  medicines: {
+    label: 'Medicines',
+    fields: [
+      { key: 'name', label: 'Medicine name', required: true, syn: ['medicine name', 'medicine', 'name', 'drug'] },
+      { key: 'manufacturer', label: 'Company', syn: ['company', 'manufacturer'] },
+    ],
+  },
+  stock: {
+    label: 'Stock levels',
+    fields: [
+      { key: 'name', label: 'Item name', required: true, syn: ['item', 'item name', 'medicine', 'medicine name', 'name', 'product'] },
+      { key: 'stock', label: 'Quantity in stock', required: true, syn: ['stock', 'quantity', 'qty', 'in stock', 'balance'] },
+      { key: 'unit', label: 'Unit', hint: 'bottles / tubes / strips', syn: ['unit', 'units', 'uom'] },
+      { key: 'reorder_level', label: 'Reorder at', syn: ['reorder', 'reorder level', 'min stock'] },
+    ],
+  },
+  prescriptions: {
+    label: 'Prescriptions',
+    fields: [
+      { key: 'patient_external_id', label: 'Patient KiviHealth id', hint: 'matches patients imported with their Local Id', syn: ['local id', 'localid', 'patient id', 'uhid'] },
+      { key: 'patient_name', label: 'Patient name', hint: 'used when there is no id column', syn: ['patient name', 'patient', 'name'] },
+      { key: 'patient_phone', label: 'Patient phone', hint: 'helps match same-name patients', syn: ['contact', 'mobile', 'phone'] },
+      { key: 'date', label: 'Date', required: true, syn: ['date', 'prescription date', 'visit date', 'appointment'] },
+      { key: 'diagnosis', label: 'Diagnosis', hint: 'feeds the treatment standards', syn: ['diagnosis', 'complaint', 'condition', 'treatment'] },
+      { key: 'medicine', label: 'Medicine', required: true, syn: ['medicine', 'medicine name', 'drug'] },
+      { key: 'dosage', label: 'Dosage / instructions', syn: ['dosage', 'dose', 'instructions', 'frequency'] },
+      { key: 'qty', label: 'Quantity given', syn: ['qty', 'quantity', 'total tablets'] },
+    ],
+  },
+};
+const IMPORT_FILES = {};
+const normHeader = (h) => String(h || '').toLowerCase().replace(/[^a-z0-9()]+/g, ' ').trim();
+const BLANKS = new Set(['-', '--', 'na', 'n/a', 'null', 'none', 'nil', '.']);
+const cleanCell = (v) => {
+  const t = String(v ?? '').split(/\s+/).join(' ').trim();
+  return BLANKS.has(t.toLowerCase()) ? '' : t;
+};
+
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let cell = '';
+  let q = false;
+  const src = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+  const delim = (src.split('\n')[0].match(/\t/g) || []).length > 0 ? '\t' : (src.split('\n')[0].match(/;/g) || []).length > (src.split('\n')[0].match(/,/g) || []).length ? ';' : ',';
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (q) {
+      if (ch === '"' && src[i + 1] === '"') {
+        cell += '"';
+        i++;
+      } else if (ch === '"') q = false;
+      else cell += ch;
+    } else if (ch === '"') q = true;
+    else if (ch === delim) {
+      row.push(cell);
+      cell = '';
+    } else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && src[i + 1] === '\n') i++;
+      row.push(cell);
+      if (row.some((x) => x.trim())) rows.push(row.map((x) => x.trim()));
+      row = [];
+      cell = '';
+    } else cell += ch;
+  }
+  row.push(cell);
+  if (row.some((x) => x.trim())) rows.push(row.map((x) => x.trim()));
+  return rows;
+}
+
+const suggestMapping = (headers, target) => {
+  const norm = Object.fromEntries(headers.map((h) => [normHeader(h), h]));
+  const used = new Set();
+  const out = {};
+  IMPORT_FIELDS[target].fields.forEach((f) => {
+    for (const syn of [f.label, ...f.syn]) {
+      const h = norm[normHeader(syn)];
+      if (h && !used.has(h)) {
+        out[f.key] = h;
+        used.add(h);
+        break;
+      }
+    }
+  });
+  return out;
+};
+const normSex = (v) => {
+  const t = (v || '').trim().toLowerCase();
+  if (!t) return null;
+  if (['m', 'male', 'man', 'boy'].includes(t)) return 'M';
+  if (['f', 'female', 'woman', 'girl'].includes(t)) return 'F';
+  return 'O';
+};
+const normPhone = (v) => {
+  let d = String(v || '').replace(/\D/g, '');
+  if (d.startsWith('91') && d.length === 12) d = d.slice(2);
+  return d.length >= 10 ? d.slice(-10) : d || null;
+};
+const normInt = (v) => {
+  const t = String(v || '').replace(/[^\d-]/g, '');
+  return t === '' || t === '-' ? null : Number(t);
+};
+const normDate = (v) => {
+  const t = (v || '').trim();
+  let m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(t);
+  if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+  m = /^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/.exec(t);
+  if (m) {
+    const y = m[3].length === 2 ? `20${m[3]}` : m[3];
+    return `${y}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  }
+  return null;
+};
+
+function importRecords(info, mapping, target) {
+  const missing = IMPORT_FIELDS[target].fields.filter((f) => f.required && !mapping[f.key]).map((f) => f.label);
+  if (missing.length) throw httpError(422, 'Match a column for: ' + missing.join(', '));
+  const idx = Object.fromEntries(info.headers.map((h, i) => [h, i]));
+  return info.rows.map((r) => {
+    const rec = {};
+    Object.entries(mapping).forEach(([k, h]) => {
+      if (h && idx[h] != null) rec[k] = cleanCell(r[idx[h]]);
+    });
+    return rec;
+  });
+}
+
+function importApply(target, recs, write) {
+  const res = { target, total: recs.length, new: 0, update: 0, skip: 0, rows: [], written: false, warnings: [] };
+  const add = (row, action, label, reason = '') => {
+    res.rows.push({ row, action, label, reason });
+    res[action] += 1;
+  };
+  if (target === 'patients') {
+    const seen = new Set();
+    recs.forEach((r, i) => {
+      const n = i + 1;
+      const name = r.name || '';
+      const ext = r.external_id || null;
+      if (!name) return add(n, 'skip', ext || '(blank)', 'no name');
+      if (ext && seen.has(ext)) return add(n, 'skip', name, `${ext} appears twice in the file`);
+      if (ext) seen.add(ext);
+      const phone = normPhone(r.phone);
+      const sex = normSex(r.sex);
+      const age = normInt(r.age);
+      const address = [r.address, r.area, r.city].filter(Boolean).join(', ') || null;
+      let existing = ext ? S.patients.find((p) => p.externalId === ext) : null;
+      if (!existing)
+        existing = S.patients.find((p) => p.name.toLowerCase() === name.toLowerCase() && (phone ? normPhone(p.phone) === phone : !p.phone));
+      if (!existing) {
+        add(n, 'new', name, ext || '');
+        if (write) {
+          const p = normalizePatient({ id: store.nextId('patient'), name, phone, sex, age, address, externalId: ext, stage: null });
+          p.stage = null;
+          p.medicines = [];
+          S.patients.push(p);
+        }
+        return;
+      }
+      const changes = [];
+      if (ext && !existing.externalId) changes.push('id');
+      if (phone && normPhone(existing.phone) !== phone) changes.push('phone');
+      if (sex && existing.sex !== sex) changes.push('sex');
+      if (age != null && existing.age !== age) changes.push('age');
+      if (address && existing.address !== address) changes.push('address');
+      if (!changes.length) return add(n, 'skip', name, 'already here, nothing new');
+      add(n, 'update', name, 'fills in ' + changes.join(', '));
+      if (write)
+        Object.assign(existing, {
+          externalId: existing.externalId || ext,
+          phone: phone && normPhone(existing.phone) !== phone ? phone : existing.phone,
+          sex: sex || existing.sex,
+          age: age ?? existing.age,
+          address: address || existing.address,
+        });
+    });
+  } else if (target === 'medicines') {
+    const seen = new Set();
+    recs.forEach((r, i) => {
+      const n = i + 1;
+      const name = r.name || '';
+      if (!name) return add(n, 'skip', '(blank)', 'no name');
+      const key = name.toLowerCase();
+      if (seen.has(key)) return add(n, 'skip', name, 'appears twice in the file');
+      seen.add(key);
+      const existing = S.medicines.find((m) => m.name.toLowerCase() === key);
+      if (existing) return add(n, 'skip', name, 'already in the list');
+      add(n, 'new', name, r.manufacturer || '');
+      if (write) S.medicines.push({ id: store.nextId('medicine'), name, brand: null, composition: name, form: 'drops', manufacturer: r.manufacturer || null, active: true });
+    });
+  } else if (target === 'stock') {
+    const seen = new Set();
+    recs.forEach((r, i) => {
+      const n = i + 1;
+      const name = r.name || '';
+      if (!name) return add(n, 'skip', '(blank)', 'no name');
+      const qty = normInt(r.stock);
+      if (qty == null || qty < 0) return add(n, 'skip', name, `quantity '${r.stock}' is not a number`);
+      const key = name.toLowerCase();
+      if (seen.has(key)) return add(n, 'skip', name, 'appears twice in the file');
+      seen.add(key);
+      const unit = ['bottles', 'tubes', 'strips'].includes((r.unit || '').toLowerCase()) ? r.unit.toLowerCase() : 'bottles';
+      const item = S.inventory.find((it) => it.name.toLowerCase() === key);
+      const med = medByText(name);
+      if (!item) {
+        add(n, 'new', name, `${qty} ${unit}` + (med ? ' · linked to medicine list' : ''));
+        if (write) S.inventory.push({ id: store.nextId('inventory'), name: med ? med.name : name, unit, stock: qty, reorder: normInt(r.reorder_level) ?? 0, medicineId: med ? med.id : null });
+        return;
+      }
+      if (item.stock === qty) return add(n, 'skip', name, 'stock already matches');
+      add(n, 'update', name, `${item.stock} → ${qty} ${item.unit}`);
+      if (write) item.stock = qty;
+    });
+  } else if (target === 'prescriptions') {
+    const groups = new Map();
+    recs.forEach((r, i) => {
+      const n = i + 1;
+      const ext = r.patient_external_id || '';
+      const pname = r.patient_name || '';
+      const on = normDate(r.date);
+      const med = r.medicine || '';
+      if (!ext && !pname) return add(n, 'skip', med || '(blank)', 'no patient id or name');
+      if (!on) return add(n, 'skip', pname || ext, `date '${r.date}' not understood`);
+      if (!med) return add(n, 'skip', pname || ext, 'no medicine');
+      const key = `${ext || 'name:' + pname.toLowerCase()}|${on}|${(r.diagnosis || '').toLowerCase()}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push([n, r]);
+    });
+    groups.forEach((items) => {
+      const [, first] = items[0];
+      const patient =
+        (first.patient_external_id && S.patients.find((p) => p.externalId === first.patient_external_id)) ||
+        S.patients.find((p) => p.name.toLowerCase() === (first.patient_name || '').toLowerCase());
+      const on = normDate(first.date);
+      if (!patient) {
+        items.forEach(([n]) => add(n, 'skip', first.patient_name || first.patient_external_id, 'patient not found — import patients first'));
+        return;
+      }
+      patient.history ||= [];
+      const meds = items.map(([, r]) => r.medicine.toLowerCase()).sort().join('|');
+      if (patient.history.some((h) => h.date === on && (h.medicines || []).map((m) => m.name.toLowerCase()).sort().join('|') === meds)) {
+        items.forEach(([n]) => add(n, 'skip', `${patient.name} · ${on}`, 'already imported'));
+        return;
+      }
+      const label = `${patient.name} · ${on}` + (first.diagnosis ? ` · ${first.diagnosis}` : '');
+      items.forEach(([n, r]) => add(n, 'new', label, r.medicine));
+      if (!write) return;
+      let dx = first.diagnosis ? S.diagnoses.find((d) => d.name.toLowerCase() === first.diagnosis.toLowerCase()) : null;
+      if (!dx && first.diagnosis) {
+        dx = { id: store.nextId('diagnosis'), name: first.diagnosis, active: true, sortOrder: S.diagnoses.length };
+        S.diagnoses.push(dx);
+      }
+      const lines = items.map(([, r]) => {
+        const m = medByText(r.medicine);
+        return { name: m ? m.name : r.medicine, medicineId: m ? m.id : null, matched: !!m, dosage: r.dosage || '', qtyGiven: normInt(r.qty) || 0 };
+      });
+      patient.history.push({ date: on, diagnosisId: dx ? dx.id : null, medicines: lines, imported: true });
+      // history-derived standards count imported prescriptions too
+      importedRx.push({ diagnosisId: dx ? dx.id : null, medicines: lines });
+    });
+  }
+  if (write) {
+    res.written = true;
+    store.notify();
+  }
+  return res;
+}
+const importedRx = [];
+
+export const imports = {
+  async targets() {
+    return Object.entries(IMPORT_FIELDS).map(([key, t]) => ({ key, label: t.label, fields: t.fields.map(({ key: k, label, required = false, hint = '' }) => ({ key: k, label, required, hint })) }));
+  },
+  async upload(file) {
+    const name = file.name || 'import.csv';
+    if (/\.xlsx?$/i.test(name) && !USE_XLSX_IN_MOCK) throw httpError(422, 'Excel files need the real server — in demo mode use a CSV export');
+    const text =
+      typeof file.text === 'function'
+        ? await file.text()
+        : await new Promise((resolve, reject) => {
+            const fr = new FileReader();
+            fr.onload = () => resolve(String(fr.result || ''));
+            fr.onerror = () => reject(new Error('Could not read the file'));
+            fr.readAsText(file);
+          });
+    const rows = parseCsv(text);
+    if (!rows.length) throw httpError(422, 'The file is empty');
+    const headers = rows[0];
+    const body = rows.slice(1);
+    const token = Math.random().toString(16).slice(2).padEnd(32, '0').slice(0, 32);
+    IMPORT_FILES[token] = { headers, rows: body };
+    return {
+      token,
+      filename: name,
+      headers,
+      rowCount: body.length,
+      sample: body.slice(0, 5),
+      suggested: Object.fromEntries(Object.keys(IMPORT_FIELDS).map((t) => [t, suggestMapping(headers, t)])),
+    };
+  },
+  async preview(token, target, mapping) {
+    const info = IMPORT_FILES[token];
+    if (!info) throw httpError(422, 'Upload not found — upload the file again');
+    if (!IMPORT_FIELDS[target]) throw httpError(422, 'Unknown import type');
+    return importApply(target, importRecords(info, mapping, target), false);
+  },
+  async run(token, target, mapping) {
+    await latency(80);
+    const info = IMPORT_FILES[token];
+    if (!info) throw httpError(422, 'Upload not found — upload the file again');
+    if (!IMPORT_FIELDS[target]) throw httpError(422, 'Unknown import type');
+    return importApply(target, importRecords(info, mapping, target), true);
+  },
+};
+const USE_XLSX_IN_MOCK = false;

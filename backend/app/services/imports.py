@@ -382,9 +382,11 @@ def _patients(db: Session, recs: list[dict], res: Result, by, write: bool) -> No
         if ext:
             existing = db.scalar(select(Patient).where(Patient.external_id == ext))
         if existing is None:
-            q = select(Patient).where(func.lower(Patient.name) == name.lower())
-            q = q.where(Patient.phone == phone) if phone else q.where(Patient.phone.is_(None))
-            existing = db.scalar(q)
+            # phones are stored as typed ("98250 12345"), so compare digits only
+            same_name = list(db.scalars(select(Patient).where(func.lower(Patient.name) == name.lower())))
+            existing = next((p for p in same_name if _phone(p.phone) == phone), None)
+            if existing is None and not phone:
+                existing = next((p for p in same_name if not p.phone), None)
         if existing is None:
             res.add(RowResult(n, "new", name, ext or ""))
             if write:
@@ -396,7 +398,8 @@ def _patients(db: Session, recs: list[dict], res: Result, by, write: bool) -> No
             if ext and not existing.external_id:
                 changes.append("id")
             for k, v in (("phone", phone), ("sex", sex), ("age", age), ("address", address)):
-                if v and getattr(existing, k) != v:
+                cur = getattr(existing, k)
+                if v and (cur != v and not (k == "phone" and _phone(cur) == v)):
                     changes.append(k)
             if not changes:
                 res.add(RowResult(n, "skip", name, "already here, nothing new"))
@@ -406,7 +409,7 @@ def _patients(db: Session, recs: list[dict], res: Result, by, write: bool) -> No
                 if ext and not existing.external_id:
                     existing.external_id = ext
                 for k, v in (("phone", phone), ("sex", sex), ("age", age), ("address", address)):
-                    if v:
+                    if v and not (k == "phone" and _phone(existing.phone) == v):
                         setattr(existing, k, v)
                 if note and note not in (existing.note or ""):
                     existing.note = (existing.note + "\n" + note).strip()
@@ -508,7 +511,7 @@ def _find_patient(db: Session, r: dict) -> Patient | None:
     q = select(Patient).where(func.lower(Patient.name) == name.lower())
     rows = list(db.scalars(q))
     if phone:
-        rows = [p for p in rows if p.phone == phone] or rows
+        rows = [p for p in rows if _phone(p.phone) == phone] or rows
     return rows[0] if len(rows) >= 1 else None
 
 

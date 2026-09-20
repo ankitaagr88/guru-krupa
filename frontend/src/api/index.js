@@ -22,6 +22,7 @@ export const admin = pick('admin');
 export const mr = pick('mr');
 export const config = pick('config');
 export const treatments = pick('treatments');
+export const imports = pick('imports');
 
 export { errorMessage, session } from './client';
 export { default as client } from './client';

@@ -207,4 +207,47 @@ describe('Admin', () => {
     await userEvent.click(screen.getByLabelText('Procedure LASIK active'));
     await waitFor(async () => expect((await (await import('../../api')).config.get()).otProcedures).not.toContain('LASIK'));
   });
+
+  it('import: upload a KiviHealth patient CSV, columns are matched, preview then import (twice = no change)', async () => {
+    window.confirm = () => true;
+    renderShell({ route: '/admin', child: <Admin /> });
+    await screen.findByText('Import from KiviHealth');
+    const csv = [
+      '#,Name,Contact,Gender,Age(Y),Local Id,Area,City',
+      '1,A N TIWARI,9727898614,Male,71,GK2341,-,Surat',
+      '2,Rasilaben Patel,98250 12345,Female,62,GK0001,VESU,Surat',
+      '3,,9999999999,Male,30,GK9999,,Surat',
+    ].join('\n');
+    const file = new File([csv], 'patients.csv', { type: 'text/csv' });
+    fireEvent.change(screen.getByTestId('import-file-input'), { target: { files: [file] } });
+    expect(await screen.findByTestId('import-file-note')).toHaveTextContent('patients.csv · 3 rows');
+    expect(screen.getByRole('radio', { name: 'Patients' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByLabelText('Column for Name')).toHaveValue('Name');
+    expect(screen.getByLabelText('Column for KiviHealth id')).toHaveValue('Local Id');
+    expect(screen.getByLabelText('Column for Phone')).toHaveValue('Contact');
+    expect(screen.queryByTestId('import-missing')).toBeNull();
+
+    await userEvent.click(screen.getByTestId('import-preview'));
+    const result = await screen.findByTestId('import-result');
+    expect(result).toHaveTextContent('1 new');
+    expect(result).toHaveTextContent('1 updated'); // Rasilaben exists in the demo data -> gets her KiviHealth id
+    expect(result).toHaveTextContent('1 skipped');
+    expect(result).toHaveTextContent('no name');
+    const before = (await (await import('../../api')).patients.list()).length;
+
+    await userEvent.click(screen.getByTestId('import-run'));
+    expect(await screen.findByTestId('import-done')).toHaveTextContent('1 added, 1 updated');
+    const api = await import('../../api');
+    const after = await api.patients.list();
+    expect(after.length).toBe(before + 1);
+    const tiwari = after.find((p) => p.name === 'A N TIWARI');
+    expect(tiwari).toMatchObject({ externalId: 'GK2341', phone: '9727898614', sex: 'M', age: 71, address: 'Surat' });
+
+    // same file again -> nothing new
+    await userEvent.click(screen.getByRole('button', { name: 'Import another file' }));
+    fireEvent.change(screen.getByTestId('import-file-input'), { target: { files: [file] } });
+    await screen.findByTestId('import-file-note');
+    await userEvent.click(screen.getByTestId('import-preview'));
+    expect(await screen.findByTestId('import-result')).toHaveTextContent('0 new');
+  });
 });
