@@ -70,11 +70,13 @@ describe('Admin', () => {
     const dialog = await screen.findByRole('dialog');
     await userEvent.type(within(dialog).getByLabelText('Full name'), 'Meena Patel');
     await userEvent.type(within(dialog).getByLabelText('Username'), 'meena');
+    await userEvent.type(within(dialog).getByLabelText('Mobile number'), '+91 98765 43210');
     await userEvent.type(within(dialog).getByLabelText('Password'), 'meena123');
     await userEvent.selectOptions(within(dialog).getByLabelText('Role'), 'ot_staff');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Add staff' }));
     const row = (await screen.findByText('Meena Patel')).closest('tr');
     expect(within(row).getByText('meena')).toBeInTheDocument();
+    expect(within(row).getByLabelText('Mobile for Meena Patel')).toHaveValue('9876543210');
     expect(within(row).getByLabelText('Role for Meena Patel')).toHaveValue('ot_staff');
     await userEvent.click(within(row).getByLabelText('Meena Patel active'));
     await waitFor(() => expect(screen.getByText('Meena Patel').closest('tr')).toHaveClass('staff-inactive'));

@@ -176,6 +176,7 @@ export default function Admin() {
   const deleteTier = (t) => run(() => adminApi.lensTiers.remove(refOf(t)));
 
   /* ---- staff ---- */
+  const setPhone = (u, phone) => run(() => adminApi.staff.update(u.id, { phone: phone.trim() }), 'Mobile saved');
   const setRole = (u, role) => run(() => adminApi.staff.update(u.id, { role }));
   const toggleActive = (u) => {
     if (u.id === currentUser?.id && u.active) return toast.error("You can't deactivate your own account.");
@@ -447,6 +448,7 @@ export default function Admin() {
             <tr>
               <th>Name</th>
               <th>Username</th>
+              <th style={{ width: 150 }}>Mobile</th>
               <th style={{ width: 150 }}>Role</th>
               <th style={{ width: 90 }}>Active</th>
               <th style={{ width: 130 }}></th>
@@ -457,6 +459,15 @@ export default function Admin() {
               <tr key={u.id} className={u.active === false ? 'staff-inactive' : ''}>
                 <td className="td-name">{u.name}</td>
                 <td data-label="Username">{u.username}</td>
+                <td data-label="Mobile">
+                  <EditableText
+                    value={u.phone || ''}
+                    placeholder="10-digit mobile"
+                    className="admin-phone"
+                    onCommit={(v) => setPhone(u, v)}
+                    ariaLabel={`Mobile for ${u.name}`}
+                  />
+                </td>
                 <td data-label="Role">
                   <select
                     className="admin-select"
@@ -525,13 +536,13 @@ export default function Admin() {
 
 function StaffModal({ open, onClose, onCreate }) {
   const toast = useToast();
-  const [f, setF] = useState({ name: '', username: '', password: '', role: 'reception' });
+  const [f, setF] = useState({ name: '', username: '', phone: '', password: '', role: 'reception' });
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (open) setF({ name: '', username: '', password: '', role: 'reception' });
   }, [open]);
   const submit = async () => {
-    if (!f.name.trim() || !f.username.trim() || !f.password) {
+    if (!f.name.trim() || !f.username.trim() || !f.password || !/^\d{10}$/.test(f.phone.replace(/\D/g, '').slice(-10))) {
       toast.error('Name, username and a password are needed.');
       return;
     }
@@ -544,6 +555,7 @@ function StaffModal({ open, onClose, onCreate }) {
       await onCreate({
         name: f.name.trim(),
         username: f.username.trim().toLowerCase(),
+        phone: f.phone.trim(),
         password: f.password,
         role: f.role,
       });
@@ -555,7 +567,7 @@ function StaffModal({ open, onClose, onCreate }) {
     <Modal
       open={open}
       title="Add a staff member"
-      sub="They sign in with this username and password. You can change the role or reset the password later."
+      sub="They sign in with this username and password. The mobile number identifies the person behind the login."
       onClose={onClose}
       actions={
         <>
@@ -583,6 +595,15 @@ function StaffModal({ open, onClose, onCreate }) {
         autoComplete="off"
         value={f.username}
         onChange={(e) => setF({ ...f, username: e.target.value })}
+      />
+      <input
+        className="fake-input"
+        placeholder="Mobile number (10 digits)"
+        aria-label="Mobile number"
+        inputMode="numeric"
+        autoComplete="off"
+        value={f.phone}
+        onChange={(e) => setF({ ...f, phone: e.target.value })}
       />
       <input
         className="fake-input"

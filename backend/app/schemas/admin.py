@@ -95,12 +95,14 @@ class StaffIn(CamelModel):
     username: str = Field(min_length=1, max_length=60)
     password: str = Field(min_length=4)
     role: str
+    phone: str = Field(min_length=10, max_length=20)  # mobile number, required for identification
 
 
 class StaffPatch(CamelModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     role: str | None = None
     active: bool | None = None
+    phone: str | None = Field(default=None, min_length=10, max_length=20)
 
 
 class PasswordIn(CamelModel):

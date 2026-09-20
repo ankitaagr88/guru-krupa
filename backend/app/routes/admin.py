@@ -365,7 +365,7 @@ def list_staff(db: Session = Depends(get_db), user: Staff = admin_user):
 def create_staff(data: StaffIn, db: Session = Depends(get_db), user: Staff = admin_user):
     try:
         return svc.create_staff(db, name=data.name, username=data.username, password=data.password, role=data.role,
-                                by=user)
+                                by=user, phone=data.phone)
     except svc.AdminError as exc:
         raise _http(exc)
 

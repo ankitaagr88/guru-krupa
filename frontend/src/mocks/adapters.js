@@ -1299,6 +1299,14 @@ function assertForm(form) {
   if (!keys.includes(form)) throw httpError(422, `form must be one of: ${keys.join(', ')}`);
 }
 const stagesOps = listOps('stages', 'stage');
+function staffPhone(v) {
+  let d = String(v || '').replace(/\D/g, '');
+  if (d.startsWith('91') && d.length === 12) d = d.slice(2);
+  if (d.length === 11 && d.startsWith('0')) d = d.slice(1);
+  if (d.length !== 10) throw httpError(422, 'Mobile number must be 10 digits');
+  return d;
+}
+
 export const admin = {
   stages: {
     ...stagesOps,
@@ -1533,7 +1541,10 @@ export const admin = {
     create: async (data) => {
       if (S.staff.some((s) => s.username === data.username))
         throw httpError(409, 'That username is already taken');
-      const row = { id: store.nextId('staff'), active: true, role: 'reception', ...data };
+      const phone = staffPhone(data.phone);
+      if (S.staff.some((s) => s.phone === phone))
+        throw httpError(409, `Mobile number ${phone} already belongs to another staff login`);
+      const row = { id: store.nextId('staff'), active: true, role: 'reception', ...data, phone };
       delete row.password;
       S.staff.push(row);
       store.notify();
@@ -1542,6 +1553,12 @@ export const admin = {
     update: async (id, patch) => {
       const row = S.staff.find((s) => s.id === Number(id));
       if (!row) throw httpError(404, 'Not found');
+      if (patch.phone !== undefined) {
+        const phone = staffPhone(patch.phone);
+        if (S.staff.some((s) => s.id !== row.id && s.phone === phone))
+          throw httpError(409, `Mobile number ${phone} already belongs to another staff login`);
+        patch = { ...patch, phone };
+      }
       Object.assign(row, patch);
       store.notify();
       return c(row);

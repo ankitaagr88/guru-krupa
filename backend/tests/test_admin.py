@@ -142,16 +142,26 @@ def test_referral_sources_and_lens_tiers(client, admin_headers):
 
 def test_staff_create_duplicate_last_admin(client, admin_headers, admin_user, db):
     r = client.post("/api/admin/staff", json={"name": "Optom One", "username": "Optom1", "password": "opt12345",
-                                              "role": "optometrist"}, headers=admin_headers)
+                                              "role": "optometrist", "phone": "+91 98765 43210"}, headers=admin_headers)
     assert r.status_code == 201, r.text
     u = r.json()
     assert u["username"] == "optom1" and u["role"] == "optometrist" and u["active"] is True
+    assert u["phone"] == "9876543210"  # normalised to 10 digits
+    # mobile number is required and must be unique
+    assert client.post("/api/admin/staff", json={"name": "No phone", "username": "nophone", "password": "x1234",
+                                                 "role": "reception"}, headers=admin_headers).status_code == 422
+    assert client.post("/api/admin/staff", json={"name": "Same phone", "username": "samephone", "password": "x1234",
+                                                 "role": "reception", "phone": "9876543210"},
+                       headers=admin_headers).status_code == 409
+    assert client.post("/api/admin/staff", json={"name": "Short", "username": "shortph", "password": "x1234",
+                                                 "role": "reception", "phone": "12345"},
+                       headers=admin_headers).status_code == 422
     assert "passwordHash" not in u and "password_hash" not in u and "password" not in u
     uid = u["id"]
     assert client.post("/api/admin/staff", json={"name": "Dup", "username": "optom1", "password": "x1234",
-                                                 "role": "reception"}, headers=admin_headers).status_code == 409
+                                                 "role": "reception", "phone": "9000000001"}, headers=admin_headers).status_code == 409
     assert client.post("/api/admin/staff", json={"name": "Bad", "username": "badrole", "password": "x1234",
-                                                 "role": "janitor"}, headers=admin_headers).status_code == 422
+                                                 "role": "janitor", "phone": "9000000002"}, headers=admin_headers).status_code == 422
     assert client.patch(f"/api/admin/staff/{uid}", json={"role": "wizard"}, headers=admin_headers).status_code == 422
 
     rows = client.get("/api/admin/staff", headers=admin_headers).json()
@@ -173,7 +183,7 @@ def test_staff_create_duplicate_last_admin(client, admin_headers, admin_user, db
     assert client.patch(f"/api/admin/staff/{admin_user.id}", json={"active": False}, headers=admin_headers).status_code == 409
     # last-active-admin protection
     r = client.post("/api/admin/staff", json={"name": "Admin Two", "username": "admin2", "password": "adm2pass",
-                                              "role": "admin"}, headers=admin_headers)
+                                              "role": "admin", "phone": "9000000099"}, headers=admin_headers)
     a2 = r.json()["id"]
     a2_headers = _login(client, "admin2", "adm2pass")
     assert client.patch(f"/api/admin/staff/{a2}", json={"active": False}, headers=admin_headers).status_code == 200

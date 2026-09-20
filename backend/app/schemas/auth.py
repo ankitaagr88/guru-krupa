@@ -14,6 +14,7 @@ class StaffOut(BaseModel):
     username: str
     role: str
     active: bool
+    phone: str | None = None
 
 
 class TokenResponse(BaseModel):

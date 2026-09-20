@@ -18,5 +18,7 @@ class Staff(Base):
     username: Mapped[str] = mapped_column(String(60), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     role: Mapped[str] = mapped_column(String(30), default="reception")
+    # Mobile number (10 digits), unique — identifies the person behind the login.
+    phone: Mapped[str | None] = mapped_column(String(20), unique=True, index=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

@@ -670,9 +670,9 @@ export const TEST_TYPES = [
 ];
 
 export const STAFF = [
-  { id: 1, name: 'Dr. Anu Juneja Pathak', username: 'admin', role: 'admin', active: true },
-  { id: 2, name: 'Dr. Anu Juneja Pathak', username: 'doctor', role: 'doctor', active: true },
-  { id: 3, name: 'Optometrist', username: 'optom', role: 'optometrist', active: true },
-  { id: 4, name: 'Reception desk', username: 'reception', role: 'reception', active: true },
-  { id: 5, name: 'OT staff', username: 'ot', role: 'ot_staff', active: true },
+  { id: 1, name: 'Dr. Anu Juneja Pathak', username: 'admin', role: 'admin', active: true, phone: '9328621216' },
+  { id: 2, name: 'Dr. Anu Juneja Pathak', username: 'doctor', role: 'doctor', active: true, phone: '7574998502' },
+  { id: 3, name: 'Optometrist', username: 'optom', role: 'optometrist', active: true, phone: '9000000003' },
+  { id: 4, name: 'Reception desk', username: 'reception', role: 'reception', active: true, phone: '9000000004' },
+  { id: 5, name: 'OT staff', username: 'ot', role: 'ot_staff', active: true, phone: '9000000005' },
 ];

@@ -232,14 +232,16 @@ body.mobile-mode #boardCards { display: block; }
 /* ---------- Drawer ---------- */
 .overlay { position: fixed; inset: 0; background: var(--scrim); opacity: 0; pointer-events: none; transition: opacity 0.2s; z-index: var(--z-overlay); }
 .overlay.show { opacity: 1; pointer-events: auto; }
-.drawer { position: fixed; top: 0; right: calc(-1 * var(--drawer-w) - 24px); width: var(--drawer-w); height: 100%; background: var(--surface); border-left: 1px solid var(--line); box-shadow: var(--shadow-lg); transition: right 0.25s ease; z-index: var(--z-drawer); display: flex; flex-direction: column; }
-.drawer.show { right: 0; }
+/* The patient / case window: a centred panel, 75% of the screen, over the scrim. */
+.drawer { position: fixed; top: 50%; left: 50%; width: 75vw; max-width: 1180px; height: 88vh; max-height: 88dvh; transform: translate(-50%, -50%) scale(0.98); opacity: 0; pointer-events: none; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow-lg); transition: opacity 0.18s ease, transform 0.18s ease; z-index: var(--z-drawer); display: flex; flex-direction: column; overflow: hidden; }
+.drawer.show { opacity: 1; pointer-events: auto; transform: translate(-50%, -50%) scale(1); }
+.drawer-head, .drawer-foot { padding-left: 32px; padding-right: 32px; }
 .drawer-head { padding: 22px 22px 16px; border-bottom: 1px solid var(--line); position: relative; }
 .drawer-head .name { font-family: var(--font-serif); font-weight: 600; font-size: 20px; line-height: 26px; color: var(--ink); padding-right: 32px; }
 .drawer-head .meta { font-family: var(--font-mono); font-size: 12px; color: var(--ink-soft); margin-top: 5px; }
 .drawer-close { position: absolute; top: 20px; right: 20px; background: none; border: none; font-size: 19px; cursor: pointer; color: var(--ink-faint); line-height: 1; padding: 2px 4px; }
 .drawer-close:hover { color: var(--ink); }
-.drawer-body { padding: 20px 22px; overflow: auto; flex: 1; }
+.drawer-body { padding: 20px max(32px, calc((100% - 760px) / 2)) 28px; overflow: auto; flex: 1; }
 .drawer-foot { padding: 15px 22px; border-top: 1px solid var(--line); font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); }
 
 /* ---------- Forms ---------- */
@@ -440,8 +442,10 @@ body.mobile-mode .topbar .sub { font-size: 12px; }
 body.mobile-mode .clock { display: none; }
 body.mobile-mode .board-wrap, body.mobile-mode .appt-wrap, body.mobile-mode .admin-wrap { padding: 16px 16px 24px; max-width: none; }
 body.mobile-mode .btn-primary { padding: 9px 14px; font-size: 13px; line-height: 18px; }
-body.mobile-mode .drawer { width: 100%; right: -100%; border-left: none; }
-body.mobile-mode .drawer.show { right: 0; }
+body.mobile-mode .drawer { width: 100%; max-width: none; height: 100%; max-height: none; top: 0; left: 0; transform: none; border: none; border-radius: 0; }
+body.mobile-mode .drawer.show { transform: none; }
+body.mobile-mode .drawer-head, body.mobile-mode .drawer-foot { padding-left: 22px; padding-right: 22px; }
+body.mobile-mode .drawer-body { padding: 20px 22px; }
 body.mobile-mode .modal { width: 92vw; max-width: 380px; padding: 22px; }
 body.mobile-mode .entry-modal, body.mobile-mode .rx-modal { max-width: 420px; }
 body.mobile-mode .toast-stack { left: 12px; right: 12px; top: 12px; }

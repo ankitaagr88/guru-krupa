@@ -261,12 +261,40 @@ def _check_role(role: str) -> None:
         raise BadValue(f"role must be one of {ROLES}")
 
 
-def create_staff(db: Session, *, name: str, username: str, password: str, role: str, by) -> Staff:
+def normalise_phone(value: str | None) -> str | None:
+    """Indian mobile: keep the last 10 digits (drops +91 / 0 / spaces); BadValue if not 10 digits."""
+    if value is None:
+        return None
+    import re
+
+    digits = re.sub(r"\D", "", value)
+    if digits.startswith("91") and len(digits) == 12:
+        digits = digits[2:]
+    if len(digits) == 11 and digits.startswith("0"):
+        digits = digits[1:]
+    if len(digits) != 10:
+        raise BadValue("Mobile number must be 10 digits")
+    return digits
+
+
+def _phone_taken(db: Session, phone: str, except_id: int | None = None) -> bool:
+    q = select(Staff).where(Staff.phone == phone)
+    if except_id is not None:
+        q = q.where(Staff.id != except_id)
+    return db.scalar(q) is not None
+
+
+def create_staff(db: Session, *, name: str, username: str, password: str, role: str, by,
+                 phone: str | None = None) -> Staff:
     _check_role(role)
     username = username.strip().lower()
     if db.scalar(select(Staff).where(func.lower(Staff.username) == username)):
         raise Conflict(f"Username '{username}' is already taken")
-    user = Staff(name=name.strip(), username=username, password_hash=hash_password(password), role=role)
+    phone = normalise_phone(phone)
+    if phone and _phone_taken(db, phone):
+        raise Conflict(f"Mobile number {phone} already belongs to another staff login")
+    user = Staff(name=name.strip(), username=username, password_hash=hash_password(password), role=role,
+                 phone=phone)
     db.add(user)
     db.flush()
     _audit(db, by, "staff.create", "staff", user.id, username=username, role=role)
@@ -289,6 +317,10 @@ def update_staff(db: Session, user: Staff, values: dict, by) -> Staff:
         raise Conflict("You cannot deactivate or demote your own account")
     if (deactivating or demoting) and user.role == "admin" and user.active and _other_active_admins(db, user) == 0:
         raise Conflict("Cannot remove the last active admin")
+    if values.get("phone") is not None:
+        values["phone"] = normalise_phone(values["phone"])
+        if _phone_taken(db, values["phone"], user.id):
+            raise Conflict(f"Mobile number {values['phone']} already belongs to another staff login")
     changed = _apply(user, values)
     _audit(db, by, "staff.update", "staff", user.id, **changed)
     db.commit()

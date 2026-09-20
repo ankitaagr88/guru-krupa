@@ -189,3 +189,7 @@ body.mobile-mode .med-add-modal {
 .admin-index-chip:hover { border-color: var(--sapphire); color: var(--sapphire-deep); }
 .admin-index-chip.active { background: var(--sapphire-wash); border-color: var(--sapphire); color: var(--sapphire-deep); font-weight: 600; }
 body.mobile-mode .admin-index { margin-top: -16px; top: 0; }
+
+.admin-phone { width: 100%; border: none; background: transparent; font-family: var(--font-mono); font-size: 13px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.admin-phone:focus { outline: none; border-bottom: 1.5px solid var(--sapphire); }
+.admin-phone::placeholder { color: var(--ink-faint); font-family: var(--font-ui); }
