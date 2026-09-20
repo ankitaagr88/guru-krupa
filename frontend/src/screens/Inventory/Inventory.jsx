@@ -4,6 +4,7 @@ import Modal from '../../components/Modal';
 import Drawer from '../../components/Drawer';
 import { useToast } from '../../components/Toast';
 import MedicinePicker from '../../components/MedicinePicker';
+import { IconMore } from '../../components/Icons';
 import { inventory as inventoryApi, onDataChange, errorMessage } from '../../api';
 import './inventory.css';
 
@@ -27,7 +28,14 @@ const REASONS = [
 export function normItem(it) {
   const reorder = Number(it.reorderLevel ?? it.reorder ?? 0);
   const stock = Number(it.stock) || 0;
-  return { ...it, stock, reorder, low: it.low ?? stock <= reorder, onOrder: !!(it.onOrder ?? it.orderedAt) };
+  return {
+    ...it,
+    stock,
+    reorder,
+    low: it.low ?? stock <= reorder,
+    onOrder: !!(it.onOrder ?? it.orderedAt),
+    autoDeducted: !!it.autoDeducted,
+  };
 }
 
 const fmtDay = (iso) => {
@@ -87,25 +95,14 @@ export default function Inventory() {
     sub: `Stock levels · ${lowCount ? `${lowCount} item${lowCount === 1 ? '' : 's'} running low` : 'all items above reorder point'}${orderedCount ? ` · ${orderedCount} on order` : ''}`,
   });
 
+  // Problems first: low and not yet ordered, then on order, then everything else (each A–Z).
+  const rank = (i) => (i.low && !i.onOrder ? 0 : i.onOrder ? 1 : 2);
   const shown = useMemo(() => {
     const s = q.trim().toLowerCase();
-    return items.filter((i) => (!s || i.name.toLowerCase().includes(s)) && (!onlyLow || i.low));
+    return items
+      .filter((i) => (!s || i.name.toLowerCase().includes(s)) && (!onlyLow || i.low))
+      .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
   }, [items, q, onlyLow]);
-
-  const quickAdjust = async (item, delta) => {
-    if (item.stock + delta < 0) return;
-    try {
-      const wasLow = item.low;
-      const updated = normItem(
-        await inventoryApi.adjust(item.id, delta, delta > 0 ? 'received' : 'adjusted', '')
-      );
-      setItems((rows) => rows.map((r) => (r.id === item.id ? updated : r)));
-      if (!wasLow && updated.low && !updated.onOrder) toast.lowStock(updated);
-      await load();
-    } catch (err) {
-      toast.error('Could not adjust stock', errorMessage(err));
-    }
-  };
 
   const addItem = async (e) => {
     e?.preventDefault?.();
@@ -181,14 +178,16 @@ export default function Inventory() {
         </div>
       </div>
       <p className="hint" style={{ margin: '-10px 0 16px' }}>
-        Drops used during dilation come off the stock automatically. Medicines come off when the front desk confirms &ldquo;Bought here&rdquo; at billing. Low-stock alerts stay quiet for items marked as ordered until they arrive.</p>
+        Stock goes down when the front desk confirms &ldquo;Bought here&rdquo; at billing (dilation drops come off on
+        their own) and up when you press &ldquo;Received&rdquo;.
+      </p>
       <table className="data-table" id="invTable">
         <thead>
           <tr>
             <th>Item</th>
-            <th>Reorder at</th>
+            <th>In stock</th>
             <th>Status</th>
-            <th>Stock</th>
+            <th>Last received</th>
             <th></th>
           </tr>
         </thead>
@@ -209,9 +208,21 @@ export default function Inventory() {
           )}
           {shown.map((item) => (
             <tr key={item.id} className={item.low ? 'inv-row-low' : ''} data-testid={`inv-row-${item.id}`}>
-              <td className="td-name">{item.name}</td>
-              <td data-label="Reorder at">
-                {item.reorder} {item.unit}
+              <td className="td-name">
+                {item.name}
+                {item.autoDeducted && (
+                  <span className="inv-auto" title="Used in the dilation protocol; comes off the stock automatically">
+                    dilation drop
+                  </span>
+                )}
+              </td>
+              <td data-label="In stock" className="inv-stock-cell">
+                <b className="inv-stock-num" data-testid={`stock-${item.id}`}>
+                  {item.stock}
+                </b>
+                <span className="inv-unit">
+                  {item.unit} · reorder at {item.reorder}
+                </span>
               </td>
               <td data-label="Status">
                 {item.onOrder ? (
@@ -227,63 +238,37 @@ export default function Inventory() {
                   <span className="status-pill sage">OK</span>
                 )}
               </td>
-              <td className="no-label">
-                <div className="inv-stock-ctl">
-                  <button
-                    type="button"
-                    className="reorder-btn"
-                    onClick={() => quickAdjust(item, -1)}
-                    disabled={item.stock <= 0}
-                    aria-label={`Remove one ${item.name}`}
-                  >
-                    −
-                  </button>
-                  <span className="inv-stock-num" data-testid={`stock-${item.id}`}>
-                    {item.stock}
-                  </span>
-                  <button
-                    type="button"
-                    className="reorder-btn"
-                    onClick={() => quickAdjust(item, 1)}
-                    aria-label={`Add one ${item.name}`}
-                  >
-                    +
-                  </button>
-                  <span className="inv-unit">{item.unit}</span>
-                </div>
+              <td data-label="Last received" className="inv-last">
+                {item.lastReceivedAt ? fmtDay(item.lastReceivedAt) : '—'}
               </td>
               <td className="no-label">
                 <div className="inv-row-actions">
                   {item.onOrder ? (
-                    <>
-                      <button
-                        type="button"
-                        className="inv-link inv-link-strong"
-                        onClick={() => setAdjusting({ ...item, preset: { delta: item.orderedQty || '', reason: 'received' } })}
-                        data-testid={`inv-received-${item.id}`}
-                      >
-                        Received…
-                      </button>
-                      <button type="button" className="inv-link" onClick={() => clearOrdered(item)} title="Undo 'order placed'">
-                        Not ordered
-                      </button>
-                    </>
-                  ) : (
                     <button
                       type="button"
-                      className={`inv-link${item.low ? ' inv-link-strong' : ''}`}
+                      className="btn-primary sm"
+                      onClick={() => setAdjusting({ ...item, preset: { delta: item.orderedQty || '', reason: 'received' } })}
+                      data-testid={`inv-received-${item.id}`}
+                    >
+                      Received…
+                    </button>
+                  ) : item.low ? (
+                    <button
+                      type="button"
+                      className="btn-primary sm"
                       onClick={() => setOrdering(item)}
                       data-testid={`inv-order-${item.id}`}
                     >
                       Ordered…
                     </button>
-                  )}
-                  <button type="button" className="inv-link" onClick={() => setAdjusting(item)}>
-                    Adjust…
-                  </button>
-                  <button type="button" className="inv-link" onClick={() => openHistory(item)}>
-                    History
-                  </button>
+                  ) : null}
+                  <RowMenu
+                    item={item}
+                    onOrdered={() => setOrdering(item)}
+                    onNotOrdered={() => clearOrdered(item)}
+                    onAdjust={() => setAdjusting(item)}
+                    onHistory={() => openHistory(item)}
+                  />
                 </div>
               </td>
             </tr>
@@ -581,5 +566,46 @@ function OrderModal({ item, onClose, onDone }) {
         When it arrives, press &ldquo;Received&rdquo; on the row and enter how many actually came.
       </p>
     </Modal>
+  );
+}
+
+
+/* The less-used row actions behind one small "More" control, so the one action a
+   row needs (Ordered / Received) stands alone. */
+function RowMenu({ item, onOrdered, onNotOrdered, onAdjust, onHistory }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="inv-menu" onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && setOpen(false)}>
+      <button
+        type="button"
+        className="icon-btn inv-menu-btn"
+        aria-label={`More actions for ${item.name}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <IconMore />
+      </button>
+      {open && (
+        <div className="inv-menu-list" role="menu">
+          {!item.onOrder && !item.low && (
+            <button type="button" role="menuitem" onClick={() => { setOpen(false); onOrdered(); }}>
+              Ordered…
+            </button>
+          )}
+          {item.onOrder && (
+            <button type="button" role="menuitem" onClick={() => { setOpen(false); onNotOrdered(); }}>
+              Not ordered after all
+            </button>
+          )}
+          <button type="button" role="menuitem" onClick={() => { setOpen(false); onAdjust(); }}>
+            Adjust stock…
+          </button>
+          <button type="button" role="menuitem" onClick={() => { setOpen(false); onHistory(); }}>
+            History
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

@@ -180,3 +180,16 @@ body.mobile-mode .inv-add-row .med-picker {
 
 .inv-link-strong { color: var(--sapphire-deep); background: var(--sapphire-wash); }
 .inv-link-strong:hover { background: var(--sapphire); color: var(--on-sapphire); }
+
+.inv-stock-cell { white-space: nowrap; }
+.inv-stock-cell .inv-stock-num { font-size: 16px; margin-right: 6px; }
+.inv-last { font-family: var(--font-mono); font-size: 13px; color: var(--ink-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.inv-auto { display: inline-block; margin-left: 8px; font-family: var(--font-ui); font-weight: 500; font-size: 11px; color: var(--gold-deep); background: var(--gold-wash); padding: 2px 7px; border-radius: 5px; vertical-align: middle; }
+.inv-row-actions { align-items: center; }
+.inv-row-actions .btn-primary.sm { padding: 7px 12px; }
+.inv-menu { position: relative; }
+.inv-menu-btn { width: 34px; height: 34px; }
+.inv-menu-list { position: absolute; right: 0; top: calc(100% + 4px); z-index: 6; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow-lg); min-width: 190px; padding: 4px; display: flex; flex-direction: column; }
+.inv-menu-list button { background: none; border: none; text-align: left; padding: 9px 12px; border-radius: 7px; font-family: var(--font-ui); font-size: 14px; color: var(--ink); cursor: pointer; }
+.inv-menu-list button:hover { background: var(--sapphire-wash); color: var(--sapphire-deep); }
+body.mobile-mode .inv-menu-list { right: auto; left: 0; }

@@ -116,6 +116,8 @@ class InventoryItemOut(CamelModel):
     ordered_at: datetime | None = None  # "order placed" — alerts stay quiet until stock is received
     ordered_qty: int | None = None  # still to arrive
     on_order: bool = False
+    last_received_at: datetime | None = None  # last "received" movement
+    auto_deducted: bool = False  # used by the dilation protocol, comes off the stock automatically
 
 
 class OrderPlacedIn(CamelModel):

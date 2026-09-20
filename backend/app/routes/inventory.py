@@ -27,13 +27,13 @@ def _422(exc: Exception) -> HTTPException:
 
 @router.get("", response_model=list[InventoryItemOut])
 def list_inventory(db: Session = Depends(get_db)):
-    return [svc.inventory_out(i) for i in svc.list_inventory(db)]
+    return svc.inventory_list_out(db, svc.list_inventory(db))
 
 
 @router.get("/low", response_model=list[InventoryItemOut])
 def low_stock(db: Session = Depends(get_db)):
     """Items at or below their reorder level (`pushLowStockToast`)."""
-    return [svc.inventory_out(i) for i in svc.list_inventory(db, low_only=True)]
+    return svc.inventory_list_out(db, svc.list_inventory(db, low_only=True))
 
 
 @router.post("", response_model=InventoryItemOut, status_code=status.HTTP_201_CREATED)
@@ -46,12 +46,12 @@ def create_item(data: InventoryItemIn, db: Session = Depends(get_db), user: Staf
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc))
     except (svc.BadValue, svc.NegativeStock) as exc:
         raise _422(exc)
-    return svc.inventory_out(item)
+    return svc.inventory_out(item, db)
 
 
 @router.get("/{item_id}", response_model=InventoryItemOut)
 def get_item(item_id: int, db: Session = Depends(get_db)):
-    return svc.inventory_out(_get(db, item_id))
+    return svc.inventory_out(_get(db, item_id), db)
 
 
 @router.patch("/{item_id}", response_model=InventoryItemOut)
@@ -64,7 +64,7 @@ def patch_item(item_id: int, data: InventoryItemPatch, db: Session = Depends(get
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc))
     except svc.BadValue as exc:
         raise _422(exc)
-    return svc.inventory_out(item)
+    return svc.inventory_out(item, db)
 
 
 @router.post("/{item_id}/adjust", response_model=InventoryItemOut)
@@ -77,19 +77,19 @@ def adjust(item_id: int, data: StockAdjustIn, db: Session = Depends(get_db),
         raise HTTPException(status.HTTP_409_CONFLICT, f"Stock of '{item.name}' cannot go below zero")
     except svc.BadValue as exc:
         raise _422(exc)
-    return svc.inventory_out(item)
+    return svc.inventory_out(item, db)
 
 
 @router.post("/{item_id}/ordered", response_model=InventoryItemOut)
 def mark_ordered(item_id: int, data: OrderPlacedIn, db: Session = Depends(get_db),
                  user: Staff = Depends(require_role(*FRONT_DESK))):
     """An order for `qty` has been placed: the low-stock alert stays quiet until stock is received."""
-    return svc.inventory_out(svc.mark_ordered(db, _get(db, item_id), True, user, data.qty))
+    return svc.inventory_out(svc.mark_ordered(db, _get(db, item_id), True, user, data.qty), db)
 
 
 @router.delete("/{item_id}/ordered", response_model=InventoryItemOut)
 def clear_ordered(item_id: int, db: Session = Depends(get_db), user: Staff = Depends(require_role(*FRONT_DESK))):
-    return svc.inventory_out(svc.mark_ordered(db, _get(db, item_id), False, user))
+    return svc.inventory_out(svc.mark_ordered(db, _get(db, item_id), False, user), db)
 
 
 @router.get("/{item_id}/movements", response_model=list[MovementOut])

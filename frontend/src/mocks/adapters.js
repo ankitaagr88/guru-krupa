@@ -1232,6 +1232,11 @@ function invOut(item) {
     orderedAt: item.orderedAt ?? null,
     orderedQty: item.orderedQty ?? null,
     onOrder: !!item.orderedAt,
+    lastReceivedAt: (() => {
+      const m = S.stockMovements.filter((x) => x.itemId === item.id && x.reason === 'received' && x.delta > 0);
+      return m.length ? new Date(Math.max(...m.map((x) => x.at))).toISOString() : null;
+    })(),
+    autoDeducted: S.protocolSteps.some((st) => st.name.toLowerCase() === item.name.toLowerCase()),
   };
 }
 

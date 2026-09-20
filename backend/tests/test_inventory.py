@@ -35,7 +35,8 @@ def test_list_shape_and_low(client, admin_headers):
     rows = client.get("/api/inventory", headers=admin_headers).json()
     assert len(rows) >= 12
     row = next(r for r in rows if r["name"] == "Tropicamide 0.8%")
-    assert set(row) == {"id", "name", "unit", "stock", "reorderLevel", "low", "medicineId", "orderedAt", "orderedQty", "onOrder"}
+    assert set(row) == {"id", "name", "unit", "stock", "reorderLevel", "low", "medicineId", "orderedAt", "orderedQty", "onOrder",
+                       "lastReceivedAt", "autoDeducted"}
     assert row["medicineId"] is None and row["unit"] == "bottles"  # dilation drop, not a prescribed medicine
     moxi = next(r for r in rows if r["name"] == "Moxifloxacin 0.5% eye drops")
     assert moxi["medicineId"] is not None

@@ -6,6 +6,7 @@ Mockup counterparts: `addMedManual`/`renderMeds`/`decrementInventory`/`pushLowSt
 """
 import re
 from collections import defaultdict
+from datetime import datetime
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
@@ -400,11 +401,41 @@ def list_inventory(db: Session, low_only: bool = False) -> list[InventoryItem]:
     return [r for r in rows if r.stock <= r.reorder_level] if low_only else rows
 
 
-def inventory_out(item: InventoryItem) -> InventoryItemOut:
+def inventory_out(item: InventoryItem, db: Session | None = None,
+                  last_received: dict[int, datetime] | None = None,
+                  protocol_names: set[str] | None = None) -> InventoryItemOut:
+    """`last_received` / `protocol_names` are precomputed for a list; a single row looks them up."""
+    if last_received is None and db is not None:
+        last_received = _last_received(db, [item.id])
+    if protocol_names is None and db is not None:
+        protocol_names = _protocol_names(db)
     return InventoryItemOut(id=item.id, name=item.name, unit=item.unit, stock=item.stock,
                             reorder_level=item.reorder_level, low=item.stock <= item.reorder_level,
                             medicine_id=item.medicine_id, ordered_at=item.ordered_at,
-                            ordered_qty=item.ordered_qty, on_order=item.ordered_at is not None)
+                            ordered_qty=item.ordered_qty, on_order=item.ordered_at is not None,
+                            last_received_at=(last_received or {}).get(item.id),
+                            auto_deducted=item.name.lower() in (protocol_names or set()))
+
+
+def _last_received(db: Session, item_ids: list[int]) -> dict[int, datetime]:
+    if not item_ids:
+        return {}
+    rows = db.execute(select(StockMovement.item_id, func.max(StockMovement.at))
+                      .where(StockMovement.item_id.in_(item_ids), StockMovement.reason == "received",
+                             StockMovement.delta > 0).group_by(StockMovement.item_id))
+    return {i: t for i, t in rows}
+
+
+def _protocol_names(db: Session) -> set[str]:
+    from app.models.config import ProtocolStep
+
+    return {n.lower() for n in db.scalars(select(ProtocolStep.name))}
+
+
+def inventory_list_out(db: Session, items: list[InventoryItem]) -> list[InventoryItemOut]:
+    last = _last_received(db, [i.id for i in items])
+    names = _protocol_names(db)
+    return [inventory_out(i, db, last, names) for i in items]
 
 
 def create_item(db: Session, *, name: str | None, unit: str, stock: int, reorder_level: int,
