@@ -177,3 +177,6 @@ body.mobile-mode .inv-add-row .fake-input {
 body.mobile-mode .inv-add-row .med-picker {
   flex-basis: 100%;
 }
+
+.inv-link-strong { color: var(--sapphire-deep); background: var(--sapphire-wash); }
+.inv-link-strong:hover { background: var(--sapphire); color: var(--on-sapphire); }

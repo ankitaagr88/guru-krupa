@@ -13,6 +13,7 @@ import { ageSex, fmtLastVisit } from '../../lib/format';
 import ConditionGrid, { PillToggle, ElsewhereToggle } from './ConditionGrid';
 import DilationChecklist from './DilationChecklist';
 import BillingPanel from './BillingPanel';
+import DispensePanel from './DispensePanel';
 import {
   LANGUAGES,
   SEXES,
@@ -46,7 +47,7 @@ const DETAIL_KEYS = [
 ];
 const KNOWN_STAGES = ['reg', 'pretest', 'doctor', 'dilate', 'billing', 'done'];
 // Stages where the doctor writes / prints the prescription from the drawer (F14)
-const RX_STAGES = ['doctor', 'dilate'];
+const RX_STAGES = ['doctor', 'dilate', 'billing']; // billing: the front desk confirms what was bought
 
 function pickDraft(row) {
   const d = {};
@@ -453,6 +454,16 @@ export default function PatientDrawer({
         </div>
       )}
 
+      {stageKey === 'billing' && (
+        <DispensePanel
+          visitId={row.id}
+          lines={rxLines ?? row.medicines}
+          busy={busy}
+          onChange={(rx) => {
+            if (Array.isArray(rx?.lines)) setRxLines(rx.lines);
+          }}
+        />
+      )}
       {stageKey === 'billing' && (
         <BillingPanel
           bill={currentBill}

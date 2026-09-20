@@ -948,24 +948,23 @@ export const prescriptions = {
         qtyGiven: Number(line.qtyGiven) || 0,
       };
     });
-    // 409 on insufficient stock (real backend behaviour) before touching anything
-    for (const line of resolved) {
-      const prev = p.medicines.find((m) => m.name === line.name);
-      const delta = line.qtyGiven - (prev?.qtyGiven || 0);
-      const item = stockItemFor(line);
-      if (delta > 0 && item && item.stock < delta)
-        throw httpError(409, `Not enough stock of ${item.name} (only ${item.stock} ${item.unit} left)`);
-    }
+    // Saving never moves stock (the front desk confirms each medicine at billing). Confirmed
+    // lines that stay keep their confirmation; confirmed lines the doctor removed give stock back.
     const lowStock = [];
-    resolved.forEach((line) => {
-      const prev = p.medicines.find((m) => m.name === line.name);
-      const delta = line.qtyGiven - (prev?.qtyGiven || 0);
-      if (delta > 0) {
-        const item = decrementStock(stockItemFor(line)?.name || line.name, delta, 'dispensed');
-        if (item && item.stock <= item.reorder) lowStock.push(c(item));
+    const prevLines = p.medicines || [];
+    prevLines.forEach((old) => {
+      if (old.dispensedQty > 0 && !resolved.some((l) => l.name.toLowerCase() === old.name.toLowerCase())) {
+        const item = stockItemFor(old);
+        if (item) {
+          item.stock += old.dispensedQty;
+          S.stockMovements.push({ id: S.stockMovements.length + 1, itemId: item.id, delta: old.dispensedQty, reason: 'adjusted', note: 'line removed', at: Date.now() });
+        }
       }
     });
-    p.medicines = resolved.map((l, i) => ({ id: i + 1, ...l }));
+    p.medicines = resolved.map((l, i) => {
+      const old = prevLines.find((m) => m.name.toLowerCase() === l.name.toLowerCase());
+      return { id: i + 1, ...l, dispensedQty: old?.dispensedQty || 0, dispensedAt: old?.dispensedAt || null, dispensedBy: old?.dispensedBy || null };
+    });
     p.diagnosisId = diagnosisId == null ? null : Number(diagnosisId);
     if (printLanguage) p.printLanguage = printLanguage;
     store.notify();
@@ -982,6 +981,50 @@ export const prescriptions = {
       medicines: out,
       lowStock,
     };
+  },
+  // Real: POST /visits/{id}/prescription/lines/{lineId}/dispense {qty} — front desk confirms "bought here"
+  async dispense(patientId, lineId, qty) {
+    await latency(40);
+    const p = S.patients.find((x) => x.id === Number(patientId));
+    if (!p) throw httpError(404, 'Patient not found');
+    const line = (p.medicines || []).find((m) => m.id === Number(lineId));
+    if (!line) throw httpError(404, 'Prescription line not found');
+    if (line.dispensedQty > 0) throw httpError(422, `'${line.name}' is already marked as bought here — undo it first`);
+    const item = stockItemFor(line);
+    if (!item) throw httpError(422, `'${line.name}' is not a stock item — nothing to deduct`);
+    const n = Number(qty) || 0;
+    if (n < 1) throw httpError(422, 'qty must be at least 1');
+    if (item.stock < n) throw httpError(409, `Only ${item.stock} of '${item.name}' in stock, ${n} asked for`);
+    decrementStock(item.name, n, 'dispensed');
+    line.dispensedQty = n;
+    line.dispensedAt = new Date().toISOString();
+    line.dispensedBy = currentUserName();
+    store.notify();
+    const out = p.medicines.map(rxLineOut);
+    const lowStock = item.stock <= item.reorder ? [c(item)] : [];
+    return { id: p.id, visitId: p.id, printLanguage: p.printLanguage || 'english', diagnosisId: p.diagnosisId ?? null,
+      diagnosisName: S.diagnoses.find((d) => d.id === p.diagnosisId)?.name ?? null, lines: out, medicines: out, lowStock };
+  },
+  async undispense(patientId, lineId) {
+    await latency(40);
+    const p = S.patients.find((x) => x.id === Number(patientId));
+    if (!p) throw httpError(404, 'Patient not found');
+    const line = (p.medicines || []).find((m) => m.id === Number(lineId));
+    if (!line) throw httpError(404, 'Prescription line not found');
+    if (line.dispensedQty > 0) {
+      const item = stockItemFor(line);
+      if (item) {
+        item.stock += line.dispensedQty;
+        S.stockMovements.push({ id: S.stockMovements.length + 1, itemId: item.id, delta: line.dispensedQty, reason: 'adjusted', note: 'bought-here undone', at: Date.now() });
+      }
+      line.dispensedQty = 0;
+      line.dispensedAt = null;
+      line.dispensedBy = null;
+      store.notify();
+    }
+    const out = p.medicines.map(rxLineOut);
+    return { id: p.id, visitId: p.id, printLanguage: p.printLanguage || 'english', diagnosisId: p.diagnosisId ?? null,
+      diagnosisName: S.diagnoses.find((d) => d.id === p.diagnosisId)?.name ?? null, lines: out, medicines: out, lowStock: [] };
   },
   // Real: GET /visits/{id}/prescription/print?lang= → {hospital, patient, language,
   //   lines[{name, dosage, dosageLocal, qtyGiven, brand, composition, form, formLabel, packSize}]}
@@ -1025,6 +1068,10 @@ function rxLineOut(l, i) {
     matched: l.matched ?? !!med,
     dosage: l.dosage || '',
     qtyGiven: Number(l.qtyGiven) || 0,
+    dispensedQty: Number(l.dispensedQty) || 0,
+    dispensedAt: l.dispensedAt || null,
+    dispensedBy: l.dispensedBy || null,
+    inStock: stockItemFor(l)?.stock ?? null,
     form: med ? med.form : null,
     formLabel: med ? formLabelOf(med.form) : null,
   };
@@ -1125,6 +1172,14 @@ export const inventory = {
     const item = S.inventory.find((i) => i.id === Number(id));
     if (!item) throw httpError(404, 'Item not found');
     item.stock = Math.max(0, item.stock + Number(delta));
+    if (reason === 'received' && Number(delta) > 0 && item.orderedAt) {
+      const remaining = (item.orderedQty || 0) - Number(delta);
+      if (remaining > 0) item.orderedQty = remaining;
+      else {
+        item.orderedAt = null;
+        item.orderedQty = null;
+      }
+    }
     S.stockMovements.push({
       id: S.stockMovements.length + 1,
       itemId: item.id,
@@ -1133,6 +1188,22 @@ export const inventory = {
       note,
       at: Date.now(),
     });
+    store.notify();
+    return invOut(c(item));
+  },
+  async markOrdered(id, qty) {
+    const item = S.inventory.find((i) => i.id === Number(id));
+    if (!item) throw httpError(404, 'Item not found');
+    item.orderedAt = new Date().toISOString();
+    item.orderedQty = Number(qty) || null;
+    store.notify();
+    return invOut(c(item));
+  },
+  async clearOrdered(id) {
+    const item = S.inventory.find((i) => i.id === Number(id));
+    if (!item) throw httpError(404, 'Item not found');
+    item.orderedAt = null;
+    item.orderedQty = null;
     store.notify();
     return invOut(c(item));
   },
@@ -1158,6 +1229,9 @@ function invOut(item) {
     reorderLevel: item.reorder,
     low: item.stock <= item.reorder,
     medicineId: med ? med.id : null,
+    orderedAt: item.orderedAt ?? null,
+    orderedQty: item.orderedQty ?? null,
+    onOrder: !!item.orderedAt,
   };
 }
 

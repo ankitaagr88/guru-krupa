@@ -30,7 +30,8 @@ import './prescription.css';
 
    Each line = { name, medicineId, matched, dosage, qtyGiven, form?, formLabel? }:
      dosage   → the treatment plan printed for the patient
-     qtyGiven → what was handed over from clinic stock (decrements inventory)
+     qtyGiven → the doctor's "to give from clinic stock"; stock moves only when the front
+                desk confirms the line at billing (DispensePanel)
    The picker searches GET /medicines by name; a line
    is `matched` when the name equals a medicine's name, brand or composition.
    Free-text lines get a "not in list" hint and, for admins, an inline
@@ -509,7 +510,7 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved }) {
                       />
                     </div>
                     <div className="rx-qty">
-                      <label>Qty given</label>
+                      <label>To give</label>
                       <div className="rx-qty-ctl">
                         <button
                           type="button"
@@ -552,8 +553,8 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved }) {
             </div>
             {lines.length > 0 && (
               <p className="rx-split-note">
-                {given} given from clinic stock · {lines.length - given} prescribed only (patient buys
-                outside)
+                {given} to be given from clinic stock · {lines.length - given} to buy outside. The front desk
+                confirms what the patient actually buys at billing — only that comes off the stock.
               </p>
             )}
 

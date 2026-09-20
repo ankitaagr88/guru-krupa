@@ -25,12 +25,19 @@ describe('mock adapters', () => {
     expect((await patients.list({ q: '98240' }))[0].name).toBe('Pooja Trivedi');
   });
 
-  it('saving a prescription decrements stock by qtyGiven only and flags low stock', async () => {
+  it('saving a prescription leaves stock alone; dispensing a line deducts and flags low stock', async () => {
     const name = 'Latanoprost 0.005% eye drops';
     const before = (await inventory.list()).find((i) => i.name === name).stock;
     const r = await prescriptions.save(5, [{ name, dosage: '1 drop', qtyGiven: 1 }]);
-    const after = (await inventory.list()).find((i) => i.name === name).stock;
-    expect(after).toBe(before - 1);
-    expect(r.lowStock.map((i) => i.name)).toContain(name);
+    expect((await inventory.list()).find((i) => i.name === name).stock).toBe(before);
+    expect(r.lowStock).toEqual([]);
+    const d = await prescriptions.dispense(5, r.lines[0].id, 1);
+    expect((await inventory.list()).find((i) => i.name === name).stock).toBe(before - 1);
+    expect(d.lowStock.map((i) => i.name)).toContain(name);
+    // re-saving keeps the confirmation; dropping the line gives the stock back
+    const again = await prescriptions.save(5, [{ name, dosage: '2 drops', qtyGiven: 1 }]);
+    expect(again.lines[0].dispensedQty).toBe(1);
+    await prescriptions.save(5, []);
+    expect((await inventory.list()).find((i) => i.name === name).stock).toBe(before);
   });
 });

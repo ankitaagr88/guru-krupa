@@ -34,3 +34,12 @@
 .rx-drawer-btn:hover {
   background: var(--sapphire-deep);
 }
+
+/* Billing: confirm what was bought from clinic stock (DispensePanel) */
+.dispense-row { display: flex; align-items: center; gap: 8px; padding: 9px 0; border-bottom: 1px dashed var(--line); }
+.dispense-row:last-of-type { border-bottom: none; }
+.dispense-row.done { opacity: 0.85; }
+.dispense-main { flex: 1; min-width: 0; font-family: var(--font-ui); font-size: 14px; }
+.dispense-main b { font-family: var(--font-serif); font-weight: 600; font-size: 15px; display: block; }
+.dispense-main small { display: block; font-size: 12px; color: var(--ink-soft); }
+.dispense-qty { width: 58px; padding: 7px 8px; text-align: center; font-family: var(--font-mono); margin: 0; }

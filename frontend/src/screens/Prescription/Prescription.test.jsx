@@ -22,7 +22,7 @@ describe('PrescriptionModal', () => {
     window.print = vi.fn();
   });
 
-  it('saves a prescription, decrements stock by qtyGiven and toasts low stock', async () => {
+  it('saving does not touch stock; the front desk confirms "bought here" at billing, which does', async () => {
     const before = (await inventory.list()).find((i) => i.name === LATANO).stock; // 4, reorder 6
     const onSaved = vi.fn();
     renderWithProviders(<PrescriptionModal visit={KIRAN} onClose={() => {}} onSaved={onSaved} />);
@@ -39,19 +39,23 @@ describe('PrescriptionModal', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
-    const after = (await inventory.list()).find((i) => i.name === LATANO).stock;
-    expect(after).toBe(before - 2);
-    expect(await screen.findByText('Running low')).toBeInTheDocument();
-    expect(
-      screen.getByText(new RegExp(`${LATANO.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} is down to 2 bottles`))
-    ).toBeInTheDocument();
+    // the doctor saving moved nothing
+    expect((await inventory.list()).find((i) => i.name === LATANO).stock).toBe(before);
     const rx = await prescriptions.get(2);
     expect(rx.lines).toHaveLength(1);
-    expect(rx.lines[0].qtyGiven).toBe(2);
-    expect(rx.lines[0].dosage).toBe('1 drop, both eyes, at night');
+    expect(rx.lines[0]).toMatchObject({ qtyGiven: 2, dispensedQty: 0, dosage: '1 drop, both eyes, at night', inStock: 4 });
+
+    // front desk confirms the purchase -> stock down by 2, low-stock flagged
+    const after = await prescriptions.dispense(2, rx.lines[0].id, 2);
+    expect(after.lines[0].dispensedQty).toBe(2);
+    expect((await inventory.list()).find((i) => i.name === LATANO).stock).toBe(before - 2);
+    expect(after.lowStock.map((i) => i.name)).toContain(LATANO);
+    // undo puts it back
+    await prescriptions.undispense(2, rx.lines[0].id);
+    expect((await inventory.list()).find((i) => i.name === LATANO).stock).toBe(before);
   });
 
-  it('shows the 409 message when the clinic has less stock than qtyGiven', async () => {
+  it('confirming more than the clinic has is refused and changes nothing', async () => {
     renderWithProviders(<PrescriptionModal visit={{ id: 4, name: 'Falguni Shah' }} onClose={() => {}} />);
     await addMed('Ofloxacin eye ointment'); // 5 tubes
     const row = (await screen.findAllByTestId('med-row'))[0];
@@ -60,7 +64,9 @@ describe('PrescriptionModal', () => {
     });
     expect(within(row).getByText('only 5 tubes left')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
-    expect(await screen.findByText('Not enough stock')).toBeInTheDocument();
+    await screen.findByText('Prescription saved');
+    const rx = await prescriptions.get(4);
+    await expect(prescriptions.dispense(4, rx.lines[0].id, 9)).rejects.toMatchObject({ response: { status: 409 } });
     expect((await inventory.list()).find((i) => i.name === 'Ofloxacin eye ointment').stock).toBe(5);
   });
 

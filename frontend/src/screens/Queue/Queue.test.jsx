@@ -202,3 +202,27 @@ describe('Prescription from the drawer (F14)', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 });
+
+describe('Billing: bought-here confirmation', () => {
+  it('lists the prescribed medicines; "Bought here" deducts stock, Undo restores it', async () => {
+    const api = await import('../../api');
+    // Chirag Mehta (id 8) is at billing in the demo data; give him a prescription first
+    await api.prescriptions.save(8, [
+      { name: 'Latanoprost 0.005% eye drops', dosage: 'at night', qtyGiven: 1 },
+      { name: 'Unknown compounded gel', dosage: 'x', qtyGiven: 0 },
+    ]);
+    const before = (await api.inventory.list()).find((i) => i.name === 'Latanoprost 0.005% eye drops').stock;
+    renderQueue('/queue/billing?patient=8');
+    await waitFor(() => expect(drawer()).toHaveClass('show'));
+    const panel = await within(drawer()).findByTestId('dispense-panel');
+    const rows = within(panel).getAllByTestId('dispense-row');
+    expect(rows).toHaveLength(2);
+    expect(within(rows[1]).getByText('Patient buys outside')).toBeInTheDocument();
+    await userEvent.click(within(rows[0]).getByRole('button', { name: 'Bought here' }));
+    await waitFor(() => expect(within(panel).getByText(/Bought 1/)).toBeInTheDocument());
+    expect((await api.inventory.list()).find((i) => i.name === 'Latanoprost 0.005% eye drops').stock).toBe(before - 1);
+    await userEvent.click(within(panel).getByRole('button', { name: /Undo bought here/ }));
+    await waitFor(() => expect(within(panel).getByRole('button', { name: 'Bought here' })).toBeInTheDocument());
+    expect((await api.inventory.list()).find((i) => i.name === 'Latanoprost 0.005% eye drops').stock).toBe(before);
+  });
+});

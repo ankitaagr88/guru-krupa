@@ -152,6 +152,10 @@ export const prescriptions = {
   // → {hospital, patient, language, lines:[{name, dosage, dosageLocal, qtyGiven, brand, composition, form, formLabel, packSize}]}
   printPayload: (visitId, lang) =>
     data(client.get(`/visits/${visitId}/prescription/print`, { params: { lang } })),
+  // Front desk confirms the patient bought this medicine here (deducts stock); DELETE undoes it.
+  dispense: (visitId, lineId, qty) =>
+    data(client.post(`/visits/${visitId}/prescription/lines/${lineId}/dispense`, { qty })),
+  undispense: (visitId, lineId) => data(client.delete(`/visits/${visitId}/prescription/lines/${lineId}/dispense`)),
 };
 
 /* Diagnoses + treatment standards (B15/F17). A standard = the admin-saved lines, else the most
@@ -195,6 +199,10 @@ export const inventory = {
   adjust: (id, delta, reason, note) => data(client.post(`/inventory/${id}/adjust`, { delta, reason, note })),
   update: (id, patch) => data(client.patch(`/inventory/${id}`, patch)),
   movements: (id) => data(client.get(`/inventory/${id}/movements`)),
+  // "Order placed" for qty: the low-stock alert stays quiet until stock is received (adjust reason
+  // "received" reduces / clears the outstanding quantity). DELETE undoes it.
+  markOrdered: (id, qty) => data(client.post(`/inventory/${id}/ordered`, { qty })),
+  clearOrdered: (id) => data(client.delete(`/inventory/${id}/ordered`)),
 };
 
 function crud(base, orderKey = 'ids') {

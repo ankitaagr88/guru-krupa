@@ -27,8 +27,13 @@ const REASONS = [
 export function normItem(it) {
   const reorder = Number(it.reorderLevel ?? it.reorder ?? 0);
   const stock = Number(it.stock) || 0;
-  return { ...it, stock, reorder, low: it.low ?? stock <= reorder };
+  return { ...it, stock, reorder, low: it.low ?? stock <= reorder, onOrder: !!(it.onOrder ?? it.orderedAt) };
 }
+
+const fmtDay = (iso) => {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+};
 
 export default function Inventory() {
   const toast = useToast();
@@ -36,7 +41,8 @@ export default function Inventory() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
   const [onlyLow, setOnlyLow] = useState(false);
-  const [adjusting, setAdjusting] = useState(null); // item
+  const [adjusting, setAdjusting] = useState(null); // item (+ optional preset {delta, reason})
+  const [ordering, setOrdering] = useState(null); // item
   const [history, setHistory] = useState(null); // item
   const [movements, setMovements] = useState([]);
   const [draft, setDraft] = useState({
@@ -69,15 +75,16 @@ export default function Inventory() {
       const rows = await load();
       if (announced.current) return;
       announced.current = true;
-      rows.filter((r) => r.low).forEach((r) => toast.lowStock(r));
+      rows.filter((r) => r.low && !r.onOrder).forEach((r) => toast.lowStock(r));
     })();
     const unsub = onDataChange(load);
     return unsub;
   }, [load, toast]);
 
-  const lowCount = items.filter((i) => i.low).length;
+  const lowCount = items.filter((i) => i.low && !i.onOrder).length;
+  const orderedCount = items.filter((i) => i.onOrder).length;
   useTopbar({
-    sub: `Stock levels · ${lowCount ? `${lowCount} item${lowCount === 1 ? '' : 's'} running low` : 'all items above reorder point'}`,
+    sub: `Stock levels · ${lowCount ? `${lowCount} item${lowCount === 1 ? '' : 's'} running low` : 'all items above reorder point'}${orderedCount ? ` · ${orderedCount} on order` : ''}`,
   });
 
   const shown = useMemo(() => {
@@ -93,7 +100,7 @@ export default function Inventory() {
         await inventoryApi.adjust(item.id, delta, delta > 0 ? 'received' : 'adjusted', '')
       );
       setItems((rows) => rows.map((r) => (r.id === item.id ? updated : r)));
-      if (!wasLow && updated.low) toast.lowStock(updated);
+      if (!wasLow && updated.low && !updated.onOrder) toast.lowStock(updated);
       await load();
     } catch (err) {
       toast.error('Could not adjust stock', errorMessage(err));
@@ -124,6 +131,16 @@ export default function Inventory() {
       toast.error('Could not add item', errorMessage(err));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const clearOrdered = async (item) => {
+    try {
+      await inventoryApi.clearOrdered(item.id);
+      toast.info('Order cleared', `${item.name} will show as low stock again.`);
+      await load();
+    } catch (err) {
+      toast.error('Could not update', errorMessage(err));
     }
   };
 
@@ -164,9 +181,7 @@ export default function Inventory() {
         </div>
       </div>
       <p className="hint" style={{ margin: '-10px 0 16px' }}>
-        Drops used during dilation and medicines given to patients deduct from stock here automatically — no
-        separate stock entry needed for those.
-      </p>
+        Drops used during dilation come off the stock automatically. Medicines come off when the front desk confirms &ldquo;Bought here&rdquo; at billing. Low-stock alerts stay quiet for items marked as ordered until they arrive.</p>
       <table className="data-table" id="invTable">
         <thead>
           <tr>
@@ -199,7 +214,12 @@ export default function Inventory() {
                 {item.reorder} {item.unit}
               </td>
               <td data-label="Status">
-                {item.stock <= 0 ? (
+                {item.onOrder ? (
+                  <span className="status-pill info" title={item.orderedAt ? `Ordered ${fmtDay(item.orderedAt)}` : ''}>
+                    {item.orderedQty ? `${item.orderedQty} on order` : 'On order'}
+                    {item.orderedAt ? ` · ${fmtDay(item.orderedAt)}` : ''}
+                  </span>
+                ) : item.stock <= 0 ? (
                   <span className="status-pill coral">Out of stock</span>
                 ) : item.low ? (
                   <span className="status-pill coral">Low stock</span>
@@ -234,6 +254,30 @@ export default function Inventory() {
               </td>
               <td className="no-label">
                 <div className="inv-row-actions">
+                  {item.onOrder ? (
+                    <>
+                      <button
+                        type="button"
+                        className="inv-link inv-link-strong"
+                        onClick={() => setAdjusting({ ...item, preset: { delta: item.orderedQty || '', reason: 'received' } })}
+                        data-testid={`inv-received-${item.id}`}
+                      >
+                        Received…
+                      </button>
+                      <button type="button" className="inv-link" onClick={() => clearOrdered(item)} title="Undo 'order placed'">
+                        Not ordered
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      className={`inv-link${item.low ? ' inv-link-strong' : ''}`}
+                      onClick={() => setOrdering(item)}
+                      data-testid={`inv-order-${item.id}`}
+                    >
+                      Ordered…
+                    </button>
+                  )}
                   <button type="button" className="inv-link" onClick={() => setAdjusting(item)}>
                     Adjust…
                   </button>
@@ -304,7 +348,16 @@ export default function Inventory() {
         onClose={() => setAdjusting(null)}
         onDone={async (updated, wasLow) => {
           setAdjusting(null);
-          if (!wasLow && updated.low) toast.lowStock(updated);
+          if (!wasLow && updated.low && !updated.onOrder) toast.lowStock(updated);
+          await load();
+        }}
+      />
+
+      <OrderModal
+        item={ordering}
+        onClose={() => setOrdering(null)}
+        onDone={async () => {
+          setOrdering(null);
           await load();
         }}
       />
@@ -349,12 +402,13 @@ function AdjustModal({ item, onClose, onDone }) {
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (item) {
-      setDelta('');
-      setReason('received');
+      setDelta(item.preset?.delta != null && item.preset.delta !== '' ? String(item.preset.delta) : '');
+      setReason(item.preset?.reason || 'received');
       setNote('');
     }
   }, [item]);
   if (!item) return null;
+  const receiving = item.onOrder && reason === 'received';
   const n = parseInt(delta, 10);
   const preview = Number.isNaN(n) ? null : Math.max(0, item.stock + n);
   const submit = async () => {
@@ -376,8 +430,12 @@ function AdjustModal({ item, onClose, onDone }) {
   return (
     <Modal
       open
-      title={`Adjust stock — ${item.name}`}
-      sub={`Currently ${item.stock} ${item.unit}. Use a negative number to remove stock.`}
+      title={receiving ? `Stock received — ${item.name}` : `Adjust stock — ${item.name}`}
+      sub={
+        receiving
+          ? `${item.orderedQty ? `${item.orderedQty} ${item.unit} on order` : 'On order'} · currently ${item.stock} ${item.unit}. Enter how many actually arrived — if fewer, the rest stays on order.`
+          : `Currently ${item.stock} ${item.unit}. Use a negative number to remove stock.`
+      }
       onClose={onClose}
       actions={
         <>
@@ -385,7 +443,7 @@ function AdjustModal({ item, onClose, onDone }) {
             Cancel
           </button>
           <button className="btn-primary full" onClick={submit} disabled={busy} type="button">
-            {busy ? 'Saving…' : 'Save adjustment'}
+            {busy ? 'Saving…' : receiving ? 'Add to stock' : 'Save adjustment'}
           </button>
         </>
       }
@@ -454,5 +512,74 @@ function fmtWhen(ts) {
     d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) +
     ', ' +
     d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+  );
+}
+
+
+/* "Ordered…": records that an order for `qty` has been placed. The low-stock alert
+   stays quiet for this item until stock is received. */
+function OrderModal({ item, onClose, onDone }) {
+  const toast = useToast();
+  const [qty, setQty] = useState('');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (item) setQty(String(Math.max(1, item.reorder * 2 - item.stock) || ''));
+  }, [item]);
+  if (!item) return null;
+  const n = parseInt(qty, 10);
+  const submit = async () => {
+    if (Number.isNaN(n) || n < 1) {
+      toast.error('Enter how many were ordered.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await inventoryApi.markOrdered(item.id, n);
+      toast.success('Order noted', `${n} ${item.unit} of ${item.name} — the low-stock alert will stay quiet until it arrives.`);
+      onDone();
+    } catch (err) {
+      toast.error('Could not save', errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal
+      open
+      title={`Order placed — ${item.name}`}
+      sub={`Currently ${item.stock} ${item.unit}, reorder at ${item.reorder}. How many did you order?`}
+      onClose={onClose}
+      actions={
+        <>
+          <button className="btn-ghost" onClick={onClose} type="button">
+            Cancel
+          </button>
+          <button className="btn-primary full" onClick={submit} disabled={busy} type="button" data-testid="inv-order-save">
+            {busy ? 'Saving…' : 'Mark as ordered'}
+          </button>
+        </>
+      }
+    >
+      <p className="label">Quantity ordered</p>
+      <div className="inv-delta-row">
+        <button type="button" className="reorder-btn" onClick={() => setQty(String(Math.max(1, (n || 1) - 1)))}>
+          −
+        </button>
+        <input
+          className="fake-input"
+          aria-label="Quantity ordered"
+          inputMode="numeric"
+          value={qty}
+          onChange={(e) => setQty(e.target.value)}
+          autoFocus
+        />
+        <button type="button" className="reorder-btn" onClick={() => setQty(String((n || 0) + 1))}>
+          +
+        </button>
+      </div>
+      <p className="small-note" style={{ margin: '2px 0 0' }}>
+        When it arrives, press &ldquo;Received&rdquo; on the row and enter how many actually came.
+      </p>
+    </Modal>
   );
 }
