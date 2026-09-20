@@ -3,6 +3,7 @@ import Drawer from '../../components/Drawer';
 import { useAuth } from '../../auth/AuthContext';
 import { ot as otApi, errorMessage } from '../../api';
 import { PhotoTile } from '../Machines/ExamPhotos';
+import { IconCamera, IconPaperclip } from '../../components/Icons';
 import { useCasePatch } from './useCasePatch';
 import {
   ANESTHESIA,
@@ -31,14 +32,92 @@ function filled(obj) {
 }
 
 /* ---------------------------------------------------------------- tabs */
-function PreOpTab({ k, edit }) {
+/* Pre-op tab. "Scan biometry report" photographs the HBM-1 IOL / biometry
+   printout; the server reads it and fills the grid with every plausible value
+   (the person checks and corrects the rest). */
+function PreOpTab({ k, edit, setCase, flush, isMobile }) {
   const b = { ...emptyBiometry(), ...(k.preOpBiometry || {}) };
+  const inputRef = useRef(null);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState(null); // {ok:[], bad:[], confidence}
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    setNote(null);
+    setErr('');
+  }, [k.id]);
+
+  const onFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setBusy(true);
+    setErr('');
+    setNote(null);
+    try {
+      await flush?.(); // typed edits first, so the scan merges on top of them
+      const res = await otApi.scanBiometry(k.id, file);
+      if (res?.case) setCase((prev) => (prev && prev.id === res.case.id ? { ...prev, ...res.case } : prev));
+      const vals = res?.values || [];
+      setNote({
+        ok: vals.filter((v) => v.ok !== false),
+        bad: vals.filter((v) => v.ok === false),
+        confidence: res?.confidence,
+      });
+    } catch (ex) {
+      setErr(errorMessage(ex, 'Could not read the report'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <>
       <div className="field-label" style={{ marginTop: 0 }}>
         Pre-op biometry (HBM-1)
       </div>
       <p className="small-note">Axial length, anterior chamber depth, keratometry and the target refraction per eye.</p>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        {...(isMobile ? { capture: 'environment' } : {})}
+        onChange={onFile}
+        style={{ display: 'none' }}
+        data-testid="biometry-input"
+        aria-label="Biometry report photo"
+      />
+      <button
+        type="button"
+        className="capture-btn"
+        style={{ marginBottom: 10 }}
+        onClick={() => inputRef.current?.click()}
+        disabled={busy}
+        data-testid="scan-biometry"
+      >
+        {isMobile ? <IconCamera /> : <IconPaperclip />}
+        {busy ? 'Reading the report…' : isMobile ? 'Scan biometry report' : 'Scan biometry report (file)'}
+      </button>
+      {busy && (
+        <div className="capture-flash" data-testid="biometry-busy">
+          <div className="spin" />
+          <p>Reading the HBM-1 printout — a few seconds.</p>
+        </div>
+      )}
+      {err && <p className="ot-save-note err">{err}</p>}
+      {note && (
+        <p className="ot-save-note" data-testid="biometry-note" style={{ color: 'var(--ink-soft)' }}>
+          Filled {note.ok.length} value{note.ok.length === 1 ? '' : 's'} from the report
+          {note.confidence != null ? ` (OCR ${Math.round(note.confidence * 100)}%)` : ''}.
+          {note.bad.length > 0 && (
+            <>
+              {' '}
+              Could not read: {note.bad.map((v) => v.l).join(', ')} — type {note.bad.length === 1 ? 'it' : 'them'} in.
+            </>
+          )}{' '}
+          Check every number against the printout.
+        </p>
+      )}
       <div className="bio-grid" data-testid="biometry-grid">
         <div />
         <div className="bh">R</div>
@@ -445,7 +524,7 @@ export default function CaseDrawer({ caseObj, setCase, lensTiers, isMobile, onCl
             ))}
           </div>
 
-          {tab === 'preop' && <PreOpTab k={k} edit={edit} />}
+          {tab === 'preop' && <PreOpTab k={k} edit={edit} setCase={setCase} flush={flush} isMobile={isMobile} />}
           {tab === 'operative' && <OperativeTab k={k} edit={edit} canEdit={canEditClinical} />}
           {tab === 'consent' && <ConsentTab k={k} setCase={setCase} isMobile={isMobile} />}
           {tab === 'postop' && <PostOpTab k={k} edit={edit} canEdit={canEditClinical} />}

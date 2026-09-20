@@ -53,6 +53,15 @@ export const auth = {
   },
 };
 
+function currentUserName() {
+  try {
+    const u = JSON.parse(localStorage.getItem('gk_user') || 'null');
+    return u?.name || 'Staff';
+  } catch {
+    return 'Staff';
+  }
+}
+
 /* ---------------- patients & visits (queue) ---------------- */
 export const patients = {
   async list({ q = '' } = {}) {
@@ -516,6 +525,30 @@ export const readings = {
     store.notify();
     return null;
   },
+  // Real: POST /readings/{id}/approve — stamps approvedAt/approvedBy, deletes the photo.
+  async approve(id, vals) {
+    await latency(60);
+    const r = S.readings.find((x) => x.id === Number(id));
+    if (!r) throw httpError(404, 'Reading not found');
+    if (r.status === 'pending' || r.status === 'processing')
+      throw httpError(409, `Reading is still ${r.status} - wait for OCR to finish`);
+    if (vals) {
+      r.values = c(vals).map(({ l, v }) => ({ l, v, ok: true }));
+      r.corrected = true;
+    } else {
+      r.values = (r.values || []).map((v) => ({ ...v, ok: true }));
+    }
+    r.status = 'done';
+    r.error = null;
+    r.approved = true;
+    r.approvedAt = new Date().toISOString();
+    r.approvedBy = currentUserName();
+    r.imagePath = null;
+    r.imageUrl = null;
+    applyReadingToPatient(r);
+    store.notify();
+    return c(r);
+  },
   // Apply a reading onto the patient record (mockup's applyExtractedReading)
   async apply(id) {
     const r = S.readings.find((x) => x.id === Number(id));
@@ -689,6 +722,34 @@ export const ot = {
     x.consentPhotos.push(photo);
     store.notify();
     return otCaseOut(x);
+  },
+  // Real: POST /ot/cases/{id}/biometry/scan — the HBM-1 sample values, merged into preOpBiometry.
+  async scanBiometry(id, file) {
+    await latency(900);
+    const x = S.otCases.find((k) => k.id === Number(id));
+    if (!x) throw httpError(404, 'OT case not found');
+    if (!file) throw httpError(400, 'Empty file');
+    const values = [
+      { l: 'AL (R)', v: '22.90', ok: true },
+      { l: 'AL (L)', v: '23.05', ok: true },
+      { l: 'ACD (R)', v: '2.70', ok: true },
+      { l: 'ACD (L)', v: '2.74', ok: true },
+      { l: 'K1 (R)', v: '43.27', ok: true },
+      { l: 'K1 (L)', v: '43.50', ok: true },
+      { l: 'K2 (R)', v: '44.10', ok: true },
+      { l: 'K2 (L)', v: '81.00', ok: false },
+    ];
+    const units = { AL: 'mm', ACD: 'mm', K1: 'D', K2: 'D' };
+    const patch = {};
+    values.forEach(({ l, v, ok }) => {
+      if (!ok) return;
+      const [key, eye] = l.replace(')', '').split(' (');
+      (patch[key] ||= {})[eye] = `${v}${units[key] || ''}`;
+    });
+    deepMerge(x, { preOpBiometry: patch });
+    x.updatedAt = new Date().toISOString();
+    store.notify();
+    return { case: otCaseOut(x), values, confidence: 0.88 };
   },
   async removeConsentPhoto(caseId, photoId) {
     const x = S.otCases.find((k) => k.id === Number(caseId));

@@ -65,6 +65,15 @@ describe('Machines screen (F5)', () => {
     expect(card.querySelector('.reading-val.low')).not.toBeNull();
     // the queue is empty again after the upload
     expect(await listPending()).toHaveLength(0);
+
+    // F13: a person approves the values → status Approved, stamp shown, photo gone
+    expect(within(card).getByText('Show photo')).toBeInTheDocument();
+    await userEvent.click(within(card).getByTestId('approve-reading'));
+    await waitFor(() => expect(screen.getByTestId('reading-status')).toHaveTextContent('Approved'));
+    expect(within(card).getByTestId('reading-approved')).toHaveTextContent(/Approved by .* photo deleted/);
+    expect(within(card).queryByText('Show photo')).toBeNull();
+    expect(within(card).queryByTestId('approve-reading')).toBeNull();
+    expect(screen.getByTestId('machine-hnt1p_tono')).toHaveTextContent('approved');
   });
 
   it('queues offline and uploads on reconnect with the same clientUuid', async () => {

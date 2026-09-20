@@ -217,7 +217,8 @@ function CaptureArea({ patient, machines, stages, isMobile, onChangePatient }) {
           if (queuedFor(m.key)) tag = <span className="done-tag processing">waiting to upload</span>;
           else if (r && isBusy(r)) tag = <span className="done-tag processing">processing…</span>;
           else if (r && r.status === 'failed') tag = <span className="done-tag failed">failed — retake</span>;
-          else if (r) tag = <span className="done-tag">captured — rescan</span>;
+          else if (r && r.approved) tag = <span className="done-tag">approved — rescan</span>;
+          else if (r) tag = <span className="done-tag processing">captured — check and approve</span>;
           return (
             <button
               key={m.key}

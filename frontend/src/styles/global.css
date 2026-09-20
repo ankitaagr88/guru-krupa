@@ -413,7 +413,7 @@ p.label { font-family: var(--font-ui); font-size: 13px; color: var(--ink-soft); 
 .stage-buttons { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 .stage-btn { border: 1px solid var(--line); background: var(--surface); padding: 13px 15px; border-radius: 10px; font-family: var(--font-ui); font-weight: 500; font-size: 14px; cursor: pointer; text-align: left; display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; color: var(--ink); transition: border-color 0.15s, background 0.15s; }
 .stage-btn:hover { border-color: var(--sapphire); background: var(--sapphire-wash); }
-.stage-btn.amber, .stage-btn.gold { background: var(--gold-wash); border-color: var(--gold-line); }
+.stage-btn.amber, .stage-btn.gold, .stage-btn.suggested { background: var(--sapphire-wash); border-color: var(--sapphire-line); color: var(--sapphire-deep); font-weight: 600; }
 .stage-btn small { font-weight: 400; color: var(--ink-soft); font-size: 12px; }
 .stage-btn:disabled { opacity: 0.6; cursor: default; }
 

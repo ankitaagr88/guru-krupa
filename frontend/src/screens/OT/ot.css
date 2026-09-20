@@ -37,8 +37,9 @@
 /* case drawer */
 .ot-drawer .drawer-body { padding-top: 12px; }
 .ot-status-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-.ot-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: 0 0 14px; overflow-x: auto; }
-.ot-tab { flex: none; background: none; border: none; border-bottom: 2px solid transparent; padding: 9px 11px; font-family: var(--font-ui); font-weight: 500; font-size: 13px; color: var(--ink-soft); cursor: pointer; white-space: nowrap; margin-bottom: -1px; }
+.ot-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin: 0 0 14px; overflow-x: auto; scrollbar-width: none; }
+.ot-tabs::-webkit-scrollbar { display: none; }
+.ot-tab { flex: none; background: none; border: none; border-bottom: 2px solid transparent; padding: 9px 9px; font-family: var(--font-ui); font-weight: 500; font-size: 13px; color: var(--ink-soft); cursor: pointer; white-space: nowrap; margin-bottom: -1px; }
 .ot-tab:hover { color: var(--ink); }
 .ot-tab.active { color: var(--sapphire-deep); border-bottom-color: var(--sapphire); font-weight: 600; }
 .ot-tab .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--done); margin-left: 6px; vertical-align: middle; }
@@ -62,3 +63,4 @@ body.mobile-mode .ot-wrap { max-width: none; }
 body.mobile-mode .ot-manual-grid { grid-template-columns: 1fr 1fr; }
 body.mobile-mode .ot-manual-grid .fake-input:first-child { grid-column: 1 / -1; }
 body.mobile-mode .rx-grid { grid-template-columns: repeat(2, 1fr); }
+body:not(.mobile-mode) .ot-drawer .capture-btn { display: flex; }

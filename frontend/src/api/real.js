@@ -85,6 +85,9 @@ export const readings = {
   get: (id) => data(client.get(`/readings/${id}`)),
   setValues: (id, vals) => data(client.patch(`/readings/${id}/values`, { values: vals })),
   remove: (id) => data(client.delete(`/readings/${id}`)),
+  // A person confirms the values (optionally correcting them in the same call). The printout
+  // photo is deleted server-side; imagePath/imageUrl come back null. 409 while OCR still runs.
+  approve: (id, values) => data(client.post(`/readings/${id}/approve`, values ? { values } : {})),
   apply: (id) => data(client.post(`/readings/${id}/apply`)),
   examPhotos: (visitId) => data(client.get(`/visits/${visitId}/exam-photos`)),
   addExamPhoto: (visitId, meta) => {
@@ -125,6 +128,15 @@ export const ot = {
     );
   },
   removeConsentPhoto: (_caseId, photoId) => data(client.delete(`/ot/consent-photos/${photoId}`)),
+  // Photo of the HBM-1 biometry / IOL report → {case, values:[{l,v,ok}], confidence}; readable
+  // values are already merged into case.preOpBiometry.
+  scanBiometry: (id, file) => {
+    const fd = new FormData();
+    fd.append('image', file, file.name || 'biometry.jpg');
+    return data(
+      client.post(`/ot/cases/${id}/biometry/scan`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+    );
+  },
 };
 
 export const prescriptions = {

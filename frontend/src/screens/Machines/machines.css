@@ -27,6 +27,7 @@
 .reading-actions .btn-ghost { flex: none; padding: 8px 13px; font-size: 13px; line-height: 18px; }
 .reading-note { font-family: var(--font-ui); font-size: 12px; line-height: 17px; color: var(--ink-soft); margin: 8px 0 0; }
 .reading-note.err { color: var(--alert-ink); }
+.reading-note.reading-approved { color: var(--done-ink); font-weight: 500; }
 .reading-conf { font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); }
 .reading-thumb { display: block; margin-top: 10px; max-height: 140px; max-width: 100%; border-radius: 8px; border: 1px solid var(--line); object-fit: cover; }
 

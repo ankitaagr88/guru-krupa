@@ -2,16 +2,19 @@ import { useEffect, useState } from 'react';
 import { readings as readingsApi, errorMessage } from '../../api';
 import { useAuthedImage } from '../../lib/useAuthedImage';
 import ManualEntryForm from './ManualEntryForm';
-import { STATUS_META, isBusy, isLowValue, readingLabel, readingValues, sourceLine } from './lib';
+import { STATUS_META, fmtWhen, isBusy, isLowValue, readingLabel, readingValues, sourceLine } from './lib';
 
 /* One reading (mockup `.reading-card`): status chip, the extracted values as
-   editable inputs (coral when `ok:false` / low confidence), "Save corrections"
-   → PATCH /readings/{id}/values, manual fallback for failed OCR, delete. */
+   editable inputs (alert when `ok:false` / low confidence), "Save corrections"
+   → PATCH /readings/{id}/values, "Approve" → POST /readings/{id}/approve (the
+   printout photo is deleted once a person has approved), manual fallback for
+   failed OCR, delete. */
 export default function ReadingCard({ reading: r, machines, onChange, onRemove }) {
   const meta = STATUS_META[r.status] || { label: r.status, cls: '' };
   const values = readingValues(r);
   const [edits, setEdits] = useState({});
   const [saving, setSaving] = useState(false);
+  const [approving, setApproving] = useState(false);
   const [err, setErr] = useState('');
   const [manual, setManual] = useState(false);
   const [showImg, setShowImg] = useState(false);
@@ -40,6 +43,23 @@ export default function ReadingCard({ reading: r, machines, onChange, onRemove }
     }
   };
 
+  // Approve = "a person has checked these numbers". Unsaved edits go along in the
+  // same call, so one tap both corrects and approves.
+  const approve = async () => {
+    setApproving(true);
+    setErr('');
+    try {
+      const next = dirty ? values.map((v) => ({ l: v.l, v: String(edits[v.l] ?? v.v ?? '').trim() })) : undefined;
+      const updated = await readingsApi.approve(r.id, next);
+      setEdits({});
+      onChange?.(updated);
+    } catch (ex) {
+      setErr(errorMessage(ex, 'Could not approve'));
+    } finally {
+      setApproving(false);
+    }
+  };
+
   const remove = async () => {
     if (!window.confirm('Remove this reading?')) return;
     try {
@@ -50,7 +70,10 @@ export default function ReadingCard({ reading: r, machines, onChange, onRemove }
     }
   };
 
-  const hasImage = !!(r.imageUrl || r.imagePath);
+  const hasImage = !!(r.imageUrl || r.imagePath) && !r.approved;
+  const approvedLine = r.approved
+    ? `Approved${r.approvedBy ? ` by ${r.approvedBy}` : ''}${r.approvedAt ? `, ${fmtWhen(r.approvedAt)}` : ''}`
+    : '';
 
   return (
     <div className={`reading-card status-${r.status}`} data-testid={`reading-${r.id}`}>
@@ -61,8 +84,8 @@ export default function ReadingCard({ reading: r, machines, onChange, onRemove }
           {r.confidence != null && r.status === 'done' && (
             <span className="reading-conf">OCR {Math.round(r.confidence * 100)}%</span>
           )}
-          <span className={`status-pill ${meta.cls}`} data-testid="reading-status">
-            {meta.label}
+          <span className={`status-pill ${r.approved ? 'done' : meta.cls}`} data-testid="reading-status">
+            {r.approved ? 'Approved' : meta.label}
           </span>
           {!isBusy(r) && (
             <button type="button" className="rm" onClick={remove} aria-label="Remove reading" title="Remove">
@@ -130,10 +153,22 @@ export default function ReadingCard({ reading: r, machines, onChange, onRemove }
               })}
             </div>
           )}
-          {(dirty || err) && (
+          {(dirty || err || !r.approved) && values.length > 0 && (
             <div className="reading-actions">
+              {!r.approved && (
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={approve}
+                  disabled={approving || saving}
+                  data-testid="approve-reading"
+                  title="Confirms these values are right. The printout photo is deleted."
+                >
+                  {approving ? 'Approving…' : dirty ? 'Save and approve' : 'Approve'}
+                </button>
+              )}
               {dirty && (
-                <button type="button" className="btn-primary" onClick={save} disabled={saving}>
+                <button type="button" className="btn-ghost" onClick={save} disabled={saving || approving}>
                   {saving ? 'Saving…' : 'Save corrections'}
                 </button>
               )}
@@ -145,8 +180,13 @@ export default function ReadingCard({ reading: r, machines, onChange, onRemove }
               {err && <span className="reading-note err">{err}</span>}
             </div>
           )}
-          {values.some((v) => isLowValue(v, r)) && !dirty && (
-            <p className="reading-note">Highlighted values need a check against the printout.</p>
+          {r.approved && !dirty && (
+            <p className="reading-note reading-approved" data-testid="reading-approved">
+              {approvedLine} · photo deleted
+            </p>
+          )}
+          {values.some((v) => isLowValue(v, r)) && !dirty && !r.approved && (
+            <p className="reading-note">Highlighted values need a check against the printout, then approve.</p>
           )}
         </>
       )}

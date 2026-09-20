@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderShell } from '../../test/utils';
 import { ot as otApi } from '../../api';
@@ -110,5 +110,25 @@ describe('OT screen (F6)', () => {
     await userEvent.click(within(drawer).getByText('Start surgery'));
     await waitFor(() => expect(within(drawer).getByTestId('ot-case-status')).toHaveTextContent('In progress'));
     await waitFor(() => expect(screen.getByTestId('ot-row-1')).toHaveTextContent('In progress'));
+  });
+
+  it('scan biometry report fills the pre-op grid and reports unreadable values', async () => {
+    renderOT();
+    await userEvent.click(await screen.findByTestId('ot-row-1'));
+    const drawer = document.getElementById('otCaseDrawer');
+    await waitFor(() => expect(drawer).toHaveClass('show'));
+    expect(within(drawer).getByLabelText('AL (axial length) L')).toHaveValue('22.80mm');
+
+    const input = within(drawer).getByTestId('biometry-input');
+    fireEvent.change(input, { target: { files: [new File(['hbm1'], 'hbm1.jpg', { type: 'image/jpeg' })] } });
+    expect(await within(drawer).findByTestId('biometry-busy')).toBeInTheDocument();
+    const note = await within(drawer).findByTestId('biometry-note', {}, { timeout: 4000 });
+    expect(note).toHaveTextContent('Filled 7 values');
+    expect(note).toHaveTextContent('Could not read: K2 (L)');
+    expect(within(drawer).getByLabelText('AL (axial length) L')).toHaveValue('23.05mm');
+    expect(within(drawer).getByLabelText('K1 L')).toHaveValue('43.50D');
+    expect(within(drawer).getByLabelText('K2 R')).toHaveValue('44.10D');
+    // the unreadable value is left as it was, not overwritten
+    expect(within(drawer).getByLabelText('K2 L')).toHaveValue('43.93D');
   });
 });
