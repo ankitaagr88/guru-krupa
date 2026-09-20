@@ -15,6 +15,7 @@ from app.routes import admin as _admin  # noqa: E402,F401
 from app.routes import appointments as _appointments  # noqa: E402,F401
 from app.routes import auth as _auth  # noqa: E402,F401
 from app.routes import dilation as _dilation  # noqa: E402,F401
+from app.routes import imports as _imports  # noqa: E402,F401
 from app.routes import inventory as _inventory  # noqa: E402,F401
 from app.routes import mr as _mr  # noqa: E402,F401
 from app.routes import ot as _ot  # noqa: E402,F401

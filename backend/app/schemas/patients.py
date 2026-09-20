@@ -50,6 +50,7 @@ class PatientPatch(CamelModel):
 class PatientOut(CamelModel):
     id: int
     name: str
+    external_id: str | None = None  # id in the previous system (KiviHealth Local Id)
     age: int | None
     sex: Sex
     phone: str | None

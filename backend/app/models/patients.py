@@ -15,6 +15,8 @@ class Patient(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(120), index=True)
+    # Id in the previous system (KiviHealth "Local Id", e.g. GK1234); lets a re-import update, not duplicate.
+    external_id: Mapped[str | None] = mapped_column(String(40), unique=True, index=True)
     age: Mapped[int | None] = mapped_column(Integer)
     sex: Mapped[str | None] = mapped_column(String(1))
     phone: Mapped[str | None] = mapped_column(String(20), index=True)
