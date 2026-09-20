@@ -95,7 +95,7 @@ export default function NewPatientModal({ open, onClose, onSubmit, config, busy 
           autoFocus
         />
         {error && (
-          <p className="hint" style={{ color: 'var(--coral)', margin: '-4px 0 8px' }}>
+          <p className="hint" style={{ color: 'var(--alert-ink)', margin: '-4px 0 8px' }}>
             {error}
           </p>
         )}

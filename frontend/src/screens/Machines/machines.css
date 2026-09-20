@@ -1,65 +1,66 @@
-/* Machines screen (F5) — extends the mockup's .test-opt / .reading-card / .capture-flash styles. */
-.machines-wrap { max-width: 720px; }
+/* Machines screen (F5) — extends the shared .test-opt / .reading-card / .capture-flash styles. */
+.machines-wrap { max-width: 760px; }
 .machines-head-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
-.machine-demo-btn { font-size: 10.5px; padding: 6px 10px; width: auto; margin-bottom: 10px; flex: none; }
+.machine-demo-btn { font-size: 12px; line-height: 16px; padding: 7px 12px; width: auto; margin-bottom: 12px; flex: none; }
 
-.machine-list-empty { font-family: var(--font-body); font-size: 11.5px; color: var(--faint); }
-.machine-patient-meta { color: var(--faint); font-weight: 500; }
+.machine-list-empty { font-family: var(--font-ui); font-size: 13px; color: var(--ink-faint); }
+.machine-patient-meta { color: var(--ink-faint); font-weight: 400; font-size: 13px; }
 
 .machine-opts { margin-bottom: 4px; }
 .machine-opts .test-opt { position: relative; }
-.machine-opts .test-opt .manual-tag { font-family: var(--font-body); font-weight: 600; font-size: 10px; color: var(--teal-deep); background: var(--teal-wash); padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
-.machine-opts .test-opt .done-tag.failed { color: var(--coral); background: var(--coral-wash); }
-.machine-type-link { background: none; border: none; color: var(--teal-deep); font-family: var(--font-body); font-size: 11px; text-decoration: underline; cursor: pointer; padding: 0; margin: -2px 0 10px; }
+.machine-opts .test-opt .test-opt-label { display: inline-flex; align-items: center; gap: 9px; }
+.machine-opts .test-opt .test-opt-label svg { width: 18px; height: 18px; color: var(--ink-soft); flex-shrink: 0; }
+.machine-opts .test-opt .manual-tag { font-family: var(--font-ui); font-weight: 500; font-size: 11px; color: var(--sapphire-deep); background: var(--sapphire-wash); padding: 4px 9px; border-radius: 6px; white-space: nowrap; }
+.machine-opts .test-opt .done-tag.failed { color: var(--alert-ink); background: var(--alert-wash); }
+.machine-type-link { background: none; border: none; color: var(--sapphire); font-family: var(--font-ui); font-size: 12px; text-decoration: underline; cursor: pointer; padding: 0; margin: -2px 0 10px; }
 
 .reading-card .reading-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
-.reading-card .reading-head .m { font-family: var(--font-head); font-weight: 700; font-size: 12.5px; }
-.reading-card .reading-head .src { font-family: var(--font-body); font-size: 10.5px; color: var(--faint); }
 .reading-card .reading-head .rh-right { display: flex; align-items: center; gap: 6px; margin-left: auto; }
-.reading-card .reading-head .rm { background: none; border: none; color: var(--faint); cursor: pointer; font-size: 13px; padding: 2px 4px; }
-.reading-card .reading-head .rm:hover { color: var(--coral); }
-.reading-val.low { border-color: var(--coral); background: var(--coral-wash); }
-.reading-val.low input { color: var(--coral); }
-.reading-val.low label::after { content: ' ⚠'; color: var(--coral); }
-.reading-actions { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
-.reading-actions .btn-primary { padding: 7px 12px; font-size: 11.5px; }
-.reading-actions .btn-ghost { flex: none; padding: 7px 12px; font-size: 11.5px; }
-.reading-note { font-family: var(--font-body); font-size: 11px; color: var(--muted); margin: 6px 0 0; }
-.reading-note.err { color: var(--coral); }
-.reading-conf { font-family: var(--font-body); font-size: 10.5px; color: var(--faint); }
-.reading-thumb { display: block; margin-top: 8px; max-height: 120px; max-width: 100%; border-radius: 7px; border: 1px solid var(--line); object-fit: cover; }
+.reading-card .reading-head .rm { background: none; border: none; color: var(--ink-faint); cursor: pointer; font-size: 14px; padding: 2px 4px; }
+.reading-card .reading-head .rm:hover { color: var(--alert); }
+.reading-val.low { border-color: var(--alert-line); background: var(--alert-wash); }
+.reading-val.low input { color: var(--alert-ink); }
+.reading-val.low label::after { content: ' !'; color: var(--alert-ink); font-weight: 600; }
+.reading-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.reading-actions .btn-primary { padding: 8px 13px; font-size: 13px; line-height: 18px; }
+.reading-actions .btn-ghost { flex: none; padding: 8px 13px; font-size: 13px; line-height: 18px; }
+.reading-note { font-family: var(--font-ui); font-size: 12px; line-height: 17px; color: var(--ink-soft); margin: 8px 0 0; }
+.reading-note.err { color: var(--alert-ink); }
+.reading-conf { font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); }
+.reading-thumb { display: block; margin-top: 10px; max-height: 140px; max-width: 100%; border-radius: 8px; border: 1px solid var(--line); object-fit: cover; }
 
-.manual-form { background: var(--surface); border: 1px dashed var(--line); border-radius: 9px; padding: 10px 12px; margin: 6px 0 10px; }
-.manual-form .mf-title { font-family: var(--font-head); font-weight: 700; font-size: 12px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-.manual-form .mf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; }
-.manual-form .mf-grid label { display: flex; flex-direction: column; gap: 3px; font-family: var(--font-body); font-size: 10.5px; color: var(--muted); }
-.manual-form .mf-grid input { border: 1px solid var(--line); border-radius: 7px; padding: 7px 8px; font-family: var(--font-body); font-size: 12px; background: var(--bg); }
-.manual-form .mf-grid input:focus { outline: none; border-color: var(--teal); }
-.manual-form .modal-actions { margin-top: 10px; }
+.manual-form { background: var(--surface); border: 1px dashed var(--line-strong); border-radius: 10px; padding: 12px 14px; margin: 6px 0 10px; }
+.manual-form .mf-title { font-family: var(--font-ui); font-weight: 600; font-size: 14px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+.manual-form .mf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.manual-form .mf-grid label { display: flex; flex-direction: column; gap: 4px; font-family: var(--font-ui); font-size: 11px; font-weight: 600; color: var(--ink-soft); }
+.manual-form .mf-grid input { border: 1px solid var(--line); border-radius: 8px; padding: 8px 9px; font-family: var(--font-mono); font-size: 14px; background: var(--surface-sunk); color: var(--ink); font-variant-numeric: tabular-nums; }
+.manual-form .mf-grid input:focus { outline: 2px solid var(--focus); outline-offset: 1px; border-color: var(--sapphire); }
+.manual-form .modal-actions { margin-top: 12px; }
 
 .photo-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
-.photo-tile { position: relative; width: 96px; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: var(--bg); }
+.photo-tile { position: relative; width: 100px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface-sunk); }
 .photo-tile img { display: block; width: 100%; height: 72px; object-fit: cover; }
-.photo-tile .ph-empty { height: 72px; display: flex; align-items: center; justify-content: center; font-size: 22px; }
-.photo-tile .ph-cap { font-family: var(--font-body); font-size: 9.5px; color: var(--muted); padding: 4px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.photo-tile .rm { position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; border-radius: 50%; border: none; background: rgba(255, 255, 255, 0.9); color: var(--coral); font-size: 11px; cursor: pointer; line-height: 1; }
+.photo-tile .ph-empty { height: 72px; display: flex; align-items: center; justify-content: center; color: var(--ink-faint); }
+.photo-tile .ph-empty svg { width: 22px; height: 22px; }
+.photo-tile .ph-cap { font-family: var(--font-mono); font-size: 11px; color: var(--ink-soft); padding: 4px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.photo-tile .rm { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 50%; border: none; background: var(--surface); color: var(--alert-ink); font-size: 12px; cursor: pointer; line-height: 1; box-shadow: var(--shadow-sm); }
 
-/* Capture controls: the mockup hides .capture-btn on desktop; here desktop gets a
+/* Capture controls: the shared rule hides .capture-btn on desktop; here desktop gets a
    plain file input for testing next to the "use your phone" note. */
 body:not(.mobile-mode) .machines-wrap .capture-btn, body:not(.mobile-mode) .ot-drawer .capture-btn { display: flex; }
-.capture-file-row { display: flex; align-items: center; gap: 8px; margin: 8px 0 12px; font-family: var(--font-body); font-size: 11px; color: var(--muted); flex-wrap: wrap; }
-.capture-file-row input[type='file'] { font-size: 11px; max-width: 100%; }
+.capture-file-row { display: flex; align-items: center; gap: 8px; margin: 8px 0 12px; font-family: var(--font-ui); font-size: 12px; color: var(--ink-soft); flex-wrap: wrap; }
+.capture-file-row input[type='file'] { font-size: 12px; max-width: 100%; }
 
 /* Pending (offline) list */
 .pending-card .summary-line { display: flex; justify-content: space-between; gap: 8px; }
-.pending-card .summary-line small { color: var(--coral); font-weight: 600; }
+.pending-card .summary-line small { color: var(--alert-ink); font-weight: 500; }
 
 /* PWA install prompt (beforeinstallprompt) */
-.install-prompt { display: inline-flex; align-items: center; gap: 8px; background: var(--teal-wash); border: 1px solid #d3e4dc; border-radius: 9px; padding: 6px 8px 6px 12px; font-family: var(--font-body); font-size: 11.5px; color: var(--teal-deep); }
-.install-prompt button { border: none; border-radius: 7px; padding: 6px 10px; font-family: var(--font-head); font-weight: 700; font-size: 11px; cursor: pointer; background: var(--teal); color: #fff; }
-.install-prompt button.dismiss { background: transparent; color: var(--muted); padding: 6px 4px; }
-.install-prompt.installed { background: var(--sage-wash); color: var(--sage); border-color: #bfe6d2; }
+.install-prompt { display: inline-flex; align-items: center; gap: 8px; background: var(--sapphire-wash); border: 1px solid var(--sapphire-line); border-radius: 10px; padding: 7px 8px 7px 13px; font-family: var(--font-ui); font-size: 13px; color: var(--sapphire-deep); }
+.install-prompt button { border: none; border-radius: 8px; padding: 7px 12px; font-family: var(--font-ui); font-weight: 600; font-size: 12px; cursor: pointer; background: var(--sapphire); color: var(--on-sapphire); }
+.install-prompt button.dismiss { background: transparent; color: var(--ink-soft); padding: 6px 6px; }
+.install-prompt.installed { background: var(--done-wash); color: var(--done-ink); border-color: var(--done-line); }
 
 body.mobile-mode .machines-wrap { max-width: none; }
 body.mobile-mode .install-prompt { width: 100%; justify-content: space-between; }

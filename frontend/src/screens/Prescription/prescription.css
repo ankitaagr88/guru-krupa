@@ -1,7 +1,7 @@
 /* Prescription modal + print sheet (F7). Base .rx-* / .med-* classes live in
-   global.css (ported from the mockup); these are the additions. */
+   global.css; these are the additions. */
 .rx-modal {
-  width: 460px;
+  width: 480px;
   max-height: 92vh;
   overflow-y: auto;
 }
@@ -10,55 +10,61 @@
   height: 44px;
   border-radius: 50%;
   object-fit: cover;
-  margin: 0 auto 6px;
+  margin: 0 auto 8px;
   display: block;
-  border: 2px solid var(--teal-wash);
+  border: 2px solid var(--sapphire-wash);
 }
 .rx-patient b {
-  font-family: var(--font-head);
-  font-weight: 700;
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: 15px;
 }
 .rx-cols {
   display: flex;
   justify-content: space-between;
-  font-family: var(--font-head);
-  font-size: 10.5px;
-  font-weight: 700;
-  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 600;
+  color: var(--ink-soft);
   text-transform: uppercase;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.6px;
   margin-bottom: 6px;
 }
 .rx-none {
-  font-family: var(--font-body);
-  font-size: 11.5px;
-  color: var(--faint);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--ink-faint);
   margin: 0 0 4px;
 }
 .med-row {
   align-items: flex-start;
 }
 .rx-avail {
-  font-family: var(--font-body);
-  font-weight: 600;
-  font-size: 9.5px;
-  padding: 1px 6px;
+  font-family: var(--font-ui);
+  font-weight: 500;
+  font-size: 11px;
+  line-height: 15px;
+  padding: 1px 7px;
   border-radius: 5px;
-  background: var(--bg);
-  color: var(--muted);
+  background: var(--surface-sunk);
+  color: var(--ink-soft);
   white-space: nowrap;
 }
-.rx-avail.sage {
-  background: var(--sage-wash);
-  color: var(--sage);
+.rx-avail.sage,
+.rx-avail.done {
+  background: var(--done-wash);
+  color: var(--done-ink);
 }
-.rx-avail.amber {
-  background: var(--amber-wash);
-  color: var(--amber-ink);
+.rx-avail.amber,
+.rx-avail.gold {
+  background: var(--gold-wash);
+  color: var(--gold-deep);
 }
-.rx-avail.coral {
-  background: var(--coral-wash);
-  color: var(--coral);
+.rx-avail.coral,
+.rx-avail.alert {
+  background: var(--alert-wash);
+  color: var(--alert-ink);
 }
 .rx-qty {
   display: flex;
@@ -68,49 +74,50 @@
   flex-shrink: 0;
 }
 .rx-qty label {
-  font-family: var(--font-body);
-  font-size: 9.5px;
-  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--ink-soft);
   font-weight: 600;
 }
 .rx-qty small {
-  font-family: var(--font-body);
-  font-size: 9.5px;
-  color: var(--faint);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--ink-faint);
 }
 .rx-qty-ctl {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
 }
 .rx-qty-ctl button {
-  width: 22px;
-  height: 22px;
-  border: none;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--line);
   border-radius: 6px;
   background: var(--surface);
-  color: var(--teal-deep);
-  font-weight: 700;
+  color: var(--sapphire-deep);
+  font-weight: 600;
   cursor: pointer;
   line-height: 1;
-  font-size: 13px;
-  box-shadow: var(--shadow-card);
+  font-size: 14px;
 }
 .rx-qty-ctl button:hover {
-  background: var(--teal);
-  color: #fff;
+  background: var(--sapphire);
+  border-color: var(--sapphire);
+  color: var(--on-sapphire);
 }
 .rx-qty-ctl input {
-  width: 38px;
+  width: 42px;
   text-align: center;
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 3px 4px;
-  font-family: var(--font-head);
-  font-weight: 700;
-  font-size: 12.5px;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 14px;
   background: var(--surface);
   color: var(--ink);
+  font-variant-numeric: tabular-nums;
   -moz-appearance: textfield;
 }
 .rx-qty-ctl input::-webkit-outer-spin-button,
@@ -119,73 +126,55 @@
   margin: 0;
 }
 .rx-split-note {
-  font-family: var(--font-body);
-  font-size: 11px;
-  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--ink-soft);
   margin: 2px 0 8px;
 }
 .rx-photo-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 100%;
-  border: 1.5px dashed var(--faint);
-  background: transparent;
-  border-radius: 9px;
-  padding: 11px;
   margin-top: 10px;
-  font-family: var(--font-head);
-  font-weight: 600;
-  font-size: 12.5px;
-  color: var(--muted);
-  cursor: pointer;
-}
-.rx-photo-btn:hover {
-  border-color: var(--teal);
-  color: var(--teal-deep);
 }
 .rx-photo-btn:disabled {
   opacity: 0.6;
   cursor: default;
 }
 .rx-lang {
-  margin-top: 14px;
+  margin-top: 16px;
 }
 .rx-lang .field-label {
   display: block;
   margin: 0 0 6px;
 }
 .rx-not-listed {
-  color: var(--amber-ink);
-  background: var(--amber-wash);
+  color: var(--gold-deep);
+  background: var(--gold-wash);
 }
 .rx-add-link {
   background: none;
   border: none;
   padding: 0;
-  font-family: var(--font-body);
-  font-weight: 600;
-  font-size: 10.5px;
-  color: var(--teal);
+  font-family: var(--font-ui);
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--sapphire);
   cursor: pointer;
   text-decoration: underline;
 }
 .rx-add-link:hover {
-  color: var(--teal-deep);
+  color: var(--sapphire-deep);
 }
 .rx-add-med {
   margin-top: 8px;
-  padding: 10px;
-  border: 1px dashed var(--teal);
-  border-radius: 8px;
+  padding: 12px;
+  border: 1px dashed var(--sapphire-line);
+  border-radius: 10px;
   background: var(--surface);
 }
 .rx-add-med-title {
-  font-family: var(--font-head);
-  font-weight: 700;
-  font-size: 11.5px;
-  color: var(--teal-deep);
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--sapphire-deep);
   margin: 0 0 8px;
 }
 .rx-modal .modal-actions .btn-ghost {
@@ -215,7 +204,7 @@
     left: 0;
     width: 100%;
     color: #000;
-    font-family: var(--font-body), 'Inter', Arial, sans-serif;
+    font-family: var(--font-ui), Arial, sans-serif;
     font-size: 11.5px;
   }
   .rx-print-table tr {
@@ -230,7 +219,7 @@
   grid-template-columns: 64px 1fr auto;
   gap: 14px;
   align-items: center;
-  border-bottom: 2px solid #1e3a8a;
+  border-bottom: 2px solid var(--sapphire-ink);
   padding-bottom: 10px;
 }
 .rx-print-logo {
@@ -240,10 +229,11 @@
   object-fit: cover;
 }
 .rx-print-hosp h1 {
-  font-family: var(--font-head), Arial, sans-serif;
+  font-family: var(--font-serif), Georgia, serif;
   font-size: 20px;
+  font-weight: 700;
   margin: 0;
-  color: #1e3a8a;
+  color: var(--sapphire-ink);
 }
 .rx-print-tag {
   font-size: 11px;
@@ -262,8 +252,9 @@
   flex-direction: column;
 }
 .rx-print-doc b {
+  font-family: var(--font-serif), Georgia, serif;
   font-size: 13px;
-  color: #1e3a8a;
+  color: var(--sapphire-ink);
 }
 .rx-print-patient {
   display: flex;
@@ -272,11 +263,14 @@
   padding: 10px 0;
   border-bottom: 1px dashed #bbb;
 }
+.rx-print-patient b {
+  font-family: var(--font-serif), Georgia, serif;
+}
 .rx-print-rx {
   font-size: 26px;
-  color: #1e3a8a;
+  color: var(--sapphire-ink);
   margin: 10px 0 4px;
-  font-family: Georgia, serif;
+  font-family: var(--font-serif), Georgia, serif;
 }
 .rx-print-table {
   width: 100%;
@@ -300,8 +294,9 @@
   max-width: 46%;
 }
 .rx-print-brand {
-  font-weight: 700;
-  font-size: 13px;
+  font-family: var(--font-serif), Georgia, serif;
+  font-weight: 600;
+  font-size: 14px;
 }
 .rx-print-comp {
   font-size: 10px;
@@ -318,8 +313,8 @@
 }
 .rx-print-type {
   font-size: 10px;
-  color: #1e3a8a;
-  border: 1px solid #1e3a8a;
+  color: var(--sapphire-ink);
+  border: 1px solid var(--sapphire-ink);
   border-radius: 4px;
   padding: 0 5px;
   line-height: 1.5;
@@ -365,37 +360,44 @@
 .rx-list-filters .rx-filter {
   border: 1px solid var(--line);
   background: var(--surface);
-  border-radius: 20px;
-  padding: 6px 12px;
-  font-family: var(--font-head);
-  font-weight: 700;
-  font-size: 11.5px;
-  color: var(--muted);
+  border-radius: 9999px;
+  padding: 8px 14px;
+  font-family: var(--font-ui);
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--ink-soft);
   cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.rx-list-filters .rx-filter:hover {
+  border-color: var(--sapphire);
+  color: var(--sapphire-deep);
 }
 .rx-list-filters .rx-filter.active {
-  background: var(--teal-wash);
-  border-color: var(--teal);
-  color: var(--teal-deep);
+  background: var(--sapphire-wash);
+  border-color: var(--sapphire);
+  color: var(--sapphire-deep);
+  font-weight: 600;
 }
 .rx-list-wrap .data-table tbody tr {
   cursor: pointer;
 }
 .rx-open-btn {
-  background: var(--teal-wash);
-  color: var(--teal-deep);
+  background: var(--sapphire-wash);
+  color: var(--sapphire-deep);
   border: none;
-  border-radius: 8px;
-  padding: 7px 12px;
-  font-family: var(--font-head);
-  font-weight: 700;
-  font-size: 12px;
+  border-radius: 10px;
+  padding: 8px 13px;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 13px;
   cursor: pointer;
   white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
 }
 .rx-open-btn:hover {
-  background: var(--teal);
-  color: #fff;
+  background: var(--sapphire);
+  color: var(--on-sapphire);
 }
 body.mobile-mode .rx-modal {
   width: 94vw;

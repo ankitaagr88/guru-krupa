@@ -61,7 +61,7 @@ export default function InstallPrompt() {
 
   return (
     <div className="install-prompt" role="status" data-testid="install-prompt">
-      <span>📲 Install Gurukrupa on this phone for camera + offline capture</span>
+      <span>Install Guru Krupa on this phone for camera and offline capture</span>
       <button type="button" onClick={install}>
         Install
       </button>

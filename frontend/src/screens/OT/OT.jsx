@@ -157,7 +157,7 @@ export default function OT() {
                   <td className="no-label">
                     <button
                       type="button"
-                      className="reorder-btn ot-open-btn"
+                      className="rx-open-btn ot-open-btn"
                       onClick={(e) => {
                         e.stopPropagation();
                         openCase(k);

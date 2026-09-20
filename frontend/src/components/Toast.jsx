@@ -34,7 +34,7 @@ export function ToastProvider({ children }) {
       /** mockup pushToast(p, extraLine) */
       dilationDue: (p, extraLine) =>
         push({
-          title: '⏰ Dilation wait is up',
+          title: 'Dilation wait is up',
           body: `${p.name} (${p.token}) — ${extraLine}`,
           variant: 'alert',
           key: `dil-${p.id}`,
@@ -42,15 +42,15 @@ export function ToastProvider({ children }) {
       /** mockup pushLowStockToast(item) */
       lowStock: (item) =>
         push({
-          title: '📦 Running low',
+          title: 'Running low',
           body: `${item.name} is down to ${item.stock} ${item.unit} — below the reorder point of ${item.reorder}.`,
           variant: 'low-stock',
           key: `low-${item.name}`,
         }),
       info: (title, body, timeout = 4000) =>
-        push({ title, body, variant: 'info', timeout, dismissLabel: 'OK' }),
+        push({ title, body, variant: 'info', timeout, dismissLabel: 'Got it' }),
       success: (title, body, timeout = 3500) =>
-        push({ title, body, variant: 'success', timeout, dismissLabel: 'OK' }),
+        push({ title, body, variant: 'success', timeout, dismissLabel: 'Got it' }),
       error: (title, body) => push({ title, body, variant: 'alert', dismissLabel: 'Dismiss' }),
     }),
     [push, dismiss]

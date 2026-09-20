@@ -81,7 +81,7 @@ export default function ReadingCard({ reading: r, machines, onChange, onRemove }
       {r.status === 'failed' && !manual && (
         <>
           <p className="reading-note err">
-            ✗ Couldn&apos;t read the printout{r.error ? ` — ${r.error}` : ''}. Retake the photo, or type the values.
+            Couldn&apos;t read the printout{r.error ? ` — ${r.error}` : ''}. Retake the photo, or type the values.
           </p>
           <div className="reading-actions">
             <button type="button" className="btn-primary" onClick={() => setManual(true)}>
@@ -146,7 +146,7 @@ export default function ReadingCard({ reading: r, machines, onChange, onRemove }
             </div>
           )}
           {values.some((v) => isLowValue(v, r)) && !dirty && (
-            <p className="reading-note">⚠ Highlighted values need a check against the printout.</p>
+            <p className="reading-note">Highlighted values need a check against the printout.</p>
           )}
         </>
       )}

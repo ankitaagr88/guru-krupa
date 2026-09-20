@@ -55,7 +55,7 @@ export function computeRowStatus(p, stageKey, now = Date.now()) {
       const remaining = step.min * 60 - elapsed;
       const overdue = remaining < 0;
       status = {
-        text: `${overdue ? 'Overdue' : '⏳'} ${fmtTime(remaining)} · Step ${stepNum}/${total} ${step.name}`,
+        text: `${overdue ? 'Overdue' : 'Dilating'} ${fmtTime(remaining)} · Step ${stepNum}/${total} ${step.name}`,
         cls: overdue ? 'coral' : 'amber',
         overdue,
       };

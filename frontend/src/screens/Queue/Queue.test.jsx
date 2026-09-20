@@ -128,7 +128,7 @@ describe('Dilation', () => {
       /0[45]:\d\d/
     );
     expect(within(drawer()).getByTestId('dstep-1')).toHaveTextContent('up next');
-    await waitFor(() => expect(screen.getByTestId('queue-row-5')).toHaveTextContent('⏳ 0'));
+    await waitFor(() => expect(screen.getByTestId('queue-row-5')).toHaveTextContent('Dilating 0'));
     const run = await visits.dilation(5);
     expect(run.steps[0].given).toBe(true);
     expect(run.steps[0].startedAt).toBeTruthy();
@@ -147,7 +147,7 @@ describe('Dilation', () => {
     expect(run.currentIndex).toBe(2);
     expect(run.steps[1].done).toBe(true);
     // Sangita (11 min into a 20 min step) is still counting down
-    expect(screen.getByTestId('queue-row-6')).toHaveTextContent(/⏳ 0[89]:\d\d · Step 2\/2/);
+    expect(screen.getByTestId('queue-row-6')).toHaveTextContent(/Dilating 0[89]:\d\d · Step 2\/2/);
   });
 
   it('asks for confirmation before sending a patient back mid-protocol', async () => {
@@ -191,7 +191,7 @@ describe('Prescription from the drawer (F14)', () => {
     window.print = vi.fn();
     renderQueue('/queue/doctor?patient=5');
     await waitFor(() => expect(drawer()).toHaveClass('show'));
-    const btn = await within(drawer()).findByRole('button', { name: /Prescription/ });
+    const btn = await within(drawer()).findByRole('button', { name: /prescription/i });
     expect(drawer()).toHaveTextContent('Timolol 0.5% eye drops');
     await waitFor(() => expect(within(drawer()).getAllByText('Drops')[0]).toHaveClass('med-type-chip'));
     await userEvent.click(btn);

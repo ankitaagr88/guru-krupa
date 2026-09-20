@@ -1,24 +1,18 @@
-/* Login (F1) — builds on the .login-* base in global.css. */
+/* Login (F1). The page is the navigation's navy; the card is a surface on it. */
 .login-page {
-  position: relative;
-  overflow: hidden;
-  background: radial-gradient(1200px 600px at 10% -10%, #24469a 0%, var(--teal-deep) 55%);
-}
-.login-glow {
-  position: absolute;
-  width: 520px;
-  height: 520px;
-  border-radius: 50%;
-  right: -160px;
-  bottom: -220px;
-  background: radial-gradient(circle, rgba(140, 217, 138, 0.22) 0%, rgba(140, 217, 138, 0) 70%);
-  pointer-events: none;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--nav-surface);
+  padding: 24px 16px;
 }
 .login-wrap {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 24px;
   width: 100%;
   max-width: 420px;
 }
@@ -26,107 +20,157 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  color: #fff;
+  color: var(--nav-ink);
 }
 .login-logo {
   width: 68px;
   height: 68px;
-  border-radius: 50%;
+  border-radius: 16px;
   object-fit: cover;
-  border: 3px solid rgba(255, 255, 255, 0.85);
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.6);
   flex-shrink: 0;
-  background: #fff;
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
 }
 .login-hero-text h1 {
-  font-family: var(--font-head);
-  font-size: 19px;
-  font-weight: 800;
-  margin: 2px 0 2px;
-  line-height: 1.2;
-  color: #fff;
+  font-family: var(--font-serif);
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 700;
+  margin: 2px 0;
+  color: var(--nav-ink);
 }
 .login-hero-text p {
-  font-family: var(--font-body);
-  font-size: 12px;
+  font-family: var(--font-ui);
+  font-size: 13px;
   margin: 0;
-  color: var(--rail-nav-fg);
+  color: var(--nav-ink-soft);
 }
 .login-eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--font-brand);
-  font-size: 10.5px;
-  letter-spacing: 0.8px;
+  display: inline-block;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
   text-transform: uppercase;
-  color: var(--rail-brand-accent);
-}
-.login-eyebrow svg {
-  width: 14px;
-  height: 14px;
+  color: var(--gold-bright);
 }
 .login-card {
+  background: var(--surface);
+  border-radius: 18px;
+  padding: 28px;
   width: 100%;
-  padding: 26px 26px 22px;
+  box-shadow: var(--shadow-lg);
+  color: var(--ink);
+}
+.login-card :focus-visible {
+  outline-color: var(--focus);
 }
 .login-brand {
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 .login-brand h1 {
-  font-size: 16px;
+  font-family: var(--font-serif);
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--ink);
+}
+.login-brand p {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--ink-soft);
+  margin: 4px 0 0;
+}
+.login-card label {
+  display: block;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  margin: 16px 0 8px;
+}
+.login-card .fake-input {
+  margin-bottom: 0;
 }
 .login-pw {
   position: relative;
 }
 .login-pw .fake-input {
-  padding-right: 58px;
+  padding-right: 64px;
 }
 .login-pw-toggle {
   position: absolute;
   right: 8px;
   top: 50%;
   transform: translateY(-50%);
-  background: var(--bg);
-  border: none;
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: 6px;
-  padding: 5px 8px;
-  font-family: var(--font-head);
-  font-weight: 700;
-  font-size: 11px;
-  color: var(--muted);
+  padding: 5px 9px;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--ink-soft);
   cursor: pointer;
 }
 .login-pw-toggle:hover {
-  color: var(--teal-deep);
+  color: var(--sapphire);
+  border-color: var(--sapphire);
+}
+.login-error {
+  margin-top: 12px;
+  background: var(--alert-wash);
+  color: var(--alert-ink);
+  border-radius: 10px;
+  padding: 10px 13px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+}
+.login-card .btn-primary {
+  width: 100%;
+  margin-top: 20px;
+  padding: 12px;
+}
+.login-foot {
+  margin-top: 18px;
+  text-align: center;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--ink-faint);
 }
 .login-credit {
   text-align: center;
-  font-family: var(--font-brand);
-  font-size: 11px;
-  color: var(--rail-fg);
-  opacity: 0.8;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--nav-ink-soft);
 }
 .login-credit u {
   text-decoration: none;
 }
 .login-credit b {
-  color: #fff;
-  font-weight: 800;
+  color: var(--nav-ink);
+  font-weight: 600;
 }
 .login-credit i {
   font-style: normal;
-  color: var(--rail-brand-accent);
-  font-weight: 800;
+  color: var(--gold-bright);
+  font-weight: 600;
 }
 @media (max-width: 480px) {
   .login-hero {
     flex-direction: column;
     text-align: center;
-    gap: 10px;
+    gap: 12px;
   }
   .login-hero-text h1 {
-    font-size: 17px;
+    font-size: 20px;
+    line-height: 26px;
   }
   .login-card {
     padding: 22px 18px 18px;

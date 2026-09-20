@@ -13,7 +13,7 @@ describe('Inventory', () => {
     expect(row).toHaveClass('inv-row-low');
     expect(within(row).getByText('Low stock')).toBeInTheDocument();
     expect(within(screen.getByTestId('inv-row-1')).getByText('OK')).toBeInTheDocument();
-    const toasts = await screen.findAllByText('📦 Running low');
+    const toasts = await screen.findAllByText('Running low');
     expect(toasts.length).toBeGreaterThanOrEqual(2); // Cyclopentolate + Latanoprost
     expect(screen.getByText(/Cyclopentolate 1% is down to 3 bottles/)).toBeInTheDocument();
   });

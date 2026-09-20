@@ -36,7 +36,7 @@ export default function BillingPanel({ bill, onItems, onPaymentMode, busy = fals
                 <td>{it.label}</td>
                 <td
                   data-label="Amount"
-                  style={{ textAlign: 'right', fontFamily: 'var(--font-head)', fontWeight: 700 }}
+                  style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 500 }}
                 >
                   ₹{it.amount}
                 </td>
@@ -46,7 +46,7 @@ export default function BillingPanel({ bill, onItems, onPaymentMode, busy = fals
                     onClick={() => remove(i)}
                     aria-label={`Remove ${it.label}`}
                     disabled={busy}
-                    style={{ background: 'none', border: 'none', color: 'var(--faint)', cursor: 'pointer' }}
+                    style={{ background: 'none', border: 'none', color: 'var(--ink-faint)', cursor: 'pointer' }}
                   >
                     ✕
                   </button>
@@ -85,7 +85,7 @@ export default function BillingPanel({ bill, onItems, onPaymentMode, busy = fals
         </button>
       </div>
       {error && (
-        <p className="hint" style={{ color: 'var(--coral)', margin: '6px 0 0' }}>
+        <p className="hint" style={{ color: 'var(--alert-ink)', margin: '6px 0 0' }}>
           {error}
         </p>
       )}

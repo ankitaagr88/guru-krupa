@@ -1,4 +1,4 @@
-/* Stock levels (F8) — additions to the mockup's table/admin-block styles. */
+/* Stock levels (F8) — additions to the shared table/admin-block styles. */
 .inv-tools {
   display: flex;
   align-items: center;
@@ -6,25 +6,31 @@
 }
 .inv-tools .fake-input {
   margin: 0;
-  width: 200px;
-  padding: 8px 11px;
+  width: 220px;
+  padding: 9px 12px;
 }
 .inv-low-toggle {
   border: 1px solid var(--line);
   background: var(--surface);
-  border-radius: 20px;
-  padding: 7px 12px;
-  font-family: var(--font-head);
-  font-weight: 700;
-  font-size: 11.5px;
-  color: var(--muted);
+  border-radius: 9999px;
+  padding: 8px 14px;
+  font-family: var(--font-ui);
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--ink-soft);
   cursor: pointer;
   white-space: nowrap;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.inv-low-toggle:hover {
+  border-color: var(--sapphire);
+  color: var(--sapphire-deep);
 }
 .inv-low-toggle.active {
-  background: var(--coral-wash);
-  border-color: var(--coral-line);
-  color: var(--coral);
+  background: var(--alert-wash);
+  border-color: var(--alert-line);
+  color: var(--alert-ink);
+  font-weight: 600;
 }
 .inv-wrap .data-table tbody tr {
   cursor: default;
@@ -33,10 +39,10 @@
   background: transparent;
 }
 .inv-row-low td {
-  background: #fff7f5;
+  background: var(--alert-wash);
 }
 .inv-row-low .td-name {
-  color: var(--coral);
+  color: var(--alert-ink);
 }
 .inv-stock-ctl {
   display: flex;
@@ -44,21 +50,23 @@
   gap: 8px;
 }
 .inv-stock-ctl .reorder-btn {
-  width: 26px;
-  height: 26px;
-  font-size: 12px;
+  width: 28px;
+  height: 28px;
+  font-size: 13px;
+  border-radius: 6px;
 }
 .inv-stock-num {
-  font-family: var(--font-head);
-  font-weight: 700;
-  font-size: 13px;
-  min-width: 30px;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 14px;
+  min-width: 32px;
   text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 .inv-unit {
-  font-family: var(--font-body);
-  font-size: 11px;
-  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--ink-soft);
 }
 .inv-row-actions {
   display: flex;
@@ -68,16 +76,17 @@
 .inv-link {
   background: none;
   border: none;
-  color: var(--teal);
-  font-family: var(--font-head);
-  font-weight: 700;
-  font-size: 11.5px;
+  color: var(--sapphire);
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 13px;
   cursor: pointer;
-  padding: 4px 6px;
+  padding: 4px 7px;
   border-radius: 6px;
 }
 .inv-link:hover {
-  background: var(--teal-wash);
+  background: var(--sapphire-wash);
+  color: var(--sapphire-deep);
 }
 .inv-add-row {
   flex-wrap: wrap;
@@ -99,56 +108,58 @@
   flex: 1;
   margin: 0;
   text-align: center;
-  font-family: var(--font-head);
-  font-weight: 700;
-  font-size: 15px;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
 }
 .inv-delta-row .reorder-btn {
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   font-size: 16px;
   border-radius: 8px;
 }
 .inv-move {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   align-items: flex-start;
-  padding: 9px 0;
+  padding: 10px 0;
   border-bottom: 1px dashed var(--line);
 }
 .inv-move-delta {
-  font-family: var(--font-head);
-  font-weight: 800;
-  font-size: 14px;
-  min-width: 38px;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 15px;
+  min-width: 40px;
   text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 .inv-move-delta.pos {
-  color: var(--sage);
+  color: var(--done-ink);
 }
 .inv-move-delta.neg {
-  color: var(--coral);
+  color: var(--alert-ink);
 }
 .inv-move-main {
   flex: 1;
 }
 .inv-move-reason {
-  font-family: var(--font-body);
-  font-size: 12.5px;
+  font-family: var(--font-ui);
+  font-size: 14px;
   font-weight: 600;
   color: var(--ink);
 }
 .inv-move-note {
-  font-family: var(--font-body);
-  font-size: 11.5px;
-  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--ink-soft);
   margin-top: 1px;
 }
 .inv-move-when {
-  font-family: var(--font-body);
-  font-size: 10.5px;
-  color: var(--faint);
-  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-faint);
+  margin-top: 3px;
 }
 body.mobile-mode .inv-tools {
   flex: 1;

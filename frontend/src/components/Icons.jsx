@@ -1,4 +1,5 @@
-/* Line icons lifted from the mockup's rail (24x24, stroke currentColor). */
+/* 24x24 outline icons, Feather-style: stroke currentColor, width 2. They inherit
+   colour from their container (design-system/brand-book.md, Iconography). */
 const base = {
   viewBox: '0 0 24 24',
   fill: 'none',
@@ -8,8 +9,10 @@ const base = {
   strokeLinejoin: 'round',
 };
 
-export const EyeMark = ({ color = '#1E3A8A' }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
+/* Placeholder mark until the clinic supplies a vector logo: an outline eye in
+   currentColor, so it takes the colour of whatever it sits on. */
+export const EyeMark = ({ color = 'currentColor' }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" aria-hidden="true">
     <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" />
     <circle cx="12" cy="12" r="3" fill={color} stroke="none" />
   </svg>
@@ -75,5 +78,82 @@ export const IconLogout = () => (
   <svg {...base}>
     <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
     <path d="M16 17l5-5-5-5M21 12H9" />
+  </svg>
+);
+export const IconMore = () => (
+  <svg {...base}>
+    <circle cx="5" cy="12" r="1.6" fill="currentColor" />
+    <circle cx="12" cy="12" r="1.6" fill="currentColor" />
+    <circle cx="19" cy="12" r="1.6" fill="currentColor" />
+  </svg>
+);
+export const IconChevronLeft = () => (
+  <svg {...base}>
+    <path d="M15 6l-6 6 6 6" />
+  </svg>
+);
+export const IconCamera = () => (
+  <svg {...base}>
+    <path d="M4 8h3l2-3h6l2 3h3a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1z" />
+    <circle cx="12" cy="13" r="3.5" />
+  </svg>
+);
+export const IconPaperclip = () => (
+  <svg {...base}>
+    <path d="M21 11.5l-8.5 8.5a5 5 0 01-7-7l9-9a3.3 3.3 0 014.7 4.7l-9 9a1.6 1.6 0 01-2.3-2.3l8.3-8.3" />
+  </svg>
+);
+export const IconPrint = () => (
+  <svg {...base}>
+    <path d="M6 9V3h12v6" />
+    <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" />
+    <rect x="6" y="14" width="12" height="7" />
+  </svg>
+);
+export const IconPencil = () => (
+  <svg {...base}>
+    <path d="M12 20h9" />
+    <path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
+  </svg>
+);
+export const IconUpload = () => (
+  <svg {...base}>
+    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+    <path d="M17 8l-5-5-5 5M12 3v12" />
+  </svg>
+);
+export const IconDownload = () => (
+  <svg {...base}>
+    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+    <path d="M7 10l5 5 5-5M12 15V3" />
+  </svg>
+);
+export const IconPhone = () => (
+  <svg {...base}>
+    <rect x="6" y="2" width="12" height="20" rx="2" />
+    <path d="M11 18h2" />
+  </svg>
+);
+export const IconAlert = () => (
+  <svg {...base}>
+    <path d="M12 3l10 18H2L12 3z" />
+    <path d="M12 10v4M12 17.5v.5" />
+  </svg>
+);
+export const IconCheck = () => (
+  <svg {...base}>
+    <path d="M5 12l5 5L20 7" />
+  </svg>
+);
+export const IconClock = () => (
+  <svg {...base}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </svg>
+);
+export const IconWifiOff = () => (
+  <svg {...base}>
+    <path d="M2 2l20 20" />
+    <path d="M8.5 16.5a5 5 0 017 0M5 13a10 10 0 015.2-2.8M12 20h.01M19 13a10 10 0 00-2.3-1.7M2 9a15 15 0 013.6-2.4M22 9a15 15 0 00-9-3.9" />
   </svg>
 );

@@ -27,7 +27,7 @@ export default function ConnectivityBanner() {
     return (
       <div className="connectivity-banner" role="status" data-testid="connectivity-banner">
         <span>
-          ⚠ No connection — photos will save on this device and process automatically once you&apos;re back
+          No connection — photos will save on this device and process automatically once you&apos;re back
           online
           {pendingCount > 0 ? ` · ${pendingCount} waiting` : ''}
         </span>
@@ -39,7 +39,7 @@ export default function ConnectivityBanner() {
     return (
       <div className="connectivity-banner back-online" role="status" data-testid="connectivity-banner">
         <span>
-          ✓ Back online
+          Back online
           {pendingCount > 0
             ? ` — processing ${pendingCount} queued capture${pendingCount === 1 ? '' : 's'}…`
             : ''}

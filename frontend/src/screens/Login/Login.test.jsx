@@ -22,7 +22,7 @@ function renderLogin(route = '/login') {
 describe('Login', () => {
   it('shows the hospital branding and validates empty fields', async () => {
     renderLogin();
-    expect(screen.getByText('Gurukrupa Eye Hospital & Research Center')).toBeInTheDocument();
+    expect(screen.getByText('Guru Krupa Eye Hospital & Laser Center')).toBeInTheDocument();
     expect(screen.getByText('Staff sign in')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));
     expect(screen.getByRole('alert')).toHaveTextContent('Enter your username and password');

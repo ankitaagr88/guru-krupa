@@ -133,7 +133,7 @@ export default function PrescriptionsToday() {
                       setSelected(v);
                     }}
                   >
-                    {i.hasPrescription ? '🖨 View / print' : '✎ Write Rx'}
+                    {i.hasPrescription ? 'View / print' : 'Write prescription'}
                   </button>
                 </td>
               </tr>

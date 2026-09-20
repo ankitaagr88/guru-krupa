@@ -334,7 +334,7 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved }) {
               disabled={saving || loading}
               type="button"
             >
-              🖨 Print
+              Print
             </button>
           </>
         }
@@ -518,7 +518,7 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved }) {
               disabled={photoBusy}
               type="button"
             >
-              {photoBusy ? 'Uploading…' : '📷 Photograph handwritten prescription'}
+              {photoBusy ? 'Uploading…' : 'Photograph handwritten prescription'}
               {photos > 0 && <span className="match-tag">{photos} attached</span>}
             </button>
             <input

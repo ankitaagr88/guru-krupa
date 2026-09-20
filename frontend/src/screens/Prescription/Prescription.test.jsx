@@ -40,7 +40,7 @@ describe('PrescriptionModal', () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
     const after = (await inventory.list()).find((i) => i.name === LATANO).stock;
     expect(after).toBe(before - 2);
-    expect(await screen.findByText('📦 Running low')).toBeInTheDocument();
+    expect(await screen.findByText('Running low')).toBeInTheDocument();
     expect(
       screen.getByText(new RegExp(`${LATANO.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} is down to 2 bottles`))
     ).toBeInTheDocument();

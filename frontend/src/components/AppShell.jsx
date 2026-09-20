@@ -11,9 +11,11 @@ import {
   activeNavKey,
   HOSPITAL_NAME,
   HOSPITAL_SHORT,
+  HOSPITAL_WORDMARK,
+  HOSPITAL_SUBTITLE,
   DOCTOR_NAME,
 } from '../nav';
-import { EyeMark, IconMenu, IconSearch, IconLogout } from './Icons';
+import { IconMenu, IconSearch, IconLogout, IconMore, IconChevronLeft } from './Icons';
 import ConnectivityBanner from './ConnectivityBanner';
 import SearchModal from './SearchModal';
 
@@ -57,7 +59,36 @@ function Clock() {
   );
 }
 
-function Rail({ items, activeKey, currentUser, onLogout, queueTotal }) {
+function Brand({ collapsed }) {
+  return (
+    <div className="sidenav-brand">
+      <div className="sidenav-mark">
+        <img src="/logo.jpg" alt="" />
+      </div>
+      {!collapsed && (
+        <div className="sidenav-wordmark">
+          <div className="w">{HOSPITAL_WORDMARK}</div>
+          <div className="s">{HOSPITAL_SUBTITLE}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Credit({ className }) {
+  return (
+    <div className={className}>
+      <u>created by</u> <b>ai</b>
+      <i>4</i>
+      <u>work</u>
+    </div>
+  );
+}
+
+/* Desktop SideNav: 244px, labelled, two groups, collapsible to a 72px icon rail.
+   The active item carries three signals — ground, white label, gold bar
+   (or a gold icon when collapsed). */
+function SideNav({ items, activeKey, currentUser, onLogout, queueTotal, collapsed, onToggle }) {
   const today = items.filter((i) => i.section === 'today');
   const manage = items.filter((i) => i.section === 'manage');
   const initials = (currentUser?.name || '?')
@@ -66,50 +97,61 @@ function Rail({ items, activeKey, currentUser, onLogout, queueTotal }) {
     .slice(0, 2)
     .map((w) => w[0].toUpperCase())
     .join('');
+  const roleLabel = ROLE_LABELS[currentUser?.role] || currentUser?.role;
   const renderItem = (it) => {
     const Icon = it.icon;
+    const active = activeKey === it.key;
+    const count = it.key === 'queue' && queueTotal != null ? queueTotal : null;
     return (
       <NavLink
         key={it.key}
         to={it.path}
-        className={`rail-item${activeKey === it.key ? ' active' : ''}`}
+        className={`sidenav-item${active ? ' active' : ''}`}
         id={`nav-${it.key}`}
-        title={it.mobileLabel}
+        title={collapsed ? it.fullLabel : undefined}
+        aria-label={collapsed ? it.fullLabel : undefined}
+        aria-current={active ? 'page' : undefined}
       >
-        {it.key === 'queue' && queueTotal != null ? <div className="rail-badge">{queueTotal}</div> : <Icon />}
-        <span>{it.label}</span>
+        <Icon />
+        <span className="sidenav-label">{it.fullLabel}</span>
+        {count != null && <span className="sidenav-count">{count}</span>}
       </NavLink>
     );
   };
   return (
-    <nav className="rail" aria-label="Main">
-      <div className="rail-mark">
-        <EyeMark />
-      </div>
-      <div className="rail-section-label">Today</div>
+    <nav className={`sidenav gk-on-navy${collapsed ? ' collapsed' : ''}`} aria-label="Main">
+      <Brand collapsed={collapsed} />
+      <div className="sidenav-group">Today</div>
       {today.map(renderItem)}
-      <div className="rail-spacer" />
-      <div className="rail-section-label">Manage</div>
+      <div className="sidenav-group">Manage</div>
       {manage.map(renderItem)}
-      <div
-        className="rail-user"
-        title={`${currentUser?.name} · ${ROLE_LABELS[currentUser?.role] || currentUser?.role}`}
-      >
+      <div className="sidenav-spacer" />
+      <div className="sidenav-user" title={`${currentUser?.name} · ${roleLabel}`}>
         <div className="avatar">{initials || '?'}</div>
-        <span>{ROLE_LABELS[currentUser?.role] || currentUser?.role}</span>
+        <div className="sidenav-user-text">
+          <div className="n">{currentUser?.name}</div>
+          <div className="r">{roleLabel}</div>
+        </div>
         <button onClick={onLogout} aria-label="Sign out" title="Sign out">
           <IconLogout />
         </button>
       </div>
-      <div className="rail-foot">
-        <u>created by</u> <b>ai</b>
-        <i>4</i>
-        <u>work</u>
-      </div>
+      <button
+        className="sidenav-collapse"
+        onClick={onToggle}
+        aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
+        title={collapsed ? 'Expand navigation' : 'Collapse navigation'}
+      >
+        <IconChevronLeft />
+        {!collapsed && <span>Collapse</span>}
+      </button>
+      {!collapsed && <Credit className="sidenav-foot" />}
     </nav>
   );
 }
 
+/* Mobile overflow sheet (behind "More" and the top-left nav trigger): the
+   SideNav's list on a navy sheet over the scrim, plus the queue stages. */
 function MobileNavDrawer({
   open,
   onClose,
@@ -121,9 +163,23 @@ function MobileNavDrawer({
   currentUser,
   onLogout,
 }) {
-  const find = (k) => items.find((i) => i.key === k);
-  const top = ['appointments', 'ot', 'machines', 'prescriptions'].map(find).filter(Boolean);
-  const bottom = ['mrs', 'inventory', 'admin'].map(find).filter(Boolean);
+  const today = items.filter((i) => i.section === 'today');
+  const manage = items.filter((i) => i.section === 'manage');
+  const renderItem = (it) => {
+    const Icon = it.icon;
+    return (
+      <NavLink
+        key={it.key}
+        to={it.path}
+        className={`mobile-nav-admin${activeKey === it.key ? ' active' : ''}`}
+        onClick={onClose}
+        aria-current={activeKey === it.key ? 'page' : undefined}
+      >
+        <Icon />
+        <span>{it.fullLabel}</span>
+      </NavLink>
+    );
+  };
   return (
     <>
       <div
@@ -131,26 +187,21 @@ function MobileNavDrawer({
         onClick={onClose}
         data-testid="mobile-nav-overlay"
       />
-      <div className={`mobile-nav-drawer${open ? ' show' : ''}`} id="mobileNavDrawer" aria-hidden={!open}>
+      <div
+        className={`mobile-nav-drawer gk-on-navy${open ? ' show' : ''}`}
+        id="mobileNavDrawer"
+        aria-hidden={!open}
+        aria-label="Navigation"
+      >
         <div className="mobile-nav-head">
-          <div className="rail-mark" style={{ margin: 0 }}>
-            <EyeMark />
-          </div>
+          <Brand />
           <button onClick={onClose} aria-label="Close menu">
             ✕
           </button>
         </div>
-        {top.map((it) => (
-          <NavLink
-            key={it.key}
-            to={it.path}
-            className={`mobile-nav-admin${activeKey === it.key ? ' active' : ''}`}
-            onClick={onClose}
-          >
-            {it.emoji} {it.mobileLabel}
-          </NavLink>
-        ))}
-        <div className="mobile-nav-sep" />
+        <div className="mobile-nav-group">Today</div>
+        {today.map(renderItem)}
+        <div className="mobile-nav-group">Queue stages</div>
         <div id="mobileNavStageList">
           {stages.map((st) => (
             <NavLink
@@ -164,51 +215,46 @@ function MobileNavDrawer({
             </NavLink>
           ))}
         </div>
-        <div className="mobile-nav-sep" />
-        {bottom.map((it) => (
-          <NavLink
-            key={it.key}
-            to={it.path}
-            className={`mobile-nav-admin${activeKey === it.key ? ' active' : ''}`}
-            onClick={onClose}
-          >
-            {it.emoji} {it.mobileLabel}
-          </NavLink>
-        ))}
+        <div className="mobile-nav-group">Manage</div>
+        {manage.map(renderItem)}
         <div className="mobile-nav-user">
           <span>
             {currentUser?.name}
             <br />
-            <small style={{ opacity: 0.7 }}>{ROLE_LABELS[currentUser?.role] || currentUser?.role}</small>
+            <small>{ROLE_LABELS[currentUser?.role] || currentUser?.role}</small>
           </span>
           <button onClick={onLogout}>Sign out</button>
         </div>
-        <div className="mobile-nav-foot">
-          <u>created by</u> <b>ai</b>
-          <i>4</i>
-          <u>work</u>
-        </div>
+        <Credit className="mobile-nav-foot" />
       </div>
     </>
   );
 }
 
-function BottomNav({ items, activeKey, onMenu }) {
+/* BottomTabBar: four everyday destinations in the thumb arc, then "More". */
+function BottomNav({ items, activeKey, onMenu, queueTotal, menuOpen }) {
   const shown = BOTTOM_NAV_KEYS.map((k) => items.find((i) => i.key === k)).filter(Boolean);
   return (
-    <nav className="mobile-bottom-nav" aria-label="Quick navigation">
+    <nav className="bottomnav mobile-bottom-nav gk-on-navy" aria-label="Main">
       {shown.map((it) => {
         const Icon = it.icon;
+        const active = activeKey === it.key;
         return (
-          <NavLink key={it.key} to={it.path} className={`mbn-item${activeKey === it.key ? ' active' : ''}`}>
+          <NavLink
+            key={it.key}
+            to={it.path}
+            className={`bottomnav-item mbn-item${active ? ' active' : ''}`}
+            aria-current={active ? 'page' : undefined}
+          >
             <Icon />
-            {it.label === 'Appts' ? 'Appts' : it.mobileLabel}
+            <span>{it.label}</span>
+            {it.key === 'queue' && queueTotal > 0 && <span className="bottomnav-badge">{queueTotal}</span>}
           </NavLink>
         );
       })}
-      <button className="mbn-item" onClick={onMenu} aria-label="Open menu">
-        <IconMenu />
-        Menu
+      <button className={`bottomnav-item mbn-item${menuOpen ? ' active' : ''}`} onClick={onMenu} aria-label="More">
+        <IconMore />
+        <span>More</span>
       </button>
     </nav>
   );
@@ -229,6 +275,23 @@ export default function AppShell() {
   const setTopbar = useCallback((t) => setTopbarState(t || {}), []);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [navCollapsed, setNavCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('gk_nav_collapsed') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const toggleNav = useCallback(() => {
+    setNavCollapsed((v) => {
+      try {
+        localStorage.setItem('gk_nav_collapsed', v ? '0' : '1');
+      } catch {
+        /* private mode — fine */
+      }
+      return !v;
+    });
+  }, []);
 
   const [stages, setStages] = useState(DEFAULT_STAGES);
   const [stageCounts, setStageCounts] = useState({});
@@ -317,27 +380,33 @@ export default function AppShell() {
 
   return (
     <ShellContext.Provider value={ctx}>
-      <div className="app" data-device={deviceMode}>
+      <div className={`app${navCollapsed && !isMobile ? ' nav-collapsed' : ''}`} data-device={deviceMode}>
         {!isMobile && (
-          <Rail
+          <SideNav
             items={items}
             activeKey={activeKey}
             currentUser={currentUser}
             onLogout={handleLogout}
             queueTotal={queueTotal}
+            collapsed={navCollapsed}
+            onToggle={toggleNav}
           />
         )}
         <div className="main">
           <header className="topbar">
-            <div className="topbar-left">
-              <button className="hamburger-btn" onClick={() => setMobileNavOpen(true)} aria-label="Open menu">
+            <div className="topbar-lead">
+              <button
+                className="nav-trigger hamburger-btn"
+                onClick={() => setMobileNavOpen(true)}
+                aria-label="Open navigation"
+              >
                 <IconMenu />
               </button>
               <div style={{ minWidth: 0 }}>
                 <h1 id="topTitle">{title}</h1>
                 <div className="sub" id="topSub">
                   {sub}
-                  {USE_MOCKS && !isMobile && <span className="faint"> · mock data</span>}
+                  {USE_MOCKS && !isMobile && <span className="faint"> · demo data</span>}
                 </div>
               </div>
             </div>
@@ -372,7 +441,13 @@ export default function AppShell() {
             currentUser={currentUser}
             onLogout={handleLogout}
           />
-          <BottomNav items={items} activeKey={activeKey} onMenu={() => setMobileNavOpen(true)} />
+          <BottomNav
+            items={items}
+            activeKey={activeKey}
+            onMenu={() => setMobileNavOpen(true)}
+            queueTotal={queueTotal}
+            menuOpen={mobileNavOpen}
+          />
         </>
       )}
 

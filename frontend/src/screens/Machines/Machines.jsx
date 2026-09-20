@@ -7,6 +7,7 @@ import ReadingCard from './ReadingCard';
 import ManualEntryForm from './ManualEntryForm';
 import ExamPhotos from './ExamPhotos';
 import { filterVisits, isBusy, visitRow } from './lib';
+import { IconCamera, IconPencil } from '../../components/Icons';
 import './machines.css';
 
 const POLL_MS = 2000;
@@ -150,29 +151,29 @@ function CaptureArea({ patient, machines, stages, isMobile, onChangePatient }) {
     const m = captureFor.current;
     if (!file || !m) return;
     try {
-      showFlash('📷 Photo captured — saving on this device…', true);
+      showFlash('Photo captured — saving on this device…', true);
       await enqueue({ visitId, machineKey: m.key, blob: file, capturedAt: new Date().toISOString() });
       if (isOffline) {
         showFlash(
-          "✓ No connection — photo saved on this device. It will upload and process automatically once you're back online.",
+          "No connection — photo saved on this device. It will upload and process automatically once you're back online.",
           false,
           2600
         );
         return;
       }
-      showFlash('📷 Uploading…', true);
+      showFlash('Uploading…', true);
       const res = await flush(true);
       const mine = res?.uploaded?.find((u) => Number(u.rec.visitId) === Number(visitId));
       if (mine) {
         upsert(mine.reading);
-        showFlash("✓ Uploaded — you can move on. Values will appear once the server's finished reading it.", false, 2200);
+        showFlash("Uploaded — you can move on. Values will appear once the server's finished reading it.", false, 2200);
       } else if (res?.dropped?.length) {
-        showFlash('✗ ' + (res.dropped[0].lastError || 'The server rejected this photo'), false, 4000);
+        showFlash((res.dropped[0].lastError || 'The server rejected this photo'), false, 4000);
       } else {
         showFlash('Saved on this device — will retry upload shortly.', false, 2600);
       }
     } catch (ex) {
-      showFlash('✗ ' + errorMessage(ex, 'Could not save the photo'), false, 4000);
+      showFlash(errorMessage(ex, 'Could not save the photo'), false, 4000);
     }
   };
 
@@ -191,10 +192,10 @@ function CaptureArea({ patient, machines, stages, isMobile, onChangePatient }) {
         </div>
       </div>
 
-      <p className="label">📷 Photograph the machine&apos;s printout to scan it in</p>
+      <p className="label">Photograph the machine&apos;s printout to scan it in</p>
       {!isMobile && (
         <div className="desktop-capture-note" style={{ marginBottom: 12 }}>
-          📱 Use your phone to photograph printouts — open this screen there (or install the app). On desktop you can
+          Use your phone to photograph printouts — open this screen there (or install the app). On desktop you can
           pick an image file below to test the flow.
         </div>
       )}
@@ -213,10 +214,10 @@ function CaptureArea({ patient, machines, stages, isMobile, onChangePatient }) {
         {machines.map((m) => {
           const r = latestFor(m.key);
           let tag = null;
-          if (queuedFor(m.key)) tag = <span className="done-tag processing">📥 waiting to upload</span>;
-          else if (r && isBusy(r)) tag = <span className="done-tag processing">⏳ processing…</span>;
-          else if (r && r.status === 'failed') tag = <span className="done-tag failed">✗ failed — retake</span>;
-          else if (r) tag = <span className="done-tag">✓ captured — rescan</span>;
+          if (queuedFor(m.key)) tag = <span className="done-tag processing">waiting to upload</span>;
+          else if (r && isBusy(r)) tag = <span className="done-tag processing">processing…</span>;
+          else if (r && r.status === 'failed') tag = <span className="done-tag failed">failed — retake</span>;
+          else if (r) tag = <span className="done-tag">captured — rescan</span>;
           return (
             <button
               key={m.key}
@@ -225,8 +226,8 @@ function CaptureArea({ patient, machines, stages, isMobile, onChangePatient }) {
               onClick={() => pickMachine(m)}
               data-testid={`machine-${m.key}`}
             >
-              <span>
-                {m.manualOnly ? '✍️' : '📷'} {m.label}
+              <span className="test-opt-label">
+                {m.manualOnly ? <IconPencil /> : <IconCamera />} {m.label}
               </span>
               {tag || (m.manualOnly ? <span className="manual-tag">typed in</span> : null)}
             </button>
@@ -285,7 +286,7 @@ function CaptureArea({ patient, machines, stages, isMobile, onChangePatient }) {
 
       {pending.length > 0 && (
         <div className="summary-card pending-card" style={{ marginBottom: 10 }}>
-          <div className="summary-card-title">📥 Waiting to upload ({pending.length})</div>
+          <div className="summary-card-title">Waiting to upload ({pending.length})</div>
           {pending.map((pc) => (
             <div key={pc.uuid} className="summary-line">
               <span>{machines.find((m) => m.key === pc.machineKey)?.label || pc.machineKey}</span>
@@ -393,12 +394,12 @@ export default function Machines() {
       <div id="connectivityBanner">
         {isOffline && (
           <div className="status-pill coral" style={{ marginBottom: 8, display: 'block', width: 'fit-content' }}>
-            ⚠ No connection — photos will save on this device and process automatically once you&apos;re back online
+            No connection — photos will save on this device and process automatically once you&apos;re back online
             {pendingCount > 0 ? ` · ${pendingCount} waiting` : ''}
           </div>
         )}
         <button type="button" className="btn-ghost machine-demo-btn" onClick={toggleSimulateOffline} data-testid="offline-toggle">
-          {simulateOffline ? '🔵 Simulate: back online' : '⚫ Simulate: no connection (for demo)'}
+          {simulateOffline ? 'Demo: back online' : 'Demo: no connection'}
         </button>
       </div>
 

@@ -58,7 +58,7 @@ function pickDraft(row) {
   return d;
 }
 
-const hintStyle = { fontSize: 11, color: 'var(--faint)', margin: '-4px 0 10px' };
+const hintStyle = { fontSize: 11, color: 'var(--ink-faint)', margin: '-4px 0 10px' };
 
 /* Patient drawer (mockup `openDrawer`): summary + the stage-specific section +
    the "Move patient" buttons. Everything autosaves (debounced PATCH). `row` is the
@@ -524,14 +524,14 @@ export default function PatientDrawer({
   );
 }
 
-/* F14: "🖨 Prescription" opens the PrescriptionModal; saved lines listed underneath. */
+/* F14: "Prescription" opens the PrescriptionModal; saved lines listed underneath. */
 function RxSection({ lines, onOpen }) {
   const list = lines || [];
   return (
     <>
       <div className="field-label">Prescription</div>
       <button type="button" className="rx-drawer-btn" onClick={onOpen} id="openRxBtn">
-        🖨 Prescription
+        {list.length ? 'Open prescription' : 'Write prescription'}
         <small>
           {list.length
             ? `${list.length} medicine${list.length === 1 ? '' : 's'} · edit or print`
@@ -539,7 +539,7 @@ function RxSection({ lines, onOpen }) {
         </small>
       </button>
       {list.length === 0 ? (
-        <p className="hint" style={{ fontSize: 11.5, color: 'var(--faint)', margin: '0 0 8px' }}>
+        <p className="hint" style={{ fontSize: 12, color: 'var(--ink-faint)', margin: '0 0 8px' }}>
           Nothing prescribed yet
         </p>
       ) : (
@@ -632,7 +632,7 @@ function PatientSummary({ row, draft, readings, config }) {
         {readings.map((r, i) => (
           <div className="summary-line" key={i}>
             <b>{r.machine}:</b>{' '}
-            {r.processing ? '⏳ processing…' : r.vals.map((v) => v.l + ' ' + v.v).join(', ')}
+            {r.processing ? 'processing…' : r.vals.map((v) => v.l + ' ' + v.v).join(', ')}
           </div>
         ))}
       </div>
@@ -675,7 +675,7 @@ function PatientSummary({ row, draft, readings, config }) {
 function ReadingsList({ readings }) {
   if (!readings.length)
     return (
-      <p className="hint" style={{ fontSize: 11.5, color: 'var(--faint)' }} id="readingsList">
+      <p className="hint" style={{ fontSize: 12, color: 'var(--ink-faint)' }} id="readingsList">
         None captured yet
       </p>
     );
@@ -689,7 +689,7 @@ function ReadingsList({ readings }) {
           </div>
           {r.processing ? (
             <p className="processing-note">
-              ⏳ Photo uploaded — extracting values on the server, usually a few seconds…
+              Photo uploaded — extracting values on the server, usually a few seconds…
             </p>
           ) : (
             <div className="reading-vals">
@@ -713,7 +713,7 @@ function ExamPhotoList({ photos }) {
     return (
       <p
         className="hint"
-        style={{ fontSize: 11.5, color: 'var(--faint)', margin: '0 0 8px' }}
+        style={{ fontSize: 12, color: 'var(--ink-faint)', margin: '0 0 8px' }}
         id="examPhotoList"
       >
         None attached yet
@@ -727,10 +727,10 @@ function ExamPhotoList({ photos }) {
             <div className="med-name">
               {ph.url ? (
                 <a href={ph.url} target="_blank" rel="noreferrer">
-                  📎 Exam photo — {ph.capturedAt}
+                  Exam photo — {ph.capturedAt}
                 </a>
               ) : (
-                <>📎 Exam photo — {ph.capturedAt}</>
+                <>Exam photo — {ph.capturedAt}</>
               )}
             </div>
           </div>

@@ -7,6 +7,7 @@ import { useToast } from '../../components/Toast';
 import { appointments as api, onDataChange, errorMessage } from '../../api';
 import { dateStr } from '../../mocks/data';
 import { CHANNEL_LABEL } from '../Queue/queueModel';
+import { IconPencil } from '../../components/Icons';
 import './appointments.css';
 
 const CHANNELS = ['whatsapp', 'call', 'walkin'];
@@ -153,7 +154,7 @@ export default function Appointments() {
                     title="Edit"
                     disabled={a.checkedIn}
                   >
-                    ✎
+                    <IconPencil />
                   </button>
                   <button
                     type="button"
@@ -170,7 +171,7 @@ export default function Appointments() {
                     onClick={() => checkIn(a)}
                     disabled={a.checkedIn || busy}
                   >
-                    {a.checkedIn ? '✓ Checked in' : 'Check in'}
+                    {a.checkedIn ? 'Checked in' : 'Check in'}
                   </button>
                 </td>
               </tr>
@@ -207,7 +208,7 @@ export default function Appointments() {
               autoFocus
             />
             {modal.error && (
-              <p className="hint" style={{ color: 'var(--coral)', margin: '-4px 0 8px' }}>
+              <p className="hint" style={{ color: 'var(--alert-ink)', margin: '-4px 0 8px' }}>
                 {modal.error}
               </p>
             )}

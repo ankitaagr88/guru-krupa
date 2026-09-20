@@ -62,7 +62,7 @@ export function ElsewhereToggle({ on, note, onToggle, onNote, noteId }) {
         </button>
       </div>
       <div className={`elsewhere-box${on ? ' show' : ''}`}>
-        <div className="upload-hint">📎 Tap to photograph prior prescription / report</div>
+        <div className="upload-hint">Tap to photograph prior prescription / report</div>
         <textarea
           className="fake-input"
           id={noteId}

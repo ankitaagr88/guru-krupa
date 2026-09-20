@@ -33,9 +33,9 @@ export default function ManualEntryForm({ visitId, machine, initial = [], onSave
   return (
     <form className="manual-form" onSubmit={submit} data-testid="manual-form">
       <div className="mf-title">
-        <span>✍️ {title || `Type the ${machine?.label || ''} values`}</span>
+        <span>{title || `Type the ${machine?.label || ''} values`}</span>
         {onCancel && (
-          <button type="button" className="rm" onClick={onCancel} aria-label="Cancel manual entry" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--faint)' }}>
+          <button type="button" className="rm" onClick={onCancel} aria-label="Cancel manual entry" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-faint)' }}>
             ✕
           </button>
         )}

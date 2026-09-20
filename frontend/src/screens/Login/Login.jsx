@@ -2,13 +2,13 @@ import { useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { USE_MOCKS } from '../../api';
-import { EyeMark } from '../../components/Icons';
 import { HOSPITAL_NAME, DOCTOR_NAME } from '../../nav';
 import './login.css';
 
 /* Login (F1). Calls auth.login, stores the session via AuthContext and
-   redirects to where the user was going (or /queue). Styled after the
-   mockup's rail/topbar: navy backdrop, logo mark, hospital name, teal button. */
+   redirects to where the user was going (or /queue). Navy ground (the
+   navigation's own), the clinic's logo and name in the serif, one sapphire
+   button. */
 export default function Login() {
   const { login, isAuthenticated, loading } = useAuth();
   const navigate = useNavigate();
@@ -44,15 +44,12 @@ export default function Login() {
   };
 
   return (
-    <div className="login-page">
-      <div className="login-glow" aria-hidden="true" />
+    <div className="login-page gk-on-navy">
       <div className="login-wrap">
         <div className="login-hero">
           <img src="/logo.jpg" alt="" className="login-logo" />
           <div className="login-hero-text">
-            <span className="login-eyebrow">
-              <EyeMark color="#8cd98a" /> Clinic app
-            </span>
+            <span className="login-eyebrow">Clinic app</span>
             <h1>{HOSPITAL_NAME}</h1>
             <p>{DOCTOR_NAME} · Vesu, Surat</p>
           </div>
@@ -60,13 +57,8 @@ export default function Login() {
 
         <form className="login-card" onSubmit={submit} noValidate>
           <div className="login-brand">
-            <div className="rail-mark">
-              <EyeMark />
-            </div>
-            <div>
-              <h1>Staff sign in</h1>
-              <p>Queue, OT, stock and prescriptions — one sign-in for the whole clinic</p>
-            </div>
+            <h1>Staff sign in</h1>
+            <p>Queue, OT, stock and prescriptions — one sign-in for the whole clinic</p>
           </div>
 
           <label htmlFor="username">Username</label>
@@ -114,7 +106,7 @@ export default function Login() {
           <div className="login-foot">
             {USE_MOCKS ? (
               <>
-                Mock mode — try <b>admin / admin</b>, <b>doctor / doctor</b>, <b>reception / reception</b>,{' '}
+                Demo data — try <b>admin / admin</b>, <b>doctor / doctor</b>, <b>reception / reception</b>,{' '}
                 <b>optom / optom</b>, <b>ot / ot</b>
               </>
             ) : (

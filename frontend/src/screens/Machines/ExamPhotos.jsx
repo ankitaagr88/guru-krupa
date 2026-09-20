@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { readings as readingsApi, errorMessage, onDataChange } from '../../api';
 import { useAuthedImage } from '../../lib/useAuthedImage';
 import { fmtWhen } from './lib';
+import { IconCamera, IconPaperclip } from '../../components/Icons';
 import './machines.css';
 
 function PhotoTile({ photo, label, onRemove }) {
   const src = useAuthedImage(photo);
   return (
     <div className="photo-tile" data-testid="photo-tile">
-      {src ? <img src={src} alt={label} /> : <div className="ph-empty">📎</div>}
+      {src ? <img src={src} alt={label} /> : <div className="ph-empty"><IconPaperclip /></div>}
       <div className="ph-cap">
         {label} · {fmtWhen(photo.capturedAt) || photo.capturedAt}
       </div>
@@ -102,7 +103,8 @@ export default function ExamPhotos({ visitId, isMobile, isOffline }) {
         disabled={busy || isOffline}
         title={isOffline ? 'Exam photos need a connection' : ''}
       >
-        {busy ? 'Saving photo…' : isMobile ? '📷 Attach exam photos' : '📎 Attach exam photo (file)'}
+        {isMobile ? <IconCamera /> : <IconPaperclip />}
+        {busy ? 'Saving photo…' : isMobile ? 'Attach exam photos' : 'Attach exam photo (file)'}
       </button>
       {err && <p className="reading-note err">{err}</p>}
     </div>

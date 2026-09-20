@@ -1,18 +1,18 @@
-/* MR visits (F10) — additions to the mockup's table styles. */
+/* MR visits (F10) — additions to the shared table styles. */
 .mr-filter {
   margin: 0;
   width: 260px;
-  padding: 8px 11px;
+  padding: 9px 12px;
 }
 .mr-rep-link {
-  color: var(--teal);
+  color: var(--sapphire);
   text-decoration: underline;
   cursor: pointer;
 }
 .mr-note {
   display: block;
-  color: var(--faint);
-  font-size: 11px;
+  color: var(--ink-faint);
+  font-size: 12px;
   margin-top: 2px;
 }
 .mr-dates {
@@ -22,16 +22,16 @@
 }
 .mr-dates label {
   flex: 1;
-  font-family: var(--font-body);
-  font-size: 11px;
-  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--ink-soft);
   font-weight: 600;
 }
 .mr-dates .fake-input {
   margin: 4px 0 0;
 }
 .mr-detail {
-  width: 440px;
+  width: 460px;
   max-height: 80vh;
   display: flex;
   flex-direction: column;
@@ -40,30 +40,29 @@
   overflow-y: auto;
 }
 .mr-detail-sub {
-  font-family: var(--font-body);
-  font-size: 12px;
-  color: var(--muted);
-  margin: -4px 0 12px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin: -8px 0 12px;
 }
 .mr-detail-stats {
   display: flex;
   flex-wrap: wrap;
   gap: 8px 16px;
-  font-family: var(--font-body);
-  font-size: 12px;
-  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--ink-soft);
   margin-bottom: 12px;
   align-items: center;
 }
 .mr-detail-stats b {
   color: var(--ink);
-  font-weight: 700;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 body.mobile-mode .mr-filter {
   width: 100%;
-}
-body.mobile-mode .appt-head {
-  flex-wrap: wrap;
 }
 body.mobile-mode .mr-dates {
   flex-direction: column;

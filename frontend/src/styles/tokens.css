@@ -1,66 +1,161 @@
-/* Design tokens — ported 1:1 from docs/mockup-reference.html :root.
-   NOTE: the mockup's "--teal" is actually a deep blue (#1E3A8A); the name is
-   kept so class names and future ports from the mockup keep working. */
-:root {
-  --bg: #f1f4fb;
-  --surface: #ffffff;
-  --ink: #16214a;
-  --muted: #57628c;
-  --faint: #93a0c6;
-  --line: #e1e7f7;
-  --teal: #1e3a8a;
-  --teal-deep: #10173d;
-  --teal-wash: #e7ecfb;
-  --amber: #e0a458;
-  --amber-wash: #fbf0df;
-  --amber-ink: #9a6a1e;
-  --coral: #d9614f;
-  --coral-wash: #fbe7e3;
-  --coral-line: #efb6ac;
-  --sage: #2e9b6f;
-  --sage-wash: #e5f5ee;
-  --whatsapp: #1f9254;
-  --whatsapp-wash: #e7f7ec;
-  --call: #2a5fa8;
+/* Design tokens — the Gurukrupa Care System (design-system/tokens.css), plus
+   aliases for the names the screens were first written against so every
+   existing rule picks up the new palette without a rename.
+
+   Three rules from the brand book:
+   - gold means "a clock is running" (dilation, processing, where you are)
+   - "done" is a cyan-teal, not a green — keep it separable from alert
+   - serif for names and headings, Plex Sans for the interface, Plex Mono
+     for anything a machine measured (readings, tokens, times, amounts) */
+:root,
+[data-theme='light'] {
+  --canvas: #f2f0eb;
+  --surface: #fdfcfa;
+  --surface-sunk: #eae7e0;
+  --line: #e3dfd6;
+  --line-strong: #cfc9bc;
+  --ink: #16203d;
+  --ink-soft: #4c5670;
+  --ink-faint: #5a6382;
+  --sapphire: #1c4bb5;
+  --sapphire-deep: #14357f;
+  --sapphire-ink: #0c1d4a;
+  --sapphire-wash: #e6ecfa;
+  --sapphire-line: #c3d0f0;
+  --on-sapphire: #ffffff;
+  --gold: #b8811f;
+  --gold-bright: #e6be68;
+  --gold-deep: #7f5a16;
+  --gold-wash: #f9efd9;
+  --gold-line: #e8d3a4;
+  --on-gold: #16203d;
+  --alert: #b93b28;
+  --alert-ink: #97301f;
+  --alert-wash: #fbe8e3;
+  --alert-line: #efc0b4;
+  --done: #0d6e72;
+  --done-ink: #0a585c;
+  --done-wash: #e0f0f1;
+  --done-line: #b2d8da;
+  --whatsapp-ink: #16794a;
+  --whatsapp-wash: #e6f5ec;
+  --call-ink: #2a5fa8;
   --call-wash: #e8f0fb;
+  --nav-surface: #0c1d4a;
+  --nav-active: #1a2e63;
+  --nav-ink: #ffffff;
+  --nav-ink-soft: #a8b6df;
+  --focus: #2f6be0;
+  --focus-inverse: #e6be68;
+  --scrim: rgba(12, 29, 74, 0.38);
+  --scrim-strong: rgba(12, 29, 74, 0.48);
+  /* Reference only — the printed mark's own colours. Not for screen UI. */
+  --mark-gold: #c9922f;
+  --mark-sapphire: #1b4fc4;
+  --mark-silver: #9aa3aa;
+  --mark-silver-dim: #6b7379;
 
-  /* Rail palette */
-  --rail-fg: #b9cfc5;
-  --rail-nav-fg: #cfe0d8;
-  --rail-brand-accent: #8cd98a;
+  --shadow-sm: 0 1px 2px rgba(22, 32, 61, 0.06);
+  --shadow-md: 0 4px 12px -4px rgba(22, 32, 61, 0.12);
+  --shadow-lg: 0 18px 40px -12px rgba(12, 29, 74, 0.22);
+  --shadow-knob: 0 1px 2px rgba(22, 32, 61, 0.25);
 
-  /* Stage colours (STAGES[].cls) — one hue per stage for pills, badges and
-     future board columns. The mockup defines the classes but no colours, so
-     these are derived from the existing palette. */
-  --stage-reg: var(--teal);
-  --stage-reg-wash: var(--teal-wash);
-  --stage-pretest: #2a5fa8;
-  --stage-pretest-wash: #e8f0fb;
-  --stage-doctor: #6b3fa0;
-  --stage-doctor-wash: #efe8fb;
-  --stage-dilate: var(--amber);
-  --stage-dilate-wash: var(--amber-wash);
-  --stage-billing: var(--coral);
-  --stage-billing-wash: var(--coral-wash);
-  --stage-done: var(--sage);
-  --stage-done-wash: var(--sage-wash);
+  /* ---- Aliases: the names the screens were first built with ---- */
+  --bg: var(--canvas);
+  --muted: var(--ink-soft);
+  --faint: var(--ink-faint);
+  --teal: var(--sapphire);
+  --teal-deep: var(--sapphire-deep);
+  --teal-wash: var(--sapphire-wash);
+  --amber: var(--gold);
+  --amber-wash: var(--gold-wash);
+  --amber-ink: var(--gold-deep);
+  --coral: var(--alert);
+  --coral-ink: var(--alert-ink);
+  --coral-wash: var(--alert-wash);
+  --coral-line: var(--alert-line);
+  --sage: var(--done);
+  --sage-ink: var(--done-ink);
+  --sage-wash: var(--done-wash);
+  --whatsapp: var(--whatsapp-ink);
+  --call: var(--call-ink);
+  --rail-fg: var(--nav-ink-soft);
+  --rail-nav-fg: var(--nav-ink-soft);
+  --rail-brand-accent: var(--gold-bright);
+  --shadow-card: var(--shadow-sm);
+  --shadow-toast: var(--shadow-lg);
 
-  /* Typography */
-  --font-head: 'Manrope', 'Inter', system-ui, sans-serif;
-  --font-body: 'Inter', system-ui, sans-serif;
-  --font-brand: 'Sora', 'Manrope', sans-serif;
+  /* Stage colours (STAGES[].cls). One informational blue for the stages a
+     patient moves through; gold only while dilation is counting; done is cyan. */
+  --stage-reg: var(--sapphire-deep);
+  --stage-reg-wash: var(--sapphire-wash);
+  --stage-pretest: var(--sapphire-deep);
+  --stage-pretest-wash: var(--sapphire-wash);
+  --stage-doctor: var(--sapphire-deep);
+  --stage-doctor-wash: var(--sapphire-wash);
+  --stage-dilate: var(--gold-deep);
+  --stage-dilate-wash: var(--gold-wash);
+  --stage-billing: var(--ink-soft);
+  --stage-billing-wash: var(--surface-sunk);
+  --stage-done: var(--done-ink);
+  --stage-done-wash: var(--done-wash);
+}
+
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-pill: 9999px;
+  --radius: var(--radius-lg);
+
+  --font-serif: 'Source Serif 4', 'Iowan Old Style', Georgia, serif;
+  --font-ui: 'IBM Plex Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  /* Aliases */
+  --font-head: var(--font-ui);
+  --font-body: var(--font-ui);
+  --font-brand: var(--font-serif);
 
   /* Layout */
-  --rail-w: 76px;
-  --drawer-w: 360px;
-  --mobile-nav-h: 60px;
-  --radius: 12px;
-  --radius-sm: 9px;
-  --shadow-card: 0 1px 2px rgba(28, 42, 36, 0.04);
-  --shadow-toast: 0 14px 30px -10px rgba(20, 28, 24, 0.25);
+  --sidenav-w: 244px;
+  --sidenav-w-collapsed: 72px;
+  --rail-w: var(--sidenav-w);
+  --drawer-w: 380px;
+  --mobile-nav-h: 64px;
   --z-overlay: 5;
   --z-drawer: 6;
   --z-modal: 10;
   --z-mobile-nav: 15;
   --z-toast: 20;
 }
+
+/* Type styles — one class per named style, as in the design system. */
+.page-title { font-family: var(--font-serif); font-size: 22px; line-height: 28px; font-weight: 600; }
+.drawer-title { font-family: var(--font-serif); font-size: 20px; line-height: 26px; font-weight: 600; }
+.rx-title { font-family: var(--font-serif); font-size: 19px; line-height: 25px; font-weight: 700; }
+.modal-title { font-family: var(--font-serif); font-size: 18px; line-height: 24px; font-weight: 600; }
+.card-title { font-family: var(--font-serif); font-size: 17px; line-height: 23px; font-weight: 600; }
+.section-title { font-family: var(--font-serif); font-size: 16px; line-height: 22px; font-weight: 600; }
+.row-title { font-family: var(--font-serif); font-size: 15px; line-height: 21px; font-weight: 600; }
+.body { font-family: var(--font-ui); font-size: 14px; line-height: 21px; font-weight: 400; }
+.body-strong { font-family: var(--font-ui); font-size: 14px; line-height: 21px; font-weight: 600; }
+.meta { font-family: var(--font-ui); font-size: 13px; line-height: 19px; font-weight: 400; }
+.caption { font-family: var(--font-ui); font-size: 12px; line-height: 17px; font-weight: 400; }
+.eyebrow { font-family: var(--font-ui); font-size: 11px; line-height: 15px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; }
+.tag { font-family: var(--font-ui); font-size: 12px; line-height: 16px; font-weight: 500; }
+.reading { font-family: var(--font-mono); font-size: 14px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.amount { font-family: var(--font-mono); font-size: 15px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.token { font-family: var(--font-mono); font-size: 13px; line-height: 18px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.time { font-family: var(--font-mono); font-size: 13px; line-height: 18px; font-weight: 400; font-variant-numeric: tabular-nums; }
+.stamp { font-family: var(--font-mono); font-size: 11px; line-height: 15px; font-weight: 400; }
+.gk-num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }

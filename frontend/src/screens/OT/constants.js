@@ -18,8 +18,8 @@ export const PAYMENT_MODES = [
 ];
 
 export const OT_STATUS = {
-  scheduled: { label: 'Scheduled', cls: 'amber' },
-  in_progress: { label: 'In progress', cls: 'teal' },
+  scheduled: { label: 'Scheduled', cls: 'teal' },
+  in_progress: { label: 'In progress', cls: 'amber' },
   completed: { label: 'Completed', cls: 'sage' },
   cancelled: { label: 'Cancelled', cls: 'coral' },
 };

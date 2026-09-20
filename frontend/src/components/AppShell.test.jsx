@@ -36,7 +36,7 @@ describe('AppShell', () => {
   it('shows the full hospital name in the desktop topbar', () => {
     renderShell({ user: ADMIN });
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
-      'Gurukrupa Eye Hospital & Research Center'
+      'Guru Krupa Eye Hospital & Laser Center'
     );
   });
 
@@ -44,9 +44,9 @@ describe('AppShell', () => {
     sessionStorage.setItem('gk_device', 'mobile');
     renderShell({ user: ADMIN, route: '/queue' });
     await waitFor(() => expect(document.body).toHaveClass('mobile-mode'));
-    expect(document.querySelector('.rail')).toBeNull();
+    expect(document.querySelector('.sidenav')).toBeNull();
     expect(document.querySelector('.mobile-bottom-nav')).not.toBeNull();
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Gurukrupa');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Guru Krupa');
     await userEvent.click(document.querySelector('.hamburger-btn'));
     expect(document.querySelector('#mobileNavDrawer')).toHaveClass('show');
     await waitFor(() =>

@@ -206,11 +206,11 @@ function ConsentTab({ k, setCase, isMobile }) {
         data-testid="consent-input"
       />
       <button type="button" className="capture-btn" onClick={() => inputRef.current?.click()} disabled={busy}>
-        {busy ? 'Saving photo…' : isMobile ? '📷 Attach signed consent' : '📎 Attach signed consent (file)'}
+        {busy ? 'Saving photo…' : isMobile ? 'Attach signed consent' : 'Attach signed consent (file)'}
       </button>
       {!isMobile && (
         <p className="ot-save-note" style={{ marginTop: 8 }}>
-          📱 On the phone this opens the camera; here you can pick a scanned file.
+          On the phone this opens the camera; here you can pick a scanned file.
         </p>
       )}
       {err && <p className="reading-note err">{err}</p>}

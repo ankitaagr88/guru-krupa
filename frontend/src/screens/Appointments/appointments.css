@@ -1,23 +1,31 @@
-/* Appointments screen (F4) — additions on top of the ported mockup styles */
+/* Appointments screen (F4) — additions on top of the shared table styles. */
 .appt-table .appt-actions {
   white-space: nowrap;
   text-align: right;
 }
 .appt-icon-btn {
-  background: none;
+  background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 8px;
-  width: 32px;
-  height: 32px;
-  color: var(--muted);
+  border-radius: 10px;
+  width: 36px;
+  height: 36px;
+  color: var(--ink-soft);
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
   margin-right: 6px;
   vertical-align: middle;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s, color 0.15s;
+}
+.appt-icon-btn svg {
+  width: 16px;
+  height: 16px;
 }
 .appt-icon-btn:hover:not(:disabled) {
-  border-color: var(--teal);
-  color: var(--teal-deep);
+  border-color: var(--sapphire);
+  color: var(--sapphire);
 }
 .appt-icon-btn:disabled {
   opacity: 0.4;
@@ -29,9 +37,18 @@
 .appt-table .appt-checkin:disabled {
   cursor: default;
 }
-body.mobile-mode .appt-table td.appt-actions {
+.appt-table .td-time {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+body.mobile-mode .data-table:not(#boardTable) td.appt-actions {
   justify-content: flex-end;
+  gap: 8px;
   padding-top: 10px;
+}
+body.mobile-mode .appt-icon-btn {
+  margin-right: 0;
 }
 .modal input[type='date'].fake-input {
   margin-bottom: 12px;
