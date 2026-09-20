@@ -196,6 +196,7 @@ export default function Admin() {
 
   return (
     <div className="admin-wrap">
+      <AdminIndex />
       {/* ---------------- stages ---------------- */}
       <section className="admin-block" aria-labelledby="h-stages">
         <h2 id="h-stages">Process stages</h2>
@@ -656,5 +657,78 @@ function PasswordModal({ user, onClose, onReset }) {
         autoFocus
       />
     </Modal>
+  );
+}
+
+
+/* Jump list at the top of Admin: one chip per section, in page order. Clicking
+   scrolls to that section; the address keeps #the-section so the link can be
+   shared, and a fresh load with a hash lands there. */
+const ADMIN_SECTIONS = [
+  ['h-stages', 'Process stages'],
+  ['h-protocol', 'Dilation drops'],
+  ['h-referral', 'Referral sources'],
+  ['h-lens', 'Lens prices'],
+  ['h-otslots', 'OT slots'],
+  ['h-otprocs', 'OT procedures'],
+  ['h-medicines', 'Medicines'],
+  ['h-treatments', 'Treatment standards'],
+  ['h-import', 'Import from KiviHealth'],
+  ['h-staff', 'Staff & roles'],
+];
+
+function AdminIndex() {
+  const [active, setActive] = useState(null);
+  const [top, setTop] = useState(0);
+  // Sit just under the (sticky) top bar, whatever its height is on this screen.
+  useEffect(() => {
+    const bar = document.querySelector('.topbar');
+    if (!bar) return undefined;
+    const measure = () => setTop(bar.getBoundingClientRect().height);
+    measure();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    ro?.observe(bar);
+    window.addEventListener('resize', measure);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, []);
+  const jump = (id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const section = el.closest('section') || el;
+    const barH = document.querySelector('.admin-index')?.offsetHeight || 0;
+    const y = section.getBoundingClientRect().top + window.scrollY - top - barH - 12;
+    window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+    setActive(id);
+    try {
+      window.history.replaceState(null, '', `#${id}`);
+    } catch {
+      /* fine */
+    }
+  };
+  useEffect(() => {
+    const id = window.location.hash.replace('#', '');
+    if (id && ADMIN_SECTIONS.some(([k]) => k === id)) {
+      const t = setTimeout(() => jump(id), 300);
+      return () => clearTimeout(t);
+    }
+    return undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <nav className="admin-index" aria-label="Admin sections" style={{ top }}>
+      {ADMIN_SECTIONS.map(([id, label]) => (
+        <button
+          type="button"
+          key={id}
+          className={`admin-index-chip${active === id ? ' active' : ''}`}
+          onClick={() => jump(id)}
+        >
+          {label}
+        </button>
+      ))}
+    </nav>
   );
 }

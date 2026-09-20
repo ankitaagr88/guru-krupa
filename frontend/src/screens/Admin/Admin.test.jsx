@@ -11,7 +11,7 @@ const stageLabels = () =>
 describe('Admin', () => {
   it('adds a stage before Done, renames it and reorders with the arrows', async () => {
     renderShell({ route: '/admin', child: <Admin /> });
-    expect(await screen.findByText('Process stages')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Process stages' })).toBeInTheDocument();
     await waitFor(() => expect(stageLabels()).toContain('Done'));
     await userEvent.click(screen.getByRole('button', { name: '+ Add a stage' }));
     await waitFor(() => expect(stageLabels()).toContain('New stage'));
@@ -36,7 +36,7 @@ describe('Admin', () => {
   it('refuses to delete a stage that still has patients (409) and shows the message', async () => {
     window.confirm = () => true;
     renderShell({ route: '/admin', child: <Admin /> });
-    await screen.findByText('Process stages');
+    await screen.findByRole('heading', { name: 'Process stages' });
     await userEvent.click(await screen.findByLabelText('Delete stage Registration'));
     expect(await screen.findByText('Not allowed right now')).toBeInTheDocument();
     expect(screen.getByText(/still has patients/)).toBeInTheDocument();
@@ -65,7 +65,7 @@ describe('Admin', () => {
 
   it('adds a staff member with a role and can deactivate them', async () => {
     renderShell({ route: '/admin', child: <Admin /> });
-    await screen.findByText('Staff & roles');
+    await screen.findByRole('heading', { name: 'Staff & roles' });
     await userEvent.click(screen.getByRole('button', { name: '+ Add a staff member' }));
     const dialog = await screen.findByRole('dialog');
     await userEvent.type(within(dialog).getByLabelText('Full name'), 'Meena Patel');
@@ -85,7 +85,7 @@ describe('Admin', () => {
 
   it('referral source needs-detail toggle', async () => {
     renderShell({ route: '/admin', child: <Admin /> });
-    await screen.findByText('Referral sources');
+    await screen.findByRole('heading', { name: 'Referral sources' });
     const sw = screen.getByLabelText('BNI asks for a name');
     expect(sw).toHaveAttribute('aria-checked', 'false');
     await userEvent.click(sw);
@@ -97,7 +97,7 @@ describe('Admin', () => {
 
   it('medicines: add one by name from the modal, rename inline, deactivate and show inactive', async () => {
     renderShell({ route: '/admin', child: <Admin /> });
-    await screen.findByText('Medicines');
+    await screen.findByRole('heading', { name: 'Medicines' });
     expect(await screen.findByLabelText('Name of Aquaray Gel')).toHaveValue('Aquaray Gel');
     // no detail columns any more
     expect(screen.queryByLabelText('Type of Aquaray Gel')).toBeNull();
@@ -134,7 +134,7 @@ describe('Admin', () => {
   it('diagnoses: add, rename, switch off, and set a standard treatment that then shows as set', async () => {
     window.confirm = () => true;
     renderShell({ route: '/admin', child: <Admin /> });
-    await screen.findByText('Diagnoses & treatment standards');
+    await screen.findByRole('heading', { name: 'Diagnoses & treatment standards' });
     expect(await screen.findByLabelText('Diagnosis Dry eye')).toHaveValue('Dry eye');
 
     await userEvent.type(screen.getByLabelText('New diagnosis'), 'Uveitis');
@@ -179,7 +179,7 @@ describe('Admin', () => {
   it('OT slots & procedures: add a slot, switch one off (it leaves the picker), add and reorder procedures', async () => {
     window.confirm = () => true;
     renderShell({ route: '/admin', child: <Admin /> });
-    await screen.findByText('OT time slots');
+    await screen.findByRole('heading', { name: 'OT time slots' });
     expect(await screen.findByLabelText('Slot 9:00 AM')).toHaveValue('9:00 AM');
 
     await userEvent.type(screen.getByLabelText('New slot time'), '17:30');
@@ -211,7 +211,7 @@ describe('Admin', () => {
   it('import: upload a KiviHealth patient CSV, columns are matched, preview then import (twice = no change)', async () => {
     window.confirm = () => true;
     renderShell({ route: '/admin', child: <Admin /> });
-    await screen.findByText('Import from KiviHealth');
+    await screen.findByRole('heading', { name: 'Import from KiviHealth' });
     const csv = [
       '#,Name,Contact,Gender,Age(Y),Local Id,Area,City',
       '1,A N TIWARI,9727898614,Male,71,GK2341,-,Surat',

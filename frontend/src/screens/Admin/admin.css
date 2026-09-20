@@ -2,6 +2,10 @@
 .admin-wrap {
   max-width: 800px;
 }
+/* The page scrolls (not this box), so the jump list can stick under the top bar. */
+.main .admin-wrap {
+  overflow: visible;
+}
 .admin-table tbody tr {
   cursor: default;
 }
@@ -178,3 +182,10 @@ body.mobile-mode .med-add-modal {
 .ot-grid-form .admin-check { gap: 8px; }
 .ot-grid-form .fake-input { width: auto; max-width: 130px; margin: 0; padding: 7px 9px; }
 .ot-grid-form .ot-grid-min { width: 70px; }
+
+/* ---- jump list at the top ---- */
+.admin-index { position: sticky; z-index: 2; display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 0 12px; margin: -24px 0 8px; background: var(--canvas); border-bottom: 1px solid var(--line); }
+.admin-index-chip { background: var(--surface); border: 1px solid var(--line); border-radius: 9999px; padding: 6px 12px; font-family: var(--font-ui); font-size: 13px; color: var(--ink-soft); cursor: pointer; transition: border-color 0.15s, background 0.15s, color 0.15s; }
+.admin-index-chip:hover { border-color: var(--sapphire); color: var(--sapphire-deep); }
+.admin-index-chip.active { background: var(--sapphire-wash); border-color: var(--sapphire); color: var(--sapphire-deep); font-weight: 600; }
+body.mobile-mode .admin-index { margin-top: -16px; top: 0; }
