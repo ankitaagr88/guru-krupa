@@ -491,6 +491,7 @@ export default function CaseDrawer({ caseObj, setCase, lensTiers, isMobile, onCl
       open={open}
       id="otCaseDrawer"
       name={k?.patientName}
+      patientId={k?.patientId}
       meta={k ? `${k.procedure} · ${k.date} · ${caseSlot(k)}${k.age ? ` · ${k.age}${k.sex ? k.sex[0] : ''}` : ''}` : ''}
       onClose={() => onClose?.(flush())}
       foot="Everything here saves on its own — nothing to submit."

@@ -87,3 +87,33 @@ def test_history_after_visit(client, admin_headers):
     # search result carries lastVisitDate too (lookupLastVisit)
     hit = client.get("/api/patients?q=1112223334", headers=admin_headers).json()[0]
     assert hit["lastVisitDate"] == v["date"]
+
+
+def test_full_history_endpoint(client, admin_headers):
+    from app.services.queue import today
+
+    pid = client.post("/api/patients", json={"name": "History Person", "age": 50, "sex": "F", "phone": "9000000001"},
+                      headers=admin_headers).json()["id"]
+    vid = client.post("/api/visits", json={"patientId": pid}, headers=admin_headers).json()["id"]
+    client.post("/api/readings/manual", json={"visitId": vid, "machineKey": "tbut_schirmer",
+                                              "values": [{"l": "TBUT (R)", "v": "8"}]}, headers=admin_headers)
+    client.post(f"/api/visits/{vid}/prescription", json={"lines": [{"name": "Timolol 0.5% eye drops", "dosage": "2x"}]},
+                headers=admin_headers)
+    client.put(f"/api/visits/{vid}/bill", json={"items": [{"label": "Consultation", "amount": 500}]}, headers=admin_headers)
+    client.post("/api/ot/cases", json={"patientId": pid, "date": today().isoformat(), "timeSlot": "3:00 PM",
+                                       "procedure": "LASIK"}, headers=admin_headers)
+    client.post("/api/appointments", json={"name": "History Person", "phone": "9000000001", "patientId": pid,
+                                           "date": today().isoformat(), "channel": "call"}, headers=admin_headers)
+
+    r = client.get(f"/api/patients/{pid}/history", headers=admin_headers)
+    assert r.status_code == 200, r.text
+    h = r.json()
+    assert h["patient"]["id"] == pid and h["patient"]["name"] == "History Person"
+    assert h["totals"] == {"visits": 1, "prescriptions": 1, "surgeries": 1, "readings": 1}
+    v = h["visits"][0]
+    assert v["id"] == vid and v["readings"][0]["machineKey"] == "tbut_schirmer"
+    assert v["prescription"]["lines"][0]["name"] == "Timolol 0.5% eye drops"
+    assert v["bill"]["items"][0]["amount"] == 500
+    assert h["otCases"][0]["procedure"] == "LASIK"
+    assert h["appointments"][0]["channel"] == "call"
+    assert client.get("/api/patients/999999/history", headers=admin_headers).status_code == 404

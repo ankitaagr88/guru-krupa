@@ -4,6 +4,7 @@ import { visits as visitsApi, onDataChange } from '../../api';
 import { ageSex } from '../../lib/format';
 import PrescriptionModal from './PrescriptionModal';
 import { visitInfo } from './hospital';
+import PatientLink from '../../components/PatientLink';
 import './prescription.css';
 
 /* Doctor-facing list of today's patients with their prescription status.
@@ -112,7 +113,9 @@ export default function PrescriptionsToday() {
             return (
               <tr key={v.id} onClick={() => setSelected(v)}>
                 <td className="td-token">{i.token}</td>
-                <td className="td-name">{i.name}</td>
+                <td className="td-name">
+                  <PatientLink id={v.patientId ?? v.patient?.id} name={i.name} />
+                </td>
                 <td data-label="Age">{ageSex(i)}</td>
                 <td data-label="Stage">
                   <span className={`status-pill stage-${v.stage}`}>{stageLabel(v.stage)}</span>

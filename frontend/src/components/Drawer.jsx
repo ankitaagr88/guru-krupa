@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import PatientLink from './PatientLink';
 
 /* Right-hand slide-in drawer (mockup `openDrawer` / `closeDrawer`, `.drawer`).
    Always mounted so the slide animation runs; `open` toggles `.show`.
@@ -6,7 +7,7 @@ import { useEffect } from 'react';
              onClose={…} foot="Everything here saves on its own — nothing to submit.">
        …sections…
      </Drawer> */
-export default function Drawer({ open, name, meta, onClose, children, foot, id = 'drawer' }) {
+export default function Drawer({ open, name, meta, onClose, children, foot, id = 'drawer', patientId = null }) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e) => {
@@ -24,7 +25,7 @@ export default function Drawer({ open, name, meta, onClose, children, foot, id =
           <button className="drawer-close" onClick={onClose} aria-label="Close">
             ✕
           </button>
-          <div className="name">{name ?? '—'}</div>
+          <div className="name">{patientId ? <PatientLink id={patientId} name={name ?? '—'} /> : (name ?? '—')}</div>
           <div className="meta">{meta ?? '—'}</div>
         </div>
         <div className="drawer-body">{open ? children : null}</div>

@@ -5,6 +5,7 @@ from app.auth.deps import get_current_user
 from app.db import get_db
 from app.models.patients import Patient
 from app.routes import register
+from app.schemas.history import PatientHistoryOut
 from app.schemas.patients import PatientDetail, PatientIn, PatientOut, PatientPatch
 from app.services import patients as svc
 from app.services.queue import today
@@ -39,6 +40,12 @@ def search_patients(q: str = Query("", max_length=120), db: Session = Depends(ge
 @router.get("/{patient_id}", response_model=PatientDetail)
 def get_patient(patient_id: int, db: Session = Depends(get_db)):
     return svc.patient_detail(db, _get(db, patient_id), today())
+
+
+@router.get("/{patient_id}/history", response_model=PatientHistoryOut)
+def get_patient_history(patient_id: int, db: Session = Depends(get_db)):
+    """The patient screen: details + every visit (readings, prescription, bill, photos), surgeries, appointments."""
+    return svc.patient_history(db, _get(db, patient_id), today())
 
 
 @router.patch("/{patient_id}", response_model=PatientOut)

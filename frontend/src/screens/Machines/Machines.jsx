@@ -8,6 +8,7 @@ import ManualEntryForm from './ManualEntryForm';
 import ExamPhotos from './ExamPhotos';
 import { filterVisits, isBusy, visitRow } from './lib';
 import { IconCamera, IconPencil } from '../../components/Icons';
+import PatientLink from '../../components/PatientLink';
 import './machines.css';
 
 const POLL_MS = 2000;
@@ -188,7 +189,10 @@ function CaptureArea({ patient, machines, stages, isMobile, onChangePatient }) {
       <div className="summary-card" style={{ marginBottom: 14 }}>
         <div className="summary-card-title">Capturing for</div>
         <div className="summary-line">
-          <b>{patient.name}</b> — {patient.token} · currently {stageLabel}
+          <b>
+            <PatientLink id={patient.patientId} name={patient.name} />
+          </b>{' '}
+          — {patient.token} · currently {stageLabel}
         </div>
       </div>
 

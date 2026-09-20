@@ -100,3 +100,42 @@ def patient_detail(db: Session, patient: Patient, today: date) -> PatientDetail:
                                 has_prescription=bool(v.prescriptions), has_bill=v.bill is not None,
                                 completed_at=v.completed_at) for v in visits]
     return PatientDetail(**base.model_dump(), visits=history)
+
+
+def patient_history(db: Session, patient: Patient, today: date):
+    """Everything on one patient, for the patient screen (`GET /patients/{id}/history`)."""
+    from app.models.appointments import Appointment
+    from app.models.ot import OtCase
+    from app.schemas.history import PatientHistoryOut, VisitHistoryOut
+    from app.services import appointments as appt_svc
+    from app.services import ot as ot_svc
+    from app.services import pharmacy as pharmacy_svc
+    from app.services import readings as readings_svc
+
+    base = patients_out(db, [patient], today)[0]
+    visits = list(db.scalars(select(Visit).where(Visit.patient_id == patient.id)
+                             .order_by(Visit.date.desc(), Visit.id.desc())))
+    out_visits = []
+    n_readings = n_rx = 0
+    for v in visits:
+        rx = v.prescriptions[0] if v.prescriptions else None
+        n_readings += len(v.readings)
+        n_rx += 1 if rx else 0
+        out_visits.append(VisitHistoryOut(
+            id=v.id, date=v.date, token=v.token, stage=v.stage_key, status=v.status,
+            va={"R": v.va_r, "L": v.va_l}, note=v.note or "", doctor_notes=v.doctor_notes or "",
+            elsewhere=v.elsewhere, elsewhere_note=v.elsewhere_note or "", completed_at=v.completed_at,
+            imported=(v.note or "").startswith("Imported from"),
+            readings=[readings_svc.reading_out(db, r) for r in v.readings],
+            prescription=pharmacy_svc.prescription_out(db, rx) if rx else None,
+            bill=pharmacy_svc.bill_out(v.bill) if v.bill is not None else None,
+            exam_photos=[readings_svc.exam_photo_out(p) for p in v.exam_photos]))
+    cases = list(db.scalars(select(OtCase).where(OtCase.patient_id == patient.id)
+                            .order_by(OtCase.date.desc(), OtCase.id.desc())))
+    appts = list(db.scalars(select(Appointment).where(Appointment.patient_id == patient.id)))
+    upcoming = sorted([a for a in appts if a.date >= today], key=lambda a: a.date)
+    past = sorted([a for a in appts if a.date < today], key=lambda a: a.date, reverse=True)
+    return PatientHistoryOut(
+        patient=base, visits=out_visits, ot_cases=[ot_svc.case_out(db, c) for c in cases],
+        appointments=[appt_svc.appointment_out(a) for a in upcoming + past],
+        totals={"visits": len(visits), "prescriptions": n_rx, "surgeries": len(cases), "readings": n_readings})

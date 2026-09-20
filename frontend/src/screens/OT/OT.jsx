@@ -5,6 +5,7 @@ import { ot as otApi, onDataChange } from '../../api';
 import { dateStr } from '../../mocks/data';
 import NewCaseModal from './NewCaseModal';
 import CaseDrawer from './CaseDrawer';
+import PatientLink from '../../components/PatientLink';
 import { OT_STATUS, caseSlot, slotMinutes } from './constants';
 import './ot.css';
 
@@ -144,7 +145,7 @@ export default function OT() {
               return (
                 <tr key={k.id} onClick={() => openCase(k)} data-testid={`ot-row-${k.id}`}>
                   <td className="td-name">
-                    {k.patientName}
+                    <PatientLink id={k.patientId} name={k.patientName} />
                     {k.age ? <span className="ot-td-sub"> · {k.age}{k.sex ? k.sex[0] : ''}</span> : null}
                   </td>
                   <td data-label="Time" className="ot-td-slot">

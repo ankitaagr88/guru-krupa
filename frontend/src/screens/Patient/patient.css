@@ -1,0 +1,52 @@
+/* Patient screen — the full record, read-only. */
+.patient-wrap { max-width: 980px; }
+.patient-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.patient-name { font-family: var(--font-serif); font-size: 26px; line-height: 32px; font-weight: 600; margin: 0; }
+.patient-meta { display: flex; flex-wrap: wrap; gap: 6px 14px; font-family: var(--font-ui); font-size: 13px; color: var(--ink-soft); margin-top: 4px; }
+.patient-actions .btn-primary { display: inline-block; text-decoration: none; }
+.patient-stats { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+.patient-stat { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 18px; min-width: 120px; display: flex; flex-direction: column; }
+.patient-stat b { font-family: var(--font-mono); font-size: 22px; font-weight: 500; line-height: 26px; color: var(--ink); }
+.patient-stat span { font-family: var(--font-ui); font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+.patient-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+.patient-card-static { cursor: default; }
+.patient-card-static:hover { border-color: var(--line); box-shadow: var(--shadow-sm); }
+.patient-card-static .section-title { margin: 0 0 12px; }
+.patient-details { margin: 0; display: grid; grid-template-columns: 1fr; gap: 8px; }
+.patient-details > div { display: flex; gap: 12px; font-family: var(--font-ui); font-size: 14px; }
+.patient-details dt { width: 140px; flex-shrink: 0; color: var(--ink-faint); font-size: 13px; }
+.patient-details dd { margin: 0; color: var(--ink); }
+.patient-note { font-family: var(--font-ui); font-size: 13px; color: var(--ink-soft); background: var(--surface-sunk); border-radius: 10px; padding: 10px 12px; margin: 12px 0 0; }
+.patient-empty { font-family: var(--font-ui); font-size: 13px; color: var(--ink-faint); margin: 0 0 6px; }
+.patient-line { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); text-decoration: none; color: var(--ink); font-family: var(--font-ui); font-size: 14px; }
+.patient-line:last-child { border-bottom: none; }
+a.patient-line:hover .patient-line-main { color: var(--sapphire-deep); }
+.patient-line > .num { width: 96px; flex-shrink: 0; font-size: 13px; color: var(--ink-soft); }
+.patient-line-main { flex: 1; min-width: 0; }
+.patient-line-main small { display: block; font-size: 12px; color: var(--ink-faint); }
+.patient-visits-title { margin: 0 0 12px; }
+.patient-visits { display: flex; flex-direction: column; gap: 12px; }
+.patient-visit-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.patient-visit-date { font-family: var(--font-serif); font-size: 17px; font-weight: 600; display: block; }
+.patient-visit-meta { font-size: 12px; color: var(--ink-soft); }
+.patient-kv { display: flex; gap: 12px; padding: 5px 0; font-family: var(--font-ui); font-size: 14px; }
+.patient-kv > span:first-child { width: 140px; flex-shrink: 0; color: var(--ink-faint); font-size: 13px; }
+.patient-block { margin-top: 12px; }
+.patient-block .field-label { margin: 0 0 8px; }
+.patient-dx { color: var(--sapphire-deep); font-weight: 500; text-transform: none; }
+.patient-rx-line { display: flex; align-items: baseline; gap: 12px; padding: 7px 0; border-bottom: 1px dashed var(--line); font-family: var(--font-ui); font-size: 14px; }
+.patient-rx-line:last-of-type { border-bottom: none; }
+.patient-rx-line b { font-family: var(--font-serif); font-weight: 600; font-size: 15px; flex: 1; min-width: 0; }
+.patient-rx-line span { color: var(--ink-soft); }
+.patient-rx-line small { color: var(--ink-faint); font-size: 12px; }
+.patient-bill-total { border-top: 1px solid var(--line); margin-top: 4px; }
+.patient-bill-total span { color: var(--ink); font-weight: 500; }
+.patient-block .reading-val b { font-size: 14px; }
+.patient-block .link-btn { margin-top: 8px; padding-left: 0; }
+
+/* Patient names link to the record everywhere. */
+.patient-link { color: inherit; text-decoration: none; border-bottom: 1px dotted var(--line-strong); }
+.patient-link:hover { color: var(--sapphire-deep); border-bottom-color: var(--sapphire); }
+
+body.mobile-mode .patient-grid { grid-template-columns: 1fr; }
+body.mobile-mode .patient-details dt, body.mobile-mode .patient-kv > span:first-child { width: 110px; }

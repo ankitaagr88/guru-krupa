@@ -243,6 +243,7 @@ export default function PatientDrawer({
     <Drawer
       open={open}
       name={draft.name || row.name}
+      patientId={row.patientId}
       meta={meta}
       onClose={onClose}
       foot="Everything here saves on its own — nothing to submit."

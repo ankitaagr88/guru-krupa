@@ -82,6 +82,58 @@ export const patients = {
     if (!p) throw httpError(404, 'Patient not found');
     return c(p);
   },
+  // Real: GET /patients/{id}/history. In demo mode a "patient" row is today's visit, so the
+  // history is that visit plus any earlier dates (PATIENT_HISTORY) and imported prescriptions.
+  async fullHistory(id) {
+    await latency(60);
+    const p = S.patients.find((x) => x.id === Number(id));
+    if (!p) throw httpError(404, 'Patient not found');
+    const visits = [];
+    if (p.stage) {
+      const rx = (p.medicines || []).length
+        ? { id: p.id, visitId: p.id, printLanguage: p.printLanguage || 'english', diagnosisId: p.diagnosisId ?? null,
+            diagnosisName: S.diagnoses.find((d) => d.id === p.diagnosisId)?.name ?? null, lines: p.medicines.map(rxLineOut) }
+        : null;
+      visits.push({
+        id: p.id, date: dateStr(0), token: p.token, stage: p.stage, status: p.stage === 'done' ? 'completed' : 'active',
+        va: p.va || { R: '', L: '' }, note: p.note || '', doctorNotes: p.doctorNotes || '', elsewhere: !!p.elsewhere,
+        elsewhereNote: p.elsewhereNote || '', completedAt: p.stage === 'done' ? new Date().toISOString() : null,
+        imported: false,
+        readings: S.readings.filter((r) => r.visitId === p.id).map((r) => c(r)),
+        prescription: rx, bill: p.bill && p.bill.items?.length ? billOut(p) : null,
+        examPhotos: c(p.examPhotos || []),
+      });
+    }
+    (p.history || []).forEach((h, i) => {
+      visits.push({
+        id: -(i + 1), date: h.date, token: '', stage: 'done', status: 'completed', va: { R: '', L: '' }, note: 'Imported from the previous system',
+        doctorNotes: '', elsewhere: false, elsewhereNote: '', completedAt: h.date, imported: true, readings: [],
+        prescription: { id: -(i + 1), visitId: -(i + 1), printLanguage: 'english', diagnosisId: h.diagnosisId ?? null,
+          diagnosisName: S.diagnoses.find((d) => d.id === h.diagnosisId)?.name ?? null, lines: c(h.medicines || []) },
+        bill: null, examPhotos: [],
+      });
+    });
+    (S.patientHistory[p.phone] || []).forEach((d, i) => {
+      visits.push({ id: -(100 + i), date: d, token: '', stage: 'done', status: 'completed', va: { R: '', L: '' }, note: '',
+        doctorNotes: '', elsewhere: false, elsewhereNote: '', completedAt: d, imported: false, readings: [], prescription: null,
+        bill: null, examPhotos: [] });
+    });
+    visits.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    const otCases = S.otCases.filter((k) => k.patientId === p.id || k.patientName === p.name).map(otCaseOut).reverse();
+    const appointments = S.appointments.filter((a) => a.patientId === p.id || (a.phone && a.phone === p.phone)).map((a) => c(a));
+    return {
+      patient: c(p),
+      visits,
+      otCases,
+      appointments,
+      totals: {
+        visits: visits.length,
+        prescriptions: visits.filter((v) => v.prescription).length,
+        surgeries: otCases.length,
+        readings: visits.reduce((n, v) => n + v.readings.length, 0),
+      },
+    };
+  },
   async create(data) {
     await latency();
     const p = normalizePatient({

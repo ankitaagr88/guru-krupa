@@ -17,6 +17,8 @@ export const auth = {
 export const patients = {
   list: ({ q = '' } = {}) => data(client.get('/patients', { params: { q } })),
   get: (id) => data(client.get(`/patients/${id}`)),
+  // The patient screen: {patient, visits:[{…, readings, prescription, bill, examPhotos}], otCases, appointments, totals}
+  fullHistory: (id) => data(client.get(`/patients/${id}/history`)),
   create: (body) => data(client.post('/patients', body)),
   update: (id, patch) => data(client.patch(`/patients/${id}`, patch)),
   remove: (id) => data(client.delete(`/patients/${id}`)),

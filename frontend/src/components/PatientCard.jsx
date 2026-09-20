@@ -1,4 +1,5 @@
 import { ageSex, computeRowStatus } from '../lib/format';
+import PatientLink from './PatientLink';
 
 /* Mobile queue card (mockup `patientCardHtml`). Desktop uses <QueueRow> inside
    #boardTable. Both share computeRowStatus(). `now` lets the queue ticker
@@ -30,7 +31,9 @@ export default function PatientCard({ patient: p, stage, selected, onClick, now 
       data-testid={`patient-card-${p.id}`}
     >
       <div className="pc-top">
-        <div className="pc-name">{p.name}</div>
+        <div className="pc-name">
+          <PatientLink id={p.patientId} name={p.name} />
+        </div>
         <div className="pc-token">{p.token}</div>
       </div>
       <div className="pc-row">
@@ -64,7 +67,9 @@ export function QueueRow({ patient: p, stage, selected, onClick, now = Date.now(
       data-testid={`queue-row-${p.id}`}
     >
       <td className="td-token">{p.token}</td>
-      <td className="td-name">{p.name}</td>
+      <td className="td-name">
+        <PatientLink id={p.patientId} name={p.name} />
+      </td>
       <td>{ageSex(p)}</td>
       <td>{p.phone || '—'}</td>
       <td>

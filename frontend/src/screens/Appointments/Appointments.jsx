@@ -8,6 +8,7 @@ import { appointments as api, onDataChange, errorMessage } from '../../api';
 import { dateStr } from '../../mocks/data';
 import { CHANNEL_LABEL } from '../Queue/queueModel';
 import { IconPencil } from '../../components/Icons';
+import PatientLink from '../../components/PatientLink';
 import './appointments.css';
 
 const CHANNELS = ['whatsapp', 'call', 'walkin'];
@@ -140,7 +141,9 @@ export default function Appointments() {
           ) : (
             rows.map((a) => (
               <tr key={a.id} data-testid={`appt-row-${a.id}`} style={{ cursor: 'default' }}>
-                <td className="td-name">{a.name}</td>
+                <td className="td-name">
+                  <PatientLink id={a.patientId} name={a.name} />
+                </td>
                 <td data-label="Phone">{a.phone || '—'}</td>
                 <td data-label="Channel">
                   <span className={`channel-tag ${a.channel}`}>{CHANNEL_LABEL[a.channel] || a.channel}</span>
