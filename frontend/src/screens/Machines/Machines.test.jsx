@@ -86,11 +86,11 @@ describe('Machines screen (F5)', () => {
     expect(await listPending()).toHaveLength(0);
 
     // F13: a person approves the values → status Approved, stamp shown, photo gone
-    expect(within(card).getByText('Show photo')).toBeInTheDocument();
+    expect(within(card).getByText('Show printout')).toBeInTheDocument();
     await userEvent.click(within(card).getByTestId('approve-reading'));
     await waitFor(() => expect(screen.getByTestId('reading-status')).toHaveTextContent('Approved'));
     expect(within(card).getByTestId('reading-approved')).toHaveTextContent(/Approved by .* photo deleted/);
-    expect(within(card).queryByText('Show photo')).toBeNull();
+    expect(within(card).queryByText('Show printout')).toBeNull();
     expect(within(card).queryByTestId('approve-reading')).toBeNull();
     expect(screen.getByTestId('machine-hnt1p_tono')).toHaveTextContent('approved');
   });
