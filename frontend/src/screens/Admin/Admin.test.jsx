@@ -95,82 +95,39 @@ describe('Admin', () => {
     expect((await admin.referralSources.list()).find((r) => r.key === 'bni').needsDetail).toBe(true);
   });
 
-  it('medicine types: add with an auto key, rename, reorder, and delete-in-use shows the 409 message', async () => {
-    window.confirm = () => true;
-    renderShell({ route: '/admin', child: <Admin /> });
-    await screen.findByText('Medicine types');
-    await userEvent.type(screen.getByLabelText('New type label'), 'Nasal Spray');
-    expect(screen.getByLabelText('New type key')).toHaveValue('nasal-spray');
-    await userEvent.click(screen.getByRole('button', { name: '+ Add a type' }));
-    expect(await screen.findByTestId('medform-nasal-spray')).toBeInTheDocument();
-    let forms = await admin.medicineForms.list();
-    expect(forms[forms.length - 1]).toMatchObject({ key: 'nasal-spray', label: 'Nasal Spray', active: true });
-
-    const input = screen.getByLabelText('Type Nasal Spray');
-    fireEvent.change(input, { target: { value: 'Spray' } });
-    fireEvent.blur(input);
-    await waitFor(async () =>
-      expect((await admin.medicineForms.list()).find((f) => f.key === 'nasal-spray').label).toBe('Spray')
-    );
-
-    await userEvent.click(screen.getByLabelText('Move type Spray up'));
-    await waitFor(async () => {
-      forms = await admin.medicineForms.list();
-      expect(forms[forms.length - 2].key).toBe('nasal-spray');
-    });
-
-    // gel is used by Aquaray Gel → 409 with the server's message
-    await userEvent.click(screen.getByLabelText('Delete type Gel'));
-    expect(await screen.findByText('Not allowed right now')).toBeInTheDocument();
-    expect(screen.getByText(/1 medicine\(s\) use form 'gel'/)).toBeInTheDocument();
-    expect(screen.getByTestId('medform-gel')).toBeInTheDocument();
-  });
-
-  it('medicines: add one from the modal, edit inline, deactivate and show inactive', async () => {
+  it('medicines: add one by name from the modal, rename inline, deactivate and show inactive', async () => {
     renderShell({ route: '/admin', child: <Admin /> });
     await screen.findByText('Medicines');
-    expect(await screen.findByLabelText('Brand of Aquaray Gel')).toHaveValue('Aquaray Gel');
-    expect(screen.getByLabelText('Type of Aquaray Gel')).toHaveValue('gel');
-    expect(screen.getByLabelText('Brand of Timolol 0.5% eye drops')).toHaveValue('');
+    expect(await screen.findByLabelText('Name of Aquaray Gel')).toHaveValue('Aquaray Gel');
+    // no detail columns any more
+    expect(screen.queryByLabelText('Type of Aquaray Gel')).toBeNull();
+    expect(screen.queryByText('Medicine types')).toBeNull();
 
     await userEvent.click(screen.getByRole('button', { name: '+ Add a medicine' }));
     const dialog = await screen.findByRole('dialog', { name: 'Add a medicine' });
-    await userEvent.type(within(dialog).getByLabelText('Brand'), 'Moxicip');
-    await userEvent.type(within(dialog).getByLabelText('Composition'), 'Moxifloxacin 0.5%');
-    await userEvent.selectOptions(within(dialog).getByLabelText('Medicine type'), 'drops');
-    await userEvent.type(within(dialog).getByLabelText('Pack size'), '5 ml');
-    await userEvent.type(within(dialog).getByLabelText('Manufacturer'), 'Cipla');
+    await userEvent.type(within(dialog).getByLabelText('Medicine name'), 'Moxicip');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Add medicine' }));
-    expect(await screen.findByLabelText('Brand of Moxicip')).toHaveValue('Moxicip');
+    expect(await screen.findByLabelText('Name of Moxicip')).toHaveValue('Moxicip');
     const meds = await admin.medicines.list();
     const moxicip = meds.find((m) => m.name === 'Moxicip');
-    expect(moxicip).toMatchObject({
-      brand: 'Moxicip',
-      composition: 'Moxifloxacin 0.5%',
-      form: 'drops',
-      formLabel: 'Drops',
-      packSize: '5 ml',
-      manufacturer: 'Cipla',
-      displayName: 'Moxicip (Moxifloxacin 0.5%)',
-    });
+    expect(moxicip).toBeTruthy();
 
-    const strength = screen.getByLabelText('Strength of Moxicip');
-    fireEvent.change(strength, { target: { value: '0.5%' } });
-    fireEvent.blur(strength);
-    await waitFor(async () =>
-      expect((await admin.medicines.list()).find((m) => m.name === 'Moxicip').strength).toBe('0.5%')
-    );
+    const name = screen.getByLabelText('Name of Moxicip');
+    fireEvent.change(name, { target: { value: 'Moxicip D' } });
+    fireEvent.blur(name);
+    await waitFor(async () => expect((await admin.medicines.list()).some((m) => m.name === 'Moxicip D')).toBe(true));
 
-    await userEvent.click(screen.getByLabelText('Moxicip active'));
-    await waitFor(() => expect(screen.queryByLabelText('Brand of Moxicip')).toBeNull());
-    expect((await admin.medicines.list()).some((m) => m.name === 'Moxicip')).toBe(false);
+    await userEvent.click(screen.getByLabelText('Moxicip D active'));
+    await waitFor(() => expect(screen.queryByLabelText('Name of Moxicip D')).toBeNull());
+    expect((await admin.medicines.list()).some((m) => m.name === 'Moxicip D')).toBe(false);
     await userEvent.click(screen.getByLabelText('Show inactive medicines'));
     const row = await screen.findByTestId(`medicine-${moxicip.id}`);
     expect(row).toHaveClass('staff-inactive');
-    await userEvent.click(within(row).getByLabelText('Moxicip active'));
+    await userEvent.click(within(row).getByLabelText('Moxicip D active'));
     await waitFor(() =>
       expect(screen.getByTestId(`medicine-${moxicip.id}`)).not.toHaveClass('staff-inactive')
     );
-    expect((await admin.medicines.list()).some((m) => m.name === 'Moxicip')).toBe(true);
+    expect((await admin.medicines.list()).some((m) => m.name === 'Moxicip D')).toBe(true);
   });
+
 });

@@ -1,14 +1,6 @@
 /* MedicineForm (shared by the Rx modal "Add to medicine list" panel and Admin). */
-.med-form-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-.med-form-grid .fake-input,
-.med-form-grid .drop-select {
+.med-form-row .fake-input {
   margin: 0;
-  padding: 9px 11px;
-  font-size: 13px;
 }
 .med-form-err {
   font-family: var(--font-ui);
@@ -28,7 +20,4 @@
   padding: 9px 14px;
   font-size: 13px;
   line-height: 18px;
-}
-body.mobile-mode .med-form-grid {
-  grid-template-columns: 1fr;
 }

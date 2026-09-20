@@ -60,7 +60,7 @@ describe('Inventory', () => {
     await screen.findByTestId('inv-row-1');
     await userEvent.type(screen.getByLabelText('Item name'), 'mosi');
     const opt = (await screen.findAllByTestId('med-option')).find((o) => within(o).queryByText('MOSI LP'));
-    expect(within(opt).getByText('Suspension')).toBeInTheDocument();
+    expect(opt.querySelector('.med-type-chip')).toBeNull();
     await userEvent.click(opt);
     expect(screen.getByLabelText('Item name')).toHaveValue('MOSI LP');
     expect(screen.getByTestId('inv-link-hint')).toHaveTextContent('Linked to the medicine list: MOSI LP');

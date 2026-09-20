@@ -2,10 +2,10 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { prescriptions } from '../api';
 import './medicinePicker.css';
 
-/* Searchable medicine picker (GET /medicines?q=). Shows the brand in bold with
-   the composition, type and pack size underneath; searchable by brand or generic.
-   Free text stays possible — the caller gets every keystroke via onChange and the
-   picked master row via onPick.
+/* Searchable medicine picker (GET /medicines?q=). Shows the medicine name and
+   nothing else (the list is names only, as in KiviHealth). Free text stays
+   possible — the caller gets every keystroke via onChange and the picked master
+   row via onPick.
 
      <MedicinePicker value={text} onChange={setText} onPick={(med) => …}
                      onEnter={() => addFreeText()} ariaLabel="Medicine name" />
@@ -15,17 +15,9 @@ import './medicinePicker.css';
 const DEBOUNCE_MS = 120;
 const MAX_ROWS = 8;
 
-/** Second line of a picker row / line: composition (when it differs from the shown name) · type · pack. */
-export function medicineSubtitle(m, { withType = true } = {}) {
-  if (!m) return '';
-  const shown = m.brand || m.name || '';
-  const bits = [];
-  if (m.composition && m.composition.trim().toLowerCase() !== shown.trim().toLowerCase())
-    bits.push(m.composition);
-  if (withType && m.formLabel) bits.push(m.formLabel);
-  if (m.strength) bits.push(m.strength);
-  if (m.packSize) bits.push(m.packSize);
-  return bits.join(' · ');
+/** The one thing shown for a medicine: its name. */
+export function medicineName(m) {
+  return m?.name || m?.brand || m?.composition || '';
 }
 
 export default function MedicinePicker({
@@ -33,7 +25,7 @@ export default function MedicinePicker({
   onChange,
   onPick,
   onEnter,
-  placeholder = 'Search brand or generic name…',
+  placeholder = 'Search medicine…',
   ariaLabel = 'Medicine name',
   id,
   className = 'med-search',
@@ -142,12 +134,8 @@ export default function MedicinePicker({
               data-testid="med-option"
             >
               <div className="med-picker-main">
-                <b>{m.brand || m.name}</b>
-                {m.formLabel && <span className="med-type-chip">{m.formLabel}</span>}
+                <b>{medicineName(m)}</b>
               </div>
-              {medicineSubtitle(m, { withType: false }) && (
-                <div className="med-picker-sub">{medicineSubtitle(m, { withType: false })}</div>
-              )}
             </li>
           ))}
         </ul>

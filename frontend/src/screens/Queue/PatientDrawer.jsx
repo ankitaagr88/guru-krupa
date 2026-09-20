@@ -549,7 +549,6 @@ function RxSection({ lines, onOpen }) {
               <div className="med-main">
                 <div className="med-name">
                   {m.name}
-                  {m.formLabel && <span className="med-type-chip">{m.formLabel}</span>}
                 </div>
                 {m.dosage && (
                   <div className="hint" style={{ margin: '3px 0 0', fontSize: 11.5 }}>

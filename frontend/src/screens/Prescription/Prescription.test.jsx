@@ -100,31 +100,33 @@ describe('Medicine picker & brand/composition (F12)', () => {
     window.print = vi.fn();
   });
 
-  it('shows brand bold with composition, matches by generic and tags the line with its type', async () => {
+  it('picker shows the medicine name only and a picked line is "in list"', async () => {
     renderWithProviders(<PrescriptionModal visit={{ id: 7, name: 'Ilaben Chauhan' }} onClose={() => {}} />);
     const search = await screen.findByLabelText('Medicine name');
-    await userEvent.type(search, 'carboxymethylcellulose sodium'); // the generic, not the brand
+    await userEvent.type(search, 'aquaray');
     const opts = await screen.findAllByTestId('med-option');
     const aquaray = opts.find((o) => within(o).queryByText('Aquaray Gel'));
     expect(aquaray).toBeTruthy();
     expect(within(aquaray).getByText('Aquaray Gel').tagName).toBe('B');
-    expect(within(aquaray).getByText(/Carboxymethylcellulose sodium eye drops IP/)).toBeInTheDocument();
-    expect(within(aquaray).getByText(/10 ml/)).toBeInTheDocument();
+    // no composition / type / pack details anywhere in the row
+    expect(within(aquaray).queryByText(/Carboxymethylcellulose/)).toBeNull();
+    expect(within(aquaray).queryByText(/10 ml/)).toBeNull();
+    expect(aquaray.querySelector('.med-type-chip')).toBeNull();
     await userEvent.click(aquaray);
     const row = (await screen.findAllByTestId('med-row'))[0];
     expect(within(row).getByText('Aquaray Gel')).toBeInTheDocument();
-    expect(within(row).getByText('Gel')).toHaveClass('med-type-chip');
     expect(within(row).getByText('in list')).toBeInTheDocument();
-    expect(within(row).getByText(/Carboxymethylcellulose sodium eye drops IP/)).toBeInTheDocument();
+    expect(row.querySelector('.med-type-chip')).toBeNull();
+    expect(within(row).queryByText(/Carboxymethylcellulose/)).toBeNull();
 
-    // typing the brand name and pressing Add also resolves to the master row
+    // typing the name and pressing Add also resolves to the master row
     await addMed('mosi lp');
     const rows = await screen.findAllByTestId('med-row');
     expect(within(rows[1]).getByText('MOSI LP')).toBeInTheDocument();
-    expect(within(rows[1]).getByText('Suspension')).toHaveClass('med-type-chip');
+    expect(within(rows[1]).getByText('in list')).toBeInTheDocument();
   });
 
-  it('print sheet: brand bold, composition underneath, type + pack on the dosage line', async () => {
+  it('print sheet: medicine name bold and the dosage, nothing else', async () => {
     renderWithProviders(
       <PrescriptionModal visit={{ id: 6, name: 'Sangita Rana', token: '#007' }} onClose={() => {}} />
     );
@@ -135,12 +137,11 @@ describe('Medicine picker & brand/composition (F12)', () => {
     });
     await userEvent.click(screen.getByRole('button', { name: /Print/ }));
     const sheet = await screen.findByTestId('rx-print');
-    const brand = within(sheet).getByText('Aquaray Gel');
-    expect(brand.tagName).toBe('B');
-    expect(brand).toHaveClass('rx-print-brand');
-    const comp = within(sheet).getByText('Carboxymethylcellulose sodium eye drops IP');
-    expect(comp).toHaveClass('rx-print-comp');
-    expect(within(sheet).getByText('Gel · 10 ml')).toHaveClass('rx-print-type');
+    const name = within(sheet).getByText('Aquaray Gel');
+    expect(name.tagName).toBe('B');
+    expect(name).toHaveClass('rx-print-brand');
+    expect(within(sheet).queryByText(/Carboxymethylcellulose/)).toBeNull();
+    expect(sheet.querySelector('.rx-print-type')).toBeNull();
     expect(within(sheet).getByText('1 drop, both eyes, at night')).toBeInTheDocument();
     await waitFor(() => expect(window.print).toHaveBeenCalled());
   });
@@ -152,20 +153,11 @@ describe('Medicine picker & brand/composition (F12)', () => {
     expect(within(row).getByText('not in list')).toBeInTheDocument();
     await userEvent.click(within(row).getByRole('button', { name: 'Add Lubrex Plus to medicine list' }));
     const form = within(row).getByTestId('medicine-form');
-    expect(within(form).getByLabelText('Brand')).toHaveValue('Lubrex Plus');
-    await userEvent.type(within(form).getByLabelText('Composition'), 'Polyethylene glycol 0.4%');
-    await userEvent.selectOptions(within(form).getByLabelText('Medicine type'), 'gel');
-    await userEvent.type(within(form).getByLabelText('Pack size'), '10 ml');
+    expect(within(form).getByLabelText('Medicine name')).toHaveValue('Lubrex Plus');
     await userEvent.click(within(form).getByRole('button', { name: 'Add to list' }));
     await waitFor(() => expect(within(row).getByText('in list')).toBeInTheDocument());
-    expect(within(row).getByText('Gel')).toHaveClass('med-type-chip');
-    expect(within(row).getByText(/Polyethylene glycol 0.4%/)).toBeInTheDocument();
     const meds = await prescriptions.medicines({ q: 'lubrex' });
-    expect(meds[0]).toMatchObject({
-      brand: 'Lubrex Plus',
-      composition: 'Polyethylene glycol 0.4%',
-      form: 'gel',
-    });
+    expect(meds[0]).toMatchObject({ name: 'Lubrex Plus' });
   });
 
   it('non-admins see the hint but no "Add to medicine list" link', async () => {

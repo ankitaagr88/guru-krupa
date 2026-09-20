@@ -4,7 +4,7 @@ import Modal from '../../components/Modal';
 import { useToast } from '../../components/Toast';
 import { ROLES, ROLE_LABELS, useAuth } from '../../auth/AuthContext';
 import { admin as adminApi, patients as patientsApi, onDataChange, errorMessage } from '../../api';
-import { MedicinesSection, MedicineTypesSection } from './MedicinesAdmin';
+import { MedicinesSection } from './MedicinesAdmin';
 import { EditableText, ReorderBtns } from './pieces';
 import './admin.css';
 
@@ -28,7 +28,6 @@ export default function Admin() {
   const [tiers, setTiers] = useState([]);
   const [staff, setStaff] = useState([]);
   const [medicines, setMedicines] = useState([]);
-  const [medForms, setMedForms] = useState([]);
   const [showInactiveMeds, setShowInactiveMeds] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [staffModal, setStaffModal] = useState(false);
@@ -38,7 +37,7 @@ export default function Admin() {
 
   const load = useCallback(async () => {
     const safe = (p, fb = []) => p.catch(() => fb);
-    const [st, ps, rs, nd, lt, sf, md, mf] = await Promise.all([
+    const [st, ps, rs, nd, lt, sf, md] = await Promise.all([
       safe(adminApi.stages.list()),
       safe(adminApi.protocolSteps.list()),
       safe(adminApi.referralSources.list()),
@@ -46,7 +45,6 @@ export default function Admin() {
       safe(adminApi.lensTiers.list()),
       safe(adminApi.staff.list()),
       safe(adminApi.medicines.list({ includeInactive: showInactiveMeds })),
-      safe(adminApi.medicineForms.list()),
     ]);
     setStages(st);
     setSteps(ps);
@@ -55,7 +53,6 @@ export default function Admin() {
     setTiers(lt);
     setStaff(sf);
     setMedicines(md);
-    setMedForms(mf);
     setLoaded(true);
   }, [showInactiveMeds]);
 
@@ -416,15 +413,13 @@ export default function Admin() {
         </button>
       </section>
 
-      {/* ---------------- medicines & types (F12) ---------------- */}
+      {/* ---------------- medicines (F12) — names only ---------------- */}
       <MedicinesSection
         medicines={medicines}
-        forms={medForms}
         run={run}
         showInactive={showInactiveMeds}
         onShowInactive={setShowInactiveMeds}
       />
-      <MedicineTypesSection forms={medForms} run={run} />
 
       {/* ---------------- staff ---------------- */}
       <section className="admin-block" aria-labelledby="h-staff">

@@ -6,11 +6,10 @@ import {
   inventory as inventoryApi,
   readings,
   admin as adminApi,
-  config as configApi,
   errorMessage,
 } from '../../api';
 import { useAuth } from '../../auth/AuthContext';
-import MedicinePicker, { medicineSubtitle } from '../../components/MedicinePicker';
+import MedicinePicker from '../../components/MedicinePicker';
 import MedicineForm from '../Admin/MedicineForm';
 import { HOSPITAL_NAME, DOCTOR_NAME } from '../../nav';
 import { RX_LANGUAGES, visitInfo } from './hospital';
@@ -85,7 +84,6 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved }) {
   const [printPayload, setPrintPayload] = useState(null);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photos, setPhotos] = useState(0);
-  const [forms, setForms] = useState([]);
   const [addingFor, setAddingFor] = useState(null); // index of the free-text line being added to the list
   const [addBusy, setAddBusy] = useState(false);
   const [medsKey, setMedsKey] = useState(0);
@@ -115,16 +113,14 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved }) {
     setPrintPayload(null);
     setPhotos(0);
     (async () => {
-      const [rx, medList, cfg] = await Promise.all([
+      const [rx, medList] = await Promise.all([
         prescriptions.get(info.id).catch(() => null),
         prescriptions.medicines({ q: '' }).catch(() => []),
-        configApi.get().catch(() => null),
       ]);
       await loadStock();
       if (cancelled) return;
       const normMeds = (medList || []).map((m) => (typeof m === 'string' ? { id: null, name: m } : m));
       setMeds(normMeds);
-      setForms(cfg?.medicineForms || []);
       const existing = Array.isArray(rx) ? rx : rx?.lines || [];
       setLines(existing.map(lineFromApi));
       setLang(rx?.printLanguage || 'english');
@@ -142,9 +138,6 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved }) {
     const t = norm(name);
     return meds.find((m) => norm(m.name) === t || norm(m.brand) === t || norm(m.composition) === t);
   };
-  const medOf = (line) =>
-    (line.medicineId != null && meds.find((m) => m.id === line.medicineId)) || findMed(line.name) || null;
-
   const stockFor = (line) =>
     stock.find((s) => (line.medicineId != null && s.medicineId === line.medicineId) || s.name === line.name);
 
@@ -392,15 +385,11 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved }) {
                 } else {
                   avail = <span className="rx-avail">not stocked · patient buys</span>;
                 }
-                const med = medOf(m);
-                const typeLabel = m.formLabel || med?.formLabel || null;
-                const sub = med ? medicineSubtitle(med, { withType: false }) : '';
                 return (
                   <div className={`med-row${m.matched ? '' : ' manual'}`} key={i} data-testid="med-row">
                     <div className="med-main">
                       <div className="med-name">
                         {m.name}
-                        {m.matched && typeLabel && <span className="med-type-chip">{typeLabel}</span>}
                         {m.matched ? (
                           <span className="match-tag">in list</span>
                         ) : (
@@ -417,17 +406,14 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved }) {
                             + Add to medicine list
                           </button>
                         )}
-                        {m.matched && sub && <div className="med-comp">{sub}</div>}
                       </div>
                       {!m.matched && isAdmin && addingFor === i && (
                         <div className="rx-add-med">
                           <p className="rx-add-med-title">Add to the medicine list</p>
                           <MedicineForm
-                            forms={forms}
-                            initial={{ brand: m.name }}
+                            initial={{ name: m.name }}
                             busy={addBusy}
                             idPrefix={`rxAddMed${i}`}
-                            autoFocusField="composition"
                             onCancel={() => setAddingFor(null)}
                             onSubmit={(body) => addToList(i, body)}
                           />

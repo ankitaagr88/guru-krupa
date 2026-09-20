@@ -294,7 +294,7 @@ export default function Inventory() {
         </form>
         <p className="hint" style={{ margin: '6px 0 0' }} data-testid="inv-link-hint">
           {draft.medicine
-            ? `Linked to the medicine list: ${draft.medicine.displayName || draft.medicine.name}${draft.medicine.formLabel ? ` · ${draft.medicine.formLabel}` : ''} — prescriptions will deduct from this item.`
+            ? `Linked to the medicine list: ${draft.medicine.name} — prescriptions will deduct from this item.`
             : 'Pick from the medicine list so prescriptions deduct from this item, or type any other stock item.'}
         </p>
       </div>
