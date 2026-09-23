@@ -19,6 +19,9 @@ class Appointment(Base):
     checked_in: Mapped[bool] = mapped_column(Boolean, default=False)
     patient_id: Mapped[int | None] = mapped_column(ForeignKey("patients.id"))
     visit_id: Mapped[int | None] = mapped_column(ForeignKey("visits.id"))
+    # Set when the doctor's follow-up date booked this appointment (the visit it came from).
+    source_visit_id: Mapped[int | None] = mapped_column(ForeignKey("visits.id"), index=True)
+    note: Mapped[str] = mapped_column(String(255), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     patient = relationship("Patient")

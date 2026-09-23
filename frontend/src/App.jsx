@@ -13,6 +13,7 @@ import Admin from './screens/Admin';
 import MRs from './screens/MRs';
 import PrescriptionsToday from './screens/Prescription';
 import Patient from './screens/Patient';
+import Today from './screens/Today';
 
 /* Route table. AppShell is the layout route: rail/topbar/mobile nav wrap every
    authenticated screen. Add a screen = add a Route here + a NAV_ITEMS entry in nav.js. */
@@ -41,6 +42,14 @@ export function AppRoutes() {
           element={
             <RequireRole roles={['doctor', 'admin']}>
               <PrescriptionsToday />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/today"
+          element={
+            <RequireRole roles={['admin', 'doctor', 'reception']}>
+              <Today />
             </RequireRole>
           }
         />

@@ -117,3 +117,21 @@ def test_full_history_endpoint(client, admin_headers):
     assert h["otCases"][0]["procedure"] == "LASIK"
     assert h["appointments"][0]["channel"] == "call"
     assert client.get("/api/patients/999999/history", headers=admin_headers).status_code == 404
+
+
+def test_age_from_dob_or_recorded_age():
+    """Session-3 groundwork: `age` is worked out from the DOB when known; a told age grows with the
+    calendar from the day it was told."""
+    from datetime import date
+
+    from app.models import Patient
+
+    today = date.today()
+    p = Patient(name="Age Check", dob=date(today.year - 30, 1, 1))
+    assert p.age == 30
+    q = Patient(name="Told Age", age=50)
+    assert q.age == 50 and q.age_recorded == 50 and q.age_recorded_on == today
+    q.age_recorded_on = date(today.year - 3, 1, 1)
+    assert q.age == 53
+    q.age = None
+    assert q.age is None and q.age_recorded_on is None

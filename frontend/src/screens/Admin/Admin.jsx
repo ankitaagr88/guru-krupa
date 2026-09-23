@@ -8,6 +8,7 @@ import { MedicinesSection } from './MedicinesAdmin';
 import { TreatmentsSection } from './TreatmentsAdmin';
 import { OtSlotsSection, OtProceduresSection } from './OtAdmin';
 import { ImportSection } from './ImportAdmin';
+import { ChargesSection } from './ChargesAdmin';
 import { EditableText, ReorderBtns } from './pieces';
 import './admin.css';
 
@@ -430,6 +431,9 @@ export default function Admin() {
         onShowInactive={setShowInactiveMeds}
       />
 
+      {/* ---------------- standard charges (lane B) ---------------- */}
+      <ChargesSection run={run} />
+
       {/* ---------------- diagnoses & treatment standards (B15/F17) ---------------- */}
       <TreatmentsSection run={run} />
 
@@ -693,6 +697,7 @@ const ADMIN_SECTIONS = [
   ['h-otslots', 'OT slots'],
   ['h-otprocs', 'OT procedures'],
   ['h-medicines', 'Medicines'],
+  ['h-charges', 'Standard charges'],
   ['h-treatments', 'Treatment standards'],
   ['h-import', 'Import from KiviHealth'],
   ['h-staff', 'Staff & roles'],

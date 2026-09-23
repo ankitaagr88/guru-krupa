@@ -1,10 +1,55 @@
-import { useState } from 'react';
-import { PAYMENT_MODES } from './queueModel';
+import { useEffect, useRef, useState } from 'react';
+import { useToast } from '../../components/Toast';
+import { billing as billingApi, errorMessage } from '../../api';
+import { PAYMENT_MODES, normalizeBill } from './queueModel';
 
 /* Bill panel for the billing stage (mockup `renderBilling` / `addBillItem` /
-   `removeBillItem` / `selectPaymentMode`). Controlled by the drawer: `bill` is the
-   normalised bill, `onChange({items, paymentMode})` persists it. */
-export default function BillingPanel({ bill, onItems, onPaymentMode, busy = false }) {
+   `removeBillItem` / `selectPaymentMode`). Self-contained (lane B owns it): loads and
+   saves the visit's bill itself. The drawer only passes the visit and hears back which
+   payment mode was picked (`onPaymentMode`) for its "Mark visit complete" button.
+   `fallbackBill` is the bill embedded in the queue row, shown until the fetch lands;
+   `refreshKey` bumps after every board reload. */
+export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaymentMode, busy = false }) {
+  const toast = useToast();
+  const [bill, setBill] = useState(() => normalizeBill(fallbackBill));
+  const report = useRef(onPaymentMode);
+  report.current = onPaymentMode;
+
+  useEffect(() => {
+    let alive = true;
+    billingApi
+      .get(visitId)
+      .then((b) => alive && setBill(normalizeBill(b)))
+      .catch(() => alive && setBill(normalizeBill(fallbackBill)));
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visitId, refreshKey]);
+
+  useEffect(() => {
+    report.current?.(bill?.paymentMode || null);
+  }, [bill?.paymentMode]);
+
+  const saveBill = async (next, { pay = false } = {}) => {
+    const prev = bill;
+    setBill(next);
+    try {
+      const body = {
+        items: next.items.map((it) => ({ label: it.label, amount: Math.round(Number(it.amount) || 0) })),
+      };
+      if (next.paymentMode) body.paymentMode = next.paymentMode;
+      let saved = await billingApi.save(visitId, body);
+      if (pay && next.paymentMode) saved = await billingApi.pay(visitId, next.paymentMode);
+      if (saved) setBill(normalizeBill({ ...next, ...saved }));
+    } catch (err) {
+      setBill(prev);
+      toast.error('Could not save bill', errorMessage(err));
+    }
+  };
+  const onItems = (items) => saveBill({ ...bill, items });
+  const onPaymentModePick = (mode) => saveBill({ ...bill, paymentMode: mode }, { pay: true });
+
   const [label, setLabel] = useState('');
   const [amount, setAmount] = useState('');
   const [error, setError] = useState('');
@@ -99,7 +144,7 @@ export default function BillingPanel({ bill, onItems, onPaymentMode, busy = fals
             type="button"
             className={`channel-opt walkin${bill?.paymentMode === m.key ? ' active' : ''}`}
             data-pay={m.key}
-            onClick={() => onPaymentMode(m.key)}
+            onClick={() => onPaymentModePick(m.key)}
             disabled={busy}
           >
             {m.label}

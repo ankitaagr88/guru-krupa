@@ -1,7 +1,8 @@
-"""Medicines master list, per-visit prescription (+ print payload) and per-visit bill.
+"""Medicines master list and per-visit prescription (+ print payload). The bill lives in
+`app.routes.billing`.
 
-Paths are explicit (`/visits/{id}/prescription`, `/visits/{id}/bill`) so this module owns the
-pharmacy/billing sub-resources of a visit without touching `app.routes.visits`.
+Paths are explicit (`/visits/{id}/prescription`) so this module owns the pharmacy sub-resources
+of a visit without touching `app.routes.visits`.
 """
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -12,7 +13,7 @@ from app.db import get_db
 from app.models.patients import Visit
 from app.models.staff import Staff
 from app.routes import register
-from app.schemas.pharmacy import (BillIn, BillOut, BillPayIn, DispenseIn, MedicineOut, PrescriptionIn,
+from app.schemas.pharmacy import (DispenseIn, MedicineOut, PrescriptionIn,
                                   PrescriptionOut, PrintPayload)
 from app.services import pharmacy as svc
 
@@ -102,38 +103,5 @@ def print_prescription(visit_id: int, lang: str | None = Query(None), db: Sessio
     """`openPrescriptionModal` + `setLanguage`: JSON the client renders as the printed sheet."""
     try:
         return svc.print_payload(db, _prescription(db, visit_id), lang)
-    except svc.BadValue as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))
-
-
-# --------------------------------------------------------------------------- billing
-@router.get("/visits/{visit_id}/bill", response_model=BillOut)
-def get_bill(visit_id: int, db: Session = Depends(get_db)):
-    visit = _visit(db, visit_id)
-    if visit.bill is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No bill for this visit")
-    return svc.bill_out(visit.bill)
-
-
-@router.put("/visits/{visit_id}/bill", response_model=BillOut)
-def put_bill(visit_id: int, data: BillIn, db: Session = Depends(get_db),
-             user: Staff = Depends(require_role(*ANY_STAFF))):
-    """`renderBilling`: upsert — the items list replaces whatever was there."""
-    visit = _visit(db, visit_id)
-    try:
-        bill = svc.upsert_bill(db, visit, [(i.label, i.amount) for i in data.items], data.payment_mode)
-    except svc.BadValue as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))
-    return svc.bill_out(bill)
-
-
-@router.post("/visits/{visit_id}/bill/pay", response_model=BillOut)
-def pay_bill(visit_id: int, data: BillPayIn, db: Session = Depends(get_db),
-             user: Staff = Depends(require_role(*ANY_STAFF))):
-    visit = _visit(db, visit_id)
-    if visit.bill is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No bill for this visit")
-    try:
-        return svc.bill_out(svc.pay_bill(db, visit.bill, data.payment_mode))
     except svc.BadValue as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))

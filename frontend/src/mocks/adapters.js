@@ -12,6 +12,12 @@ import {
   emptyOtPostOp,
   emptyOtBilling,
 } from './data';
+import { billOut } from './billing';
+
+// Each lane keeps its own demo adapters in its own file (session 3).
+export { billing, reports } from './billing';
+export { reception } from './reception';
+export { doctor } from './doctor';
 
 const S = store.state;
 const c = store.clone;
@@ -299,41 +305,7 @@ export const visits = {
     store.notify();
     return { ok: true };
   },
-  // Billing (B8 contract): GET / PUT {items, paymentMode?} / POST pay {paymentMode}
-  async bill(id) {
-    const p = S.patients.find((x) => x.id === Number(id));
-    if (!p) throw httpError(404, 'Visit not found');
-    return billOut(p);
-  },
-  async saveBill(id, bill) {
-    const p = S.patients.find((x) => x.id === Number(id));
-    if (!p) throw httpError(404, 'Visit not found');
-    p.bill = { ...p.bill, items: c(bill.items || []) };
-    if (bill.paymentMode !== undefined) p.bill.paymentMode = bill.paymentMode;
-    store.notify();
-    return billOut(p);
-  },
-  async payBill(id, paymentMode) {
-    const p = S.patients.find((x) => x.id === Number(id));
-    if (!p) throw httpError(404, 'Visit not found');
-    p.bill.paymentMode = paymentMode;
-    p.bill.paidAt = Date.now();
-    store.notify();
-    return billOut(p);
-  },
 };
-
-function billOut(p) {
-  const b = p.bill || { items: [], paymentMode: null };
-  return {
-    visitId: p.id,
-    items: c(b.items || []),
-    total: (b.items || []).reduce((s, it) => s + Number(it.amount || 0), 0),
-    paymentMode: b.paymentMode ?? null,
-    paidAt: b.paidAt ?? null,
-    paid: !!b.paidAt,
-  };
-}
 
 // GET /config — the reference lists every screen needs (mirrors backend ConfigOut).
 export const config = {

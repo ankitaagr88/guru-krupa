@@ -48,6 +48,8 @@ class Medicine(Base):
     strength: Mapped[str | None] = mapped_column(String(40))  # "0.5%", "250mg"
     pack_size: Mapped[str | None] = mapped_column(String(30))  # "5 ml", "10 ml", "3 g"
     manufacturer: Mapped[str | None] = mapped_column(String(120))
+    # Selling price per pack in whole rupees (admin-set); "Bought here" puts it on the bill.
+    price: Mapped[int | None] = mapped_column(Integer)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     @property

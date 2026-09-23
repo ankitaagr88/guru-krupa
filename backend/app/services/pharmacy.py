@@ -1,7 +1,7 @@
 """Prescriptions (dispense + stock decrement, print payload), inventory movements, bills.
 
 Mockup counterparts: `addMedManual`/`renderMeds`/`decrementInventory`/`pushLowStockToast`,
-`adjustStock`/`addInventoryItem`, `renderBilling`/`addBillItem`/`selectPaymentMode`,
+`adjustStock`/`addInventoryItem`,
 `openPrescriptionModal`/`setLanguage`.
 """
 import re
@@ -13,12 +13,11 @@ from sqlalchemy.orm import Session
 
 from app.db import utcnow
 from app.models.audit import AuditLog
-from app.models.billing import PAYMENT_MODES, Bill, BillItem
 from app.models.patients import Visit
 from app.models.pharmacy import (INVENTORY_UNITS, STOCK_REASONS, Diagnosis, InventoryItem, Medicine, MedicineForm,
                                  Prescription, PrescriptionLine, StockMovement)
 from app.models.staff import Staff
-from app.schemas.pharmacy import (BillItemOut, BillOut, InventoryItemOut, MedicineOut, MovementOut,
+from app.schemas.pharmacy import (InventoryItemOut, MedicineOut, MovementOut,
                                   PrescriptionLineIn, PrescriptionLineOut, PrescriptionOut, PrintLine, PrintPayload)
 
 HOSPITAL = {
@@ -515,42 +514,6 @@ def movements(db: Session, item: InventoryItem, limit: int = 200) -> list[StockM
 def movement_out(m: StockMovement) -> MovementOut:
     return MovementOut(id=m.id, item_id=m.item_id, delta=m.delta, reason=m.reason,
                        ref_prescription_id=m.ref_prescription_id, by_staff_id=m.by_staff_id, at=m.at)
-
-
-# --------------------------------------------------------------------------- billing
-def upsert_bill(db: Session, visit: Visit, items: list[tuple[str, int]], payment_mode: str | None) -> Bill:
-    """`addBillItem`/`removeBillItem`/`selectPaymentMode`: replace the visit's bill items."""
-    if payment_mode is not None and payment_mode not in PAYMENT_MODES:
-        raise BadValue(f"paymentMode must be one of {PAYMENT_MODES}")
-    bill = visit.bill
-    if bill is None:
-        bill = Bill(visit_id=visit.id)
-        db.add(bill)
-    for old in list(bill.items):
-        db.delete(old)
-    bill.items = [BillItem(label=label, amount=amount) for label, amount in items]
-    if payment_mode is not None:
-        bill.payment_mode = payment_mode
-    db.commit()
-    db.refresh(bill)
-    return bill
-
-
-def pay_bill(db: Session, bill: Bill, payment_mode: str) -> Bill:
-    if payment_mode not in PAYMENT_MODES:
-        raise BadValue(f"paymentMode must be one of {PAYMENT_MODES}")
-    bill.payment_mode = payment_mode
-    bill.paid_at = utcnow()
-    db.commit()
-    return bill
-
-
-def bill_out(bill: Bill) -> BillOut:
-    return BillOut(id=bill.id, visit_id=bill.visit_id,
-                   items=[BillItemOut(id=i.id, label=i.label, amount=i.amount) for i in bill.items],
-                   total=sum(i.amount for i in bill.items), payment_mode=bill.payment_mode, paid_at=bill.paid_at,
-                   paid=bill.paid_at is not None)
-
 
 
 def mark_ordered(db: Session, item: InventoryItem, ordered: bool, by: Staff | int | None,

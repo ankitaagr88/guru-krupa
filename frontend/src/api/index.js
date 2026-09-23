@@ -23,6 +23,10 @@ export const mr = pick('mr');
 export const config = pick('config');
 export const treatments = pick('treatments');
 export const imports = pick('imports');
+export const billing = pick('billing');
+export const reports = pick('reports');
+export const reception = pick('reception');
+export const doctor = pick('doctor');
 
 export { errorMessage, session } from './client';
 export { default as client } from './client';

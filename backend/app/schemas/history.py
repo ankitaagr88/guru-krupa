@@ -5,7 +5,8 @@ from app.schemas.appointments import AppointmentOut
 from app.schemas.common import CamelModel
 from app.schemas.ot import OtCaseOut
 from app.schemas.patients import PatientOut
-from app.schemas.pharmacy import BillOut, PrescriptionOut
+from app.schemas.billing import BillOut
+from app.schemas.pharmacy import PrescriptionOut
 from app.schemas.readings import ExamPhotoOut, ReadingOut
 
 

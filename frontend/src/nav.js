@@ -6,6 +6,7 @@ import {
   IconMRs,
   IconStock,
   IconAdmin,
+  IconToday,
 } from './components/Icons';
 import IconRx from './screens/Prescription/IconRx';
 
@@ -48,6 +49,15 @@ export const NAV_ITEMS = [
     section: 'today',
     icon: IconRx,
     roles: ['admin', 'doctor'],
+  },
+  {
+    key: 'today',
+    label: 'Today',
+    fullLabel: "Today's summary",
+    path: '/today',
+    section: 'today',
+    icon: IconToday,
+    roles: ['admin', 'doctor', 'reception'],
   },
   {
     key: 'mrs',

@@ -44,11 +44,24 @@ export const visits = {
   dilationStepGiven: (id, n) => data(client.post(`/visits/${id}/dilation/steps/${n}/given`)),
   dilationStepDone: (id, n) => data(client.post(`/visits/${id}/dilation/steps/${n}/done`)),
   clearDilation: (id) => data(client.delete(`/visits/${id}/dilation`)),
-  // Billing (B8): GET 404s until a bill exists; PUT upserts {items:[{label,amount}], paymentMode?}
-  bill: (id) => data(client.get(`/visits/${id}/bill`)),
-  saveBill: (id, bill) => data(client.put(`/visits/${id}/bill`, bill)),
-  payBill: (id, paymentMode) => data(client.post(`/visits/${id}/bill/pay`, { paymentMode })),
 };
+
+/* Per-visit bill, standard charges and receipts (lane B owns this block).
+   GET 404s until a bill exists; PUT upserts {items:[{label,amount}], paymentMode?}. */
+export const billing = {
+  get: (visitId) => data(client.get(`/visits/${visitId}/bill`)),
+  save: (visitId, bill) => data(client.put(`/visits/${visitId}/bill`, bill)),
+  pay: (visitId, paymentMode) => data(client.post(`/visits/${visitId}/bill/pay`, { paymentMode })),
+};
+
+/* Read-only reports — the "Today" summary page (lane B owns this block). */
+export const reports = {};
+
+/* Reception additions — duplicate-patient check etc. (lane A owns this block). */
+export const reception = {};
+
+/* Doctor's panel — diagnosis on the visit, follow-up date (lane C owns this block). */
+export const doctor = {};
 
 // GET /config → { stages, protocolSteps, referralSources, lensTiers, conditions, medicineForms:[{key,label}] }
 export const config = {

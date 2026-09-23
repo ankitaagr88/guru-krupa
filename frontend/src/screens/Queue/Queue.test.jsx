@@ -5,7 +5,7 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { AppProviders } from '../../App';
 import AppShell from '../../components/AppShell';
 import { ADMIN } from '../../test/utils';
-import { mockStore, patients, visits } from '../../mocks/adapters';
+import { billing, mockStore, patients, visits } from '../../mocks/adapters';
 import Queue from './Queue';
 
 function renderQueue(route = '/queue/reg') {
@@ -175,7 +175,7 @@ describe('Billing', () => {
     await waitFor(() => expect(drawer()).toHaveTextContent('₹900'));
     await userEvent.click(within(drawer()).getByRole('button', { name: 'UPI' }));
     await waitFor(() => expect(drawer()).toHaveTextContent('paid via upi'));
-    const bill = await visits.bill(8);
+    const bill = await billing.get(8);
     expect(bill.items).toHaveLength(3);
     expect(bill.paymentMode).toBe('upi');
     expect(bill.paid).toBe(true);
