@@ -20,6 +20,7 @@ import { ageFromDob, dobProblem, parseDobCell } from '../lib/format';
 export { billing, reports } from './billing';
 export { reception } from './reception';
 export { doctor } from './doctor';
+export { intake } from './intake';
 import { doctor as doctorMock, doctorVisitOut } from './doctor';
 
 const S = store.state;

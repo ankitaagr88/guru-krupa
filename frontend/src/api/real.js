@@ -74,6 +74,15 @@ export const reception = {
   samePhone: (phone) => data(client.get('/patients/by-phone', { params: { phone } })),
 };
 
+/* New-patient form, /register (lane D owns this block). PUBLIC: no sign-in needed.
+   lists() → {referralSources:[{key, label, needsDetail}], conditions:[…]}
+   submit(body) → {token} (+ patientId, visitId when a staff member is signed in). Body = the
+   new-patient questions + `website` (a hidden honeypot, always ''). 429 = too many from here. */
+export const intake = {
+  lists: () => data(client.get('/intake/lists')),
+  submit: (body) => data(client.post('/intake', body)),
+};
+
 /* Doctor's panel — diagnosis on the visit, follow-up date (lane C owns this block).
    Each returns the updated visit (VisitOut: …, diagnosisId, diagnosisName, followUpDate,
    followUpNote, followUpAppointmentId). */

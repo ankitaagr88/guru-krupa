@@ -27,6 +27,7 @@ export const billing = pick('billing');
 export const reports = pick('reports');
 export const reception = pick('reception');
 export const doctor = pick('doctor');
+export const intake = pick('intake');
 
 export { errorMessage, session } from './client';
 export { default as client } from './client';

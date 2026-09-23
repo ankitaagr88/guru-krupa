@@ -1,0 +1,70 @@
+/* QR poster for the front desk (Admin › New patient form). Everything inside is sized in
+   container units (cqw = 1% of the sheet's width), so the preview and the printed page match.
+   Print colours are plain black on white: it goes on an office printer. */
+.poster-sheet {
+  container-type: inline-size;
+  width: 100%;
+  aspect-ratio: 210 / 297; /* A4 and A5 share the shape */
+  background: #fff;
+  color: #000;
+  font-family: var(--font-ui);
+  overflow: hidden;
+}
+.poster-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  height: 100%;
+  padding: 5cqw 6cqw 4cqw;
+}
+.poster-logo { width: 19cqw; height: auto; object-fit: contain; }
+.poster-hospital { margin: 1cqw 0 0; font-family: var(--font-serif); font-weight: 700; font-size: 3.4cqw; line-height: 1.25; }
+.poster-lines { margin: 3cqw 0 2.4cqw; }
+.poster-line { margin: 0 0 1cqw; font-size: 3.6cqw; line-height: 1.3; font-weight: 600; }
+.poster-line-main { font-family: var(--font-serif); font-size: 4.8cqw; font-weight: 700; }
+.poster-qr { width: 46cqw; height: 46cqw; }
+.poster-qr svg { display: block; width: 100%; height: 100%; }
+.poster-url { margin: 1.2cqw 0 0; font-family: var(--font-mono); font-size: 2.6cqw; word-break: break-all; }
+.poster-first { margin-top: auto; padding-top: 2.4cqw; border-top: 0.3cqw solid #000; width: 100%; }
+.poster-first p { margin: 0 0 0.6cqw; font-size: 2.5cqw; line-height: 1.35; }
+.poster-foot { margin: 1.2cqw 0 0; font-size: 2.1cqw; line-height: 1.35; color: #333; }
+
+/* The print copy lives in <body> and only shows while printing. */
+.intake-poster-print { display: none; }
+@media print {
+  body.printing-poster > *:not(.intake-poster-print) { display: none !important; }
+  body.printing-poster > .intake-poster-print { display: block !important; position: absolute; top: 0; left: 0; }
+  body.printing-poster { background: #fff !important; }
+  .intake-poster-print .poster-a4 { width: 210mm; height: 297mm; }
+  .intake-poster-print .poster-a5 { width: 148mm; height: 210mm; }
+  .intake-poster-print .poster-sheet { aspect-ratio: auto; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+}
+
+/* Admin › New patient form: the link, paper choice and a preview of the poster. */
+.intake-link { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 10px; }
+.intake-link code {
+  flex: 1 1 220px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  word-break: break-all;
+}
+.intake-link .btn-ghost { flex: 0 0 auto; text-decoration: none; display: inline-flex; align-items: center; }
+.intake-warn {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--alert-line);
+  background: var(--alert-wash);
+  color: var(--alert-ink);
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 19px;
+}
+.intake-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 0 0 14px; }
+.intake-controls-label { font-size: 13px; font-weight: 600; color: var(--ink-soft); }
+.intake-preview { max-width: 360px; border: 1px solid var(--line-strong); box-shadow: var(--shadow-md); }

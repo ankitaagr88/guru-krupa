@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     CLINIC_TZ: str = "Asia/Kolkata"  # clinic day boundary, independent of server TZ
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
     USE_X_ACCEL: bool = False  # prod: empty body + X-Accel-Redirect so Nginx streams /uploads (deploy/README.md)
+    # Public new-patient form (/register): at most this many submissions per address per window.
+    INTAKE_RATE_LIMIT: int = 5
+    INTAKE_RATE_WINDOW_SECONDS: int = 600
 
 
 settings = Settings()
