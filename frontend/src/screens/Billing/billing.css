@@ -174,7 +174,7 @@
     font-family: var(--font-ui), Arial, sans-serif;
     font-size: 12px;
   }
-  /* global.css hides `body *` on paper except `.print-area`; the receipt must show. */
+  /* Belt and braces: never let an inherited `visibility: hidden` blank the receipt. */
   body.printing-receipt > .receipt-print,
   body.printing-receipt > .receipt-print * {
     visibility: visible !important;

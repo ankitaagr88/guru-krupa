@@ -392,12 +392,7 @@ p.label { font-family: var(--font-ui); font-size: 13px; color: var(--ink-soft); 
 .rx-item .rx-name { font-family: var(--font-serif); font-weight: 600; font-size: 15px; color: var(--ink); }
 .rx-item .rx-dose { font-family: var(--font-ui); font-size: 13px; color: var(--ink-soft); margin-top: 3px; }
 .rx-empty { font-family: var(--font-ui); font-size: 13px; color: var(--ink-faint); text-align: center; padding: 16px 0; }
-@media print {
-  body * { visibility: hidden; }
-  .print-area, .print-area * { visibility: visible; }
-  .print-area { position: absolute; top: 0; left: 0; background: #fff; }
-  .print-area .modal-actions { display: none; }
-}
+/* Printing: each printable sheet (prescription, receipt) carries its own @media print rules. */
 
 /* ---------- Dilation steps ---------- */
 .dstep { display: flex; align-items: center; gap: 12px; padding: 13px 15px; border-radius: 10px; margin-bottom: 7px; background: var(--surface); border: 1px solid var(--line); }
