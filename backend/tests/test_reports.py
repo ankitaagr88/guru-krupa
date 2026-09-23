@@ -2,6 +2,7 @@
 from datetime import date, datetime, timezone
 
 import pytest
+from sqlalchemy import select
 
 DAY = date(2025, 6, 10)  # nobody else in the suite uses 2025 — the numbers below are exact
 
@@ -38,6 +39,10 @@ def clinic_day():
                   created_at=_utc(18, 45), stage_entered_at=_utc(19, 0), completed_at=_utc(19, 0))
         db.add_all([a, b, c, d])
         db.flush()
+        # SQLite hands out ids of visits other tests deleted; drop any audit rows left under them.
+        for old in db.scalars(select(AuditLog).where(AuditLog.entity == "visit",
+                                                     AuditLog.entity_id.in_([a.id, b.id, c.id, d.id]))):
+            db.delete(old)
         for vid, moves in ((a.id, [("reg", "pretest", 4, 10), ("pretest", "doctor", 4, 30),
                                    ("doctor", "billing", 4, 50), ("billing", "done", 5, 0)]),
                            (b.id, [("reg", "pretest", 5, 20), ("pretest", "doctor", 5, 30)])):

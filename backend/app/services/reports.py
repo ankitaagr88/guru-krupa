@@ -67,7 +67,8 @@ def stage_times(db: Session, visits: list[Visit]) -> list[StageTime]:
     waiting: dict[str, int] = defaultdict(int)
     for v in visits:
         per_stage: dict[str, float] = defaultdict(float)
-        rows = moves.get(v.id, [])
+        # A move logged before the visit existed belongs to something else (e.g. a reused id).
+        rows = [r for r in moves.get(v.id, []) if _aware(r.at) >= _aware(v.created_at)]
         current = (rows[0].detail or {}).get("from") if rows else v.stage_key
         entered = v.created_at
         for row in rows:
