@@ -9,6 +9,7 @@ import { TreatmentsSection } from './TreatmentsAdmin';
 import { OtSlotsSection, OtProceduresSection } from './OtAdmin';
 import { ImportSection } from './ImportAdmin';
 import { ChargesSection } from './ChargesAdmin';
+import { IntakeSection } from './IntakeAdmin';
 import { EditableText, ReorderBtns } from './pieces';
 import './admin.css';
 
@@ -440,6 +441,9 @@ export default function Admin() {
       {/* ---------------- import from KiviHealth (B13/F15) ---------------- */}
       <ImportSection />
 
+      {/* ---------------- new patient form: link + QR poster (lane D) ---------------- */}
+      <IntakeSection />
+
       {/* ---------------- staff ---------------- */}
       <section className="admin-block" aria-labelledby="h-staff">
         <h2 id="h-staff">Staff &amp; roles</h2>
@@ -700,6 +704,7 @@ const ADMIN_SECTIONS = [
   ['h-charges', 'Standard charges'],
   ['h-treatments', 'Treatment standards'],
   ['h-import', 'Import from KiviHealth'],
+  ['h-intake', 'New patient form'],
   ['h-staff', 'Staff & roles'],
 ];
 

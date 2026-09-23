@@ -1,0 +1,259 @@
+/* New patient form (/register). Phone first: one column, big type (16px+ so phones don't zoom
+   into a field), 48px+ tap targets. Works from 360px up; on a desktop it stays a centred column. */
+.reg-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.reg-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  padding: 10px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+}
+/* The full logo on its own white, like the login page. */
+.reg-logo {
+  display: flex;
+  align-items: center;
+  background: #fff;
+  border-radius: 10px;
+  padding: 4px 8px;
+  height: 48px;
+}
+.reg-logo img { display: block; height: 40px; width: auto; max-width: 150px; object-fit: contain; }
+
+.reg-langs {
+  display: flex;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  background: var(--surface);
+}
+.reg-langs button {
+  border: none;
+  background: none;
+  min-height: 44px;
+  padding: 8px 14px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+.reg-langs button + button { border-left: 1px solid var(--line-strong); }
+.reg-langs button.active { background: var(--sapphire); color: var(--on-sapphire); font-weight: 600; }
+
+.reg-main { max-width: 600px; margin: 0 auto; padding: 20px 16px 48px; }
+
+.reg-hospital {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 15px;
+  line-height: 21px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.reg-hospital-local { display: block; font-family: var(--font-ui); font-weight: 500; }
+.reg-title {
+  margin: 4px 0 12px;
+  font-family: var(--font-serif);
+  font-size: 28px;
+  line-height: 34px;
+  font-weight: 700;
+  color: var(--sapphire-ink);
+}
+.reg-first-visit {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--sapphire-line);
+  background: var(--sapphire-wash);
+  border-radius: var(--radius-md);
+  color: var(--sapphire-ink);
+}
+.reg-intro { margin: 0 0 20px; color: var(--ink-soft); }
+
+.reg-staff-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-sunk);
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+.reg-staff-bar .btn-ghost { flex: 0 0 auto; background: var(--surface); }
+.reg-last {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--done-line);
+  background: var(--done-wash);
+  color: var(--done-ink);
+  font-weight: 500;
+}
+
+/* One question = one card. */
+.reg-q {
+  margin: 0 0 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  min-width: 0;
+}
+fieldset.reg-q { margin-inline: 0; }
+.reg-q-label {
+  display: block;
+  padding: 0;
+  margin: 0 0 8px;
+  font-size: 17px;
+  line-height: 24px;
+  font-weight: 600;
+  color: var(--ink);
+}
+/* A <legend> sits on the border unless floated. */
+fieldset.reg-q > legend.reg-q-label { float: left; width: 100%; }
+fieldset.reg-q > legend.reg-q-label + * { clear: both; }
+.reg-needed {
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunk);
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 500;
+  vertical-align: 2px;
+}
+.reg-help { margin: 0 0 8px; font-size: 14px; line-height: 20px; color: var(--ink-faint); }
+.reg-error { margin: 8px 0 0; font-size: 14px; line-height: 20px; color: var(--alert-ink); font-weight: 500; }
+
+.reg-input {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  padding: 11px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--ink);
+  resize: vertical;
+}
+.reg-input::placeholder { color: var(--ink-faint); }
+.reg-input:focus { outline: 2px solid var(--focus); outline-offset: 1px; border-color: var(--focus); }
+.reg-input.error { border-color: var(--alert); background: var(--alert-wash); }
+.reg-input:disabled { background: var(--surface-sunk); color: var(--ink-soft); }
+.reg-input-short { max-width: 200px; }
+.reg-input-date { max-width: 260px; }
+.reg-sub { display: block; margin-top: 12px; }
+.reg-sub > span { display: block; margin-bottom: 6px; font-size: 15px; font-weight: 500; color: var(--ink-soft); }
+
+/* Big one-answer buttons (sex, language, yes/no). */
+.reg-choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.reg-choices button {
+  flex: 1 1 90px;
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.reg-choices button.on { background: var(--sapphire); border-color: var(--sapphire); color: var(--on-sapphire); font-weight: 600; }
+.reg-choices + .reg-input { margin-top: 12px; }
+.reg-choices ~ .reg-help { margin-top: 8px; }
+
+/* Tick boxes (conditions) and the one-of list (how they heard). */
+.reg-ticks { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.reg-radios { display: grid; gap: 8px; }
+.reg-tick, .reg-radio {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  cursor: pointer;
+  line-height: 20px;
+}
+.reg-tick input, .reg-radio input { width: 20px; height: 20px; flex-shrink: 0; margin: 0; accent-color: var(--sapphire); }
+.reg-tick.on, .reg-radio.on { border-color: var(--sapphire); background: var(--sapphire-wash); color: var(--sapphire-ink); font-weight: 500; }
+
+/* Honeypot: in the page for bots, never seen or reached by people. */
+.reg-hp { position: absolute; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
+
+.reg-form-error {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--alert-line);
+  background: var(--alert-wash);
+  color: var(--alert-ink);
+  border-radius: var(--radius-md);
+  font-weight: 500;
+}
+.reg-submit, .reg-btn-secondary {
+  display: block;
+  width: 100%;
+  min-height: 56px;
+  padding: 14px 20px;
+  border-radius: var(--radius-lg);
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 600;
+}
+.reg-submit { border: none; background: var(--sapphire); color: var(--on-sapphire); }
+.reg-submit:hover { background: var(--sapphire-deep); }
+.reg-submit:disabled { opacity: 0.6; cursor: default; }
+.reg-btn-secondary { border: 1px solid var(--sapphire); background: var(--surface); color: var(--sapphire); }
+
+/* Thank-you screen with the token. */
+.reg-thanks { text-align: center; padding-top: 12px; }
+.reg-thanks h1 { margin: 0 0 6px; font-family: var(--font-serif); font-size: 28px; line-height: 34px; font-weight: 700; color: var(--sapphire-ink); }
+.reg-thanks-body { margin: 0 0 20px; color: var(--ink-soft); }
+.reg-token-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 24px;
+  padding: 24px 16px;
+  border: 2px solid var(--done-line);
+  border-radius: var(--radius-xl);
+  background: var(--done-wash);
+}
+.reg-token-label { font-size: 16px; font-weight: 600; color: var(--done-ink); }
+.reg-token {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 64px;
+  line-height: 72px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.reg-token-help { font-size: 17px; line-height: 24px; font-weight: 500; color: var(--ink); max-width: 320px; }
+
+@media (min-width: 900px) {
+  .reg-head { padding: 12px max(24px, calc((100vw - 600px) / 2)); }
+  .reg-main { padding-top: 28px; }
+}
+.reg-input.num::placeholder { font-family: var(--font-ui); }

@@ -14,6 +14,7 @@ import MRs from './screens/MRs';
 import PrescriptionsToday from './screens/Prescription';
 import Patient from './screens/Patient';
 import Today from './screens/Today';
+import Register from './screens/Register';
 
 /* Route table. AppShell is the layout route: rail/topbar/mobile nav wrap every
    authenticated screen. Add a screen = add a Route here + a NAV_ITEMS entry in nav.js. */
@@ -21,6 +22,8 @@ export function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      {/* New patient form: public (QR poster at the desk); staff who are signed in use it too. */}
+      <Route path="/register" element={<Register />} />
       <Route
         element={
           <RequireAuth>
