@@ -1,25 +1,27 @@
 # Task List — Gurukrupa Eye Hospital Core Tool
 
 **Live status board.** Updated at the end of every working session together with `handoff.md`.
-Last updated: **2026-09-19 (end of session 1)**
+Last updated: **2026-09-23 (session 3)**
 
-Status key: ✅ Done · 🔄 In progress · ⏳ Not started · ⛔ Blocked/waiting on someone · 🧪 Done, needs real-world check
+Status key: ✅ Done · 🔄 In progress · ⏳ Not started · ⛔ Blocked/waiting on someone · 🧪 Done, needs real-world check · ⏸ Parked at your request
 
-Source of truth for every screen's look and behaviour: `guru-krupa-eye-hospital-mockup.html` (copy in `gurukrupa-system/docs/mockup-reference.html`).
+Source of truth for behaviour: `guru-krupa-eye-hospital-mockup.html` (copy in `gurukrupa-system/docs/mockup-reference.html`). Source of truth for the look: `gurukrupa-system/design-system/` (brand book, tokens, components).
 
 ---
 
 ## Summary
 
-**Overall progress: 68%** (32 of 47 tasks done)
+**Overall progress: 86%** (56 of 65 tasks done)
 
 | Area | Done | In progress | Not started | Blocked | % complete |
 |---|---|---|---|---|---|
-| Backend (server side) | 14 | 0 | 3 | 0 | 82% |
-| Frontend (screens) | 13 | 0 | 4 | 0 | 76% |
-| Data & go-live | 2 | 0 | 4 | 2 | 25% |
+| Backend (server side) | 17 | 0 | 1 | 0 | 94% |
+| Frontend (screens) | 22 | 0 | 0 | 0 | 100% |
+| Improvements from the session-2 review | 8 | 0 | 0 | 0 | 100% |
+| New requests (N1–N3) | 3 | 0 | 0 | 0 | 100% |
+| Data & go-live | 3 | 0 | 4 | 2 | 33% |
 | WhatsApp intake | 3 | 0 | 1 | 1 | 60% |
-| **Total** | **32** | **0** | **12** | **3** | **68%** |
+| **Total** | **56** | **0** | **6** | **3** | **86%** |
 
 How the % is worked out: done = 1, in progress = ½, not started / blocked = 0, divided by the number of tasks in that area.
 
@@ -43,9 +45,10 @@ How the % is worked out: done = 1, in progress = ½, not started / blocked = 0, 
 | B9 | Admin settings (stages, drops routine, referral sources, lens tiers, staff, medicines, medicine types) | ✅ | |
 | B10 | Medical-rep (MR) visit log | ✅ | |
 | B11 | Server deployment scripts (Hostinger VPS), backups | ✅ | Not yet run on a real server |
-| B12 | OT time slots & procedure list made admin-configurable | ⏳ | Currently fixed in code (9:00–4:30, 45-min slots) |
-| B13 | Import from KivHealth: medicines, patients, stock (spreadsheet upload with column matching + preview) | ⏳ | ⛔ waiting on sample export from the clinic team |
+| B12 | OT time slots & procedure list made admin-configurable | ✅ | Done 2026-09-20: Admin → OT time slots (add / switch off / regenerate a grid) and OT procedures (add / rename / reorder / switch off); booked slots protected |
+| B13 | Import from KivHealth: medicines, patients, stock (spreadsheet upload with column matching + preview) | ✅ | Built 2026-09-20 generically: CSV/Excel upload, auto column matching (KiviHealth headers known), preview, run; patients / medicines / stock / prescriptions. 🧪 Needs the real export files to confirm the matching |
 | B14 | Retention rule for OT consent photos / exam photos | ⏳ | Decision needed: keep consent photos? delete exam photos after X months? |
+| B15 | Treatment standards per diagnosis/symptom: (a) admin-set list of medicines + dosages (one-time setup by Dr Anu); (b) where none is set, the most common prescription **across all patients** with that diagnosis from KiviHealth history + new Rx; **statistics only, no AI** | ✅ | Done 2026-09-20: diagnoses list (11 starters, editable), standards API, history counting (medicine in ≥50% of past Rx, most-written dosage). KiviHealth history will feed it once imported (B13) |
 
 ## Frontend (screens)
 
@@ -62,24 +65,54 @@ How the % is worked out: done = 1, in progress = ½, not started / blocked = 0, 
 | F8 | Stock (inventory) screen | ✅ | |
 | F9 | Admin screen | ✅ | |
 | F10 | MR visits screen | ✅ | |
-| F11 | Connect every screen to the real server instead of demo data; full click-through test | ⏳ | Next after F13 |
-| F12 | Show brand / composition / type on prescription & print; Admin tabs for medicines & types | ✅ | Admin can add a medicine straight from the prescription form |
-| F13 | "Approve reading" button on Machines (photo disappears after approval); scan biometry report in OT | ⏳ | **First task next session** (server side is ready) |
+| F11 | Connect every screen to the real server instead of demo data; full click-through test | ✅ | Done 2026-09-20: every screen + every write flow exercised against the live server and PostgreSQL (desktop + phone); no mismatches; one fix ("Last visit" excludes the visit just finished). F13 also verified on the real server |
+| F12 | Show brand / composition / type on prescription & print; Admin tabs for medicines & types | ✅ | 2026-09-20: simplified to **name only** per Dr Anu's team / KiviHealth (details removed from all screens, Medicine types tab hidden) |
+| F13 | "Approve reading" button on Machines (photo disappears after approval); scan biometry report in OT | ✅ | Done 2026-09-20. Approve stamps who/when, deletes the photo; OT pre-op "Scan biometry report" fills the grid and names any value it could not read. verified on the real server 2026-09-20 |
 | F14 | Open prescription from the Queue drawer; "Rx" in the mobile menu | ✅ | |
-| F15 | KivHealth import screen (upload, match columns, preview) | ⏳ | After B13 |
-| F16 | Re-dress every screen in the official design system (`gurukrupa-design-system`: colours, 3 typefaces, 32 components, new side menu + bottom tab bar, wording rules) | ⏳ | Design system copied into the repo; name settled as "Guru Krupa Eye Hospital & Laser Center"; vector logo still needed |
+| F15 | KiviHealth import screen (upload, match columns, preview) | ✅ | Admin → Import from KiviHealth: 4-step screen, done 2026-09-20 |
+| F17 | Prescription auto-fills when a diagnosis is picked (B15); Admin page "Diagnoses & treatment standards": add/rename/reorder, per-diagnosis editor starting from the history-derived set | ✅ | Done 2026-09-20; verified on the real server |
+| F18 | **Patient screen** (`/patients/:id`): full record — details, every visit with readings / prescription / bill / photos / notes, surgeries, appointments; every patient name in the app links to it | ✅ | Done 2026-09-20 |
+| F21 | Staff mobile number on logins; patient/case window centred at 75% | ✅ | Done 2026-09-20 |
+| F20 | Stock screen rework (problems first, one action per row, last received, no ± buttons) and Admin jump list | ✅ | Done 2026-09-20 after user review |
+| F19 | **Stock: Ordered / Received with quantities** (alert quiet while on order; shortfall stays on order) and **billing confirms each medicine bought** ("Bought here" per line is the only thing that deducts stock; doctor's qty = "to give") | ✅ | Done 2026-09-20 |
+| F16 | Re-dress every screen in the official design system (colours, 3 typefaces, components, labelled side menu + bottom tab bar, wording rules) | ✅ | Done 2026-09-20: every screen, login, drawers, modals, toasts, print sheet. No emoji anywhere. Name is "Guru Krupa Eye Hospital & Laser Center" throughout. Logo updated 2026-09-23 from the clean PNG (see R7); a vector (SVG) version would still be nicer but is no longer blocking |
+
+## Improvements from the session-2 review
+
+Built on 2026-09-23 by three helpers working side by side (A = reception, B = billing, C = doctor's panel), joined together and clicked through on the real database (desktop + phone). Fixed during the click-through: phone search ignoring spaces, search opening the record for patients not in today's queue, Appointments "Another day" picker, and "Other" as sex crashing registration.
+
+| # | Task | Status | Notes |
+|---|---|---|---|
+| R1 | Duplicate-patient check by phone on "New patient" | ✅ | Built (A): after 10 digits, lists everyone on that number — "Use this patient" (today's queue, no second record) or "No — new patient". Ignores spaces / +91 so KiviHealth numbers match |
+| R2 | Billing: standard charges, medicine prices (bought-here adds to bill), receipt print, daily collection total | ✅ | Built (B): Admin → Standard charges (4 starters at ₹0 — **Dr Anu to set amounts**); one-tap charges on the bill, amounts editable; price per medicine in Admin → Medicines, "Bought here" adds "name × qty", Undo removes it, no price → ₹0 flagged red; receipt numbers GK-2026-00001 and an A5 printable receipt |
+| R3 | Doctor's panel: diagnosis on the panel (fills Rx), follow-up date → auto appointment | ✅ | Built (C): Diagnosis picker fills the usual medicines (asks before replacing); follow-up 1 wk / 2 wk / 1 mo / 3 mo / date + note books the appointment, tagged "Follow-up", printed as "Next visit"; "No follow-up" removes it |
+| R4 | Date of birth instead of fixed age | ✅ | Built (A): DOB in new-patient form, registration drawer and patient page; age worked out; a told age now grows with the calendar; KiviHealth import reads a DOB column, falls back to Age |
+| R5 | "Today" summary: patients, time per stage, collections, medicines sold | ✅ | Built (B): new "Today's summary" page (admin, doctor, reception) — patients seen, average time per visit and per stage, money by payment mode, unpaid bills, medicines sold, receipts with reprint, earlier days |
+| R6 | Small annoyances: visible search box, hide demo button, Save/Saved state, edit patient from record | ✅ | Built (C + A): search box in the top bar ("/" or Ctrl+K); demo-only buttons hidden outside demo mode; Save / Saving… / "Saved at 10:42 am" + unsaved-changes warning; "Edit details" on the patient page |
+| R7 | New logo (`GK LOGO NEW.png`): full logo on login + prescriptions, symbol-only in menu, browser tab and phone icon | ✅ | Built (C); old blurry JPG removed |
+| R8 | Printed prescription came out blank (old print rule hid everything) | ✅ | Found by B while testing the receipt; fixed and confirmed with a real print 2026-09-23 |
+
+## New requests (2026-09-23)
+
+| # | Task | Status | Notes |
+|---|---|---|---|
+| N1 || ✅ | Built (helper D), checked on the real database: QR poster in Admin (English / Gujarati / Hindi), patient fills it on their phone, lands in today's queue with a token and a note for reception; staff use the same form ("New patient form" button). **Gujarati/Hindi wording to be checked by a native reader.** Works on phones once the app is on the rented server (same Wi-Fi only until then) |
+| N2 | **Families on one mobile number**: the number's owner (e.g. parent) + other patients on it, each with a relation (Son, Daughter, Spouse… — list editable in Admin) | ✅ | Built (helper E1) and checked on the real database: \"Add as a family member\" with relation on the new-patient forms; \"Family on this number\" card + \"Son of …\" line on the patient page (change relation / make owner / remove / add member); family prompt in the registration drawer; relation shown in search and queue; Admin → Family relations (editable list) + \"Group patients who share a number\" for after the KiviHealth import. Public QR form never reveals or links anyone. **Question:** \"Add family member\" from the patient page saves without queueing — OK? |
+| N3 | **Follow-up or new issue → the right fee**, from Dr Anu's fee sheets: new patient ₹700; back within 6 days free; 7 days–6 months follow-up ₹350; after 6 months or a different problem new case ₹500; emergency ₹1000 suggested 8 pm–8 am and Sundays; tests with one-eye / both-eyes prices (Perimetry, Fundus photo, Macular OCT, RNFL, CCT) and two packages. All limits and prices editable in Admin | ✅ | Built (helper E2) and checked on the real database (new patient / free follow-up after 3 days / follow-up after 40 days / new case after 200 days; bill pre-filled; Perimetry both eyes). Fee list loaded; everything editable in Admin → Standard charges and Visit types & fees. **To confirm with Dr Anu:** after-surgery rule (now free for 30 days), 6 months = 182 days, delete the switched-off Pre-test / Dilation charges? |
+| N4 | Returning-patient QR (type your number, say what the problem is) | ⏸ | Skipped for now at your request — reception handles returning patients at the desk |
 
 ## Data & go-live
 
 | # | Task | Status | Notes |
 |---|---|---|---|
 | G1 | Local database on your PC created, tables + starting data loaded | ✅ | Admin login: `admin` / `admin123` — change before go-live |
-| G2 | Code saved in git (14 commits) | ✅ | |
-| G3 | Push to GitHub `ankitaagr88/guru-krupa` | ⛔ | Needs you to run `git push -u origin main` (or allow me to) |
+| G2 | Code saved in git (63 commits) | ✅ | |
+| G3 | Push to GitHub `ankitaagr88/guru-krupa` | ✅ | Pushed 2026-09-23 (63 commits, `5363da0`); push after each session |
 | G4 | Confirm roles & who sees which screens with Dr Anu | ⛔ | Waiting on Dr Anu |
 | G5 | More real printout photos: YPC-100K (none yet), extra HNT-1P/HRK slips, phone photos at an angle | ⏳ | Improves reading accuracy |
-| G6 | Set up the Hostinger server, domain, SSL | ⏳ | Scripts ready (B11) |
-| G7 | First real import from KivHealth + staff logins created | ⏳ | After B13/F15 |
+| G6 | Set up the server, domain, SSL — **a small rented server (VPS) in an Indian data centre (DPDP Act)**, e.g. DigitalOcean Bangalore / Linode Mumbai / E2E Networks | ⏳ | Decided 2026-09-20. Scripts ready (B11). Start small; migrate to AWS Mumbai later if the business grows (restore backup + copy photos + re-point domain — no provider-specific code)  **Recommended buy (2026-09-23):** DigitalOcean Bangalore — Basic Droplet 2 GB / 1 CPU / 50 GB ($12) + Daily backups ($3.60) + Spaces ($5) ≈ $20.60/month + GST |
+| G6a | **Data never lost:** nightly Postgres + photo backup on the server (30 days) + automatic off-site copy to Indian object storage + a copy pulled to the clinic laptop **at start-up and mid-day** (machines are off by 8 pm, so nothing nightly on the clinic side); missed-backup alert; restore drill documented and tested before go-live; later an Admin "download my data" export | ⏳ | Firm requirement from the user 2026-09-20 |
+| G7 | First real import from KiviHealth + staff logins created | ⛔ | Import screen ready; waiting on the export files |
 | G8 | Staff training / first day at the clinic | ⏳ | |
 
 ---
