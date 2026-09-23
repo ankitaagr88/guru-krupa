@@ -1,4 +1,4 @@
-import { ageSex, computeRowStatus } from '../lib/format';
+import { ageSexLabel, computeRowStatus, fmtDob } from '../lib/format';
 import PatientLink from './PatientLink';
 
 /* Mobile queue card (mockup `patientCardHtml`). Desktop uses <QueueRow> inside
@@ -38,8 +38,14 @@ export default function PatientCard({ patient: p, stage, selected, onClick, now 
       </div>
       <div className="pc-row">
         <span className="pc-label">Age/Sex</span>
-        <span className="pc-val">{ageSex(p)}</span>
+        <span className="pc-val num">{ageSexLabel(p)}</span>
       </div>
+      {p.dob && (
+        <div className="pc-row">
+          <span className="pc-label">DOB</span>
+          <span className="pc-val num">{fmtDob(p.dob)}</span>
+        </div>
+      )}
       <div className="pc-row">
         <span className="pc-label">Phone</span>
         <span className="pc-val">{p.phone || '—'}</span>
@@ -70,7 +76,9 @@ export function QueueRow({ patient: p, stage, selected, onClick, now = Date.now(
       <td className="td-name">
         <PatientLink id={p.patientId} name={p.name} />
       </td>
-      <td>{ageSex(p)}</td>
+      <td className="num" title={p.dob ? `DOB ${fmtDob(p.dob)}` : undefined}>
+        {ageSexLabel(p)}
+      </td>
       <td>{p.phone || '—'}</td>
       <td>
         <span className={`status-pill ${wait.cls}`}>{wait.text}</span>

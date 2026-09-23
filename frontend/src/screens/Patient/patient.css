@@ -50,3 +50,32 @@ a.patient-line:hover .patient-line-main { color: var(--sapphire-deep); }
 
 body.mobile-mode .patient-grid { grid-template-columns: 1fr; }
 body.mobile-mode .patient-details dt, body.mobile-mode .patient-kv > span:first-child { width: 110px; }
+
+/* Date of birth + age (new patient, registration drawer, edit details). */
+.dob-age { margin-bottom: 10px; }
+.dob-age-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.dob-age-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.dob-age-label { font-family: var(--font-ui); font-size: 12px; line-height: 16px; color: var(--ink-soft); }
+.dob-age .fake-input { margin-bottom: 0; min-height: 45px; }
+.dob-age .fake-input:disabled { color: var(--ink-soft); }
+.dob-age-note { font-family: var(--font-ui); font-size: 12px; color: var(--ink-soft); margin: 6px 0 0; }
+.dob-age-note b { color: var(--ink); font-weight: 500; }
+.dob-age-note.err { color: var(--alert-ink); }
+
+/* "Already registered with this number" prompt in the new-patient form. */
+.same-phone { border: 1px solid var(--gold-line); background: var(--gold-wash); border-radius: 12px; padding: 12px; margin: 0 0 12px; }
+.same-phone-title { font-family: var(--font-ui); font-size: 13px; font-weight: 600; color: var(--gold-deep); margin: 0 0 8px; }
+.same-phone-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid var(--gold-line); flex-wrap: wrap; }
+.same-phone-who { min-width: 0; flex: 1 1 180px; }
+.same-phone-name { font-family: var(--font-serif); font-size: 16px; font-weight: 600; color: var(--ink); display: block; }
+.same-phone-meta { font-family: var(--font-mono); font-size: 12px; color: var(--ink-soft); }
+.same-phone-row .btn-primary { flex: none; padding: 8px 14px; font-size: 13px; }
+.same-phone-no { margin-top: 6px; padding-left: 0; }
+
+/* Edit details (patient record). */
+.patient-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.patient-actions .btn-ghost { flex: none; }
+.patient-edit .field-label:first-child { margin-top: 0; }
+.patient-edit-err { font-family: var(--font-ui); font-size: 13px; color: var(--alert-ink); margin: 4px 0 0; }
+body.mobile-mode .dob-age-row { grid-template-columns: 1fr; }
+@media (max-width: 420px) { .dob-age-row { grid-template-columns: 1fr; } }

@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router-dom';
 import { renderShell } from '../../test/utils';
-import { mockStore } from '../../mocks/adapters';
+import { mockStore, patients } from '../../mocks/adapters';
 import Patient from './Patient';
 import Queue from '../Queue';
 
@@ -29,6 +29,35 @@ describe('Patient screen', () => {
     expect(within(visits[0]).getAllByText(/Glaucoma/).length).toBeGreaterThan(0);
     expect(within(visits[0]).getByTestId('patient-open-rx')).toBeInTheDocument();
     expect(screen.getByText("Open today's visit")).toHaveAttribute('href', expect.stringContaining('?patient=5'));
+  });
+
+  it('shows age · sex and the DOB, and "Edit details" saves the person\'s details', async () => {
+    renderShell({
+      route: '/patients/2',
+      child: (
+        <Routes>
+          <Route path="/patients/:id" element={<Patient />} />
+        </Routes>
+      ),
+    });
+    expect(await screen.findByTestId('patient-age-sex')).toHaveTextContent('34 y · M');
+    expect(screen.getByText('Not known')).toBeInTheDocument(); // no DOB yet
+
+    await userEvent.click(screen.getByTestId('patient-edit'));
+    const dialog = document.querySelector('#editPatientModal');
+    const name = within(dialog).getByLabelText('Full name');
+    await userEvent.clear(name);
+    await userEvent.type(name, 'Kiran R Vaghela');
+    fireEvent.change(within(dialog).getByLabelText('Date of birth'), { target: { value: '1990-03-12' } });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save details' }));
+
+    expect(await screen.findByRole('heading', { level: 2, name: 'Kiran R Vaghela' })).toBeInTheDocument();
+    expect(document.querySelector('#editPatientModal')).toBeNull();
+    expect(screen.getAllByText(/12 Mar 1990/).length).toBeGreaterThan(0);
+    const p = await patients.get(2);
+    expect(p.dob).toBe('1990-03-12');
+    const today = new Date();
+    expect(p.age).toBe(today.getFullYear() - 1990 - (today.getMonth() < 2 || (today.getMonth() === 2 && today.getDate() < 12) ? 1 : 0));
   });
 
   it('a patient name on the queue links to the record', async () => {

@@ -4,13 +4,15 @@ import { useTopbar, useShell } from '../../components/AppShell';
 import { patients as patientsApi, errorMessage } from '../../api';
 import { PhotoTile } from '../Machines/ExamPhotos';
 import { OT_STATUS } from '../OT/constants';
-import { ageSex, fmtLastVisit } from '../../lib/format';
+import { ageSexLabel, fmtDob, fmtLastVisit } from '../../lib/format';
 import { PrescriptionModal } from '../Prescription';
+import EditPatientModal from './EditPatientModal';
 import './patient.css';
 
 /* Patient screen — everything the clinic holds on one person, newest first.
    Reached by clicking a patient's name anywhere in the app (/patients/:id).
-   Read-only view; the day's work still happens on the Queue / OT screens. */
+   The person's own details can be edited here (Edit details); the day's work still happens
+   on the Queue / OT screens. */
 
 const fmtDate = (d) => {
   if (!d) return '';
@@ -32,6 +34,7 @@ export default function Patient() {
   const [err, setErr] = useState('');
   const [rxVisit, setRxVisit] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [editing, setEditing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,7 +78,8 @@ export default function Patient() {
     );
 
   const details = [
-    ['Age / sex', ageSex(p) || '—'],
+    ['Age / sex', ageSexLabel(p)],
+    ['Date of birth', p.dob ? fmtDob(p.dob) : 'Not known'],
     ['Phone', p.phone || '—'],
     ['Address', p.address || '—'],
     ['Occupation', p.occupation || '—'],
@@ -93,12 +97,16 @@ export default function Patient() {
         <div>
           <h2 className="patient-name">{p.name}</h2>
           <div className="patient-meta">
-            {ageSex(p) && <span>{ageSex(p)}</span>}
+            <span className="num" data-testid="patient-age-sex">{ageSexLabel(p)}</span>
+            {p.dob && <span className="num">DOB {fmtDob(p.dob)}</span>}
             {p.phone && <span className="num">{p.phone}</span>}
             <span>Last visit: {fmtLastVisit(p.lastVisitDate ? String(p.lastVisitDate).slice(0, 10) : null)}</span>
           </div>
         </div>
         <div className="patient-actions">
+          <button type="button" className="btn-ghost" onClick={() => setEditing(true)} data-testid="patient-edit">
+            Edit details
+          </button>
           {todayVisit ? (
             <Link className="btn-primary" to={`/queue/${todayVisit.stage}?patient=${p.id}`}>
               Open today&apos;s visit
@@ -139,7 +147,7 @@ export default function Patient() {
             {details.map(([k, v]) => (
               <div key={k}>
                 <dt>{k}</dt>
-                <dd className={k === 'Phone' ? 'num' : ''}>{v}</dd>
+                <dd className={k === 'Phone' || k === 'Date of birth' || k === 'Age / sex' ? 'num' : ''}>{v}</dd>
               </div>
             ))}
           </dl>
@@ -312,6 +320,16 @@ export default function Patient() {
           </article>
         ))}
       </div>
+
+      <EditPatientModal
+        open={editing}
+        patient={p}
+        onClose={() => setEditing(false)}
+        onSaved={() => {
+          setEditing(false);
+          setReloadKey((k) => k + 1);
+        }}
+      />
 
       {rxVisit && (
         <PrescriptionModal

@@ -11,6 +11,15 @@ export function dateStr(offsetDays = 0) {
 
 const MIN = 60 * 1000;
 
+// A date of birth that makes someone `age` today, so the demo DOB and age always agree.
+function dobForAge(age) {
+  const d = new Date();
+  d.setDate(1);
+  d.setFullYear(d.getFullYear() - age);
+  d.setMonth(d.getMonth() - 2);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export const STAGES = [
   { key: 'reg', label: 'Registration', cls: 'reg' },
   { key: 'pretest', label: 'Pre-testing', cls: 'pretest' },
@@ -58,6 +67,7 @@ export function seedPatients() {
       id: 1,
       name: 'Rasilaben Patel',
       token: '#014',
+      dob: dobForAge(62),
       age: 62,
       sex: 'F',
       phone: '98250 12345',
@@ -272,6 +282,7 @@ export function normalizePatient(p) {
   if (out.conditionOther === undefined) out.conditionOther = '';
   if (out.lastVisit === undefined) out.lastVisit = null;
   if (out.note === undefined) out.note = '';
+  if (out.dob === undefined) out.dob = null;
   return out;
 }
 

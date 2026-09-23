@@ -16,7 +16,7 @@ import re
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from sqlalchemy import func, select
@@ -60,8 +60,8 @@ TARGETS: dict[str, dict] = {
             Field("phone", "Phone", synonyms=["contact", "mobile", "phone", "mobile no", "contact no", "phone number"]),
             Field("sex", "Gender", synonyms=["gender", "sex"]),
             Field("age", "Age", synonyms=["age", "age(y)", "age (y)", "age in years"]),
-            Field("dob", "Date of birth", hint="used to work out the age when Age is empty",
-                  synonyms=["dob", "date of birth", "birth date", "birthdate"]),
+            Field("dob", "Date of birth", hint="kept as the date of birth; Age is used when it is empty",
+                  synonyms=["dob", "d o b", "date of birth", "birth date", "birthdate", "birth day"]),
             Field("address", "Address", synonyms=["address", "full address"]),
             Field("area", "Area", hint="joined into the address", synonyms=["area", "locality"]),
             Field("city", "City", hint="joined into the address", synonyms=["city", "town"]),
@@ -272,11 +272,38 @@ def _date(v: str) -> date | None:
         return None
 
 
+_EXCEL_EPOCH = date(1899, 12, 30)
+
+
+def _dob(v: str, on: date | None = None) -> date | None:
+    """A date of birth from a sheet: dd/mm/yyyy, dd-mm-yyyy, d/m/yy, yyyy-mm-dd or an Excel serial number
+    (a date cell read as a plain number). Two-digit years that would land in the future are last century.
+    Anything in the future or more than 120 years back is treated as not understood."""
+    t = (v or "").strip()
+    if not t:
+        return None
+    today = on or date.today()
+    d = None
+    if re.fullmatch(r"\d{1,5}(\.0+)?", t):
+        n = int(float(t))
+        if 60 < n < 80_000:  # 1900-03-01 .. year 2118; below that it is more likely an age
+            d = _EXCEL_EPOCH + timedelta(days=n)
+    else:
+        d = _date(t)
+    if d is None:
+        return None
+    if d > today and re.search(r"\D\d{2}$", t):
+        d = d.replace(year=d.year - 100, day=min(d.day, 28) if d.month == 2 else d.day)  # "05/03/64" read as 2064
+    if d > today or today.year - d.year > 120:
+        return None
+    return d
+
+
 def _age_from(age: str, dob: str, on: date | None = None) -> int | None:
     a = _int(age)
     if a is not None and 0 <= a < 130:
         return a
-    d = _date(dob)
+    d = _dob(dob, on)
     if d:
         today = on or date.today()
         return max(0, today.year - d.year - ((today.month, today.day) < (d.month, d.day)))
@@ -375,7 +402,9 @@ def _patients(db: Session, recs: list[dict], res: Result, by, write: bool) -> No
             seen_ext.add(ext)
         phone = _phone(r.get("phone"))
         sex = _sex(r.get("sex"))
-        age = _age_from(r.get("age", ""), r.get("dob", ""))
+        # A readable DOB is kept (the age then follows from it); without one, Age(Y) as before.
+        dob = _dob(r.get("dob", ""))
+        age = None if dob else _age_from(r.get("age", ""), "")
         address = ", ".join(x for x in (_clean(r.get("address")), _clean(r.get("area")), _clean(r.get("city"))) if x) or None
         note = _clean(r.get("note"))
         existing = None
@@ -390,14 +419,16 @@ def _patients(db: Session, recs: list[dict], res: Result, by, write: bool) -> No
         if existing is None:
             res.add(RowResult(n, "new", name, ext or ""))
             if write:
-                db.add(Patient(name=name, external_id=ext, phone=phone, sex=sex, age=age, address=address,
+                db.add(Patient(name=name, external_id=ext, phone=phone, sex=sex, dob=dob, age=age, address=address,
                                note=note or ""))
                 db.flush()
         else:
             changes = []
             if ext and not existing.external_id:
                 changes.append("id")
-            for k, v in (("phone", phone), ("sex", sex), ("age", age), ("address", address)):
+            if existing.dob:
+                age = None  # a told age never overrides a DOB already on file
+            for k, v in (("phone", phone), ("sex", sex), ("dob", dob), ("age", age), ("address", address)):
                 cur = getattr(existing, k)
                 if v and (cur != v and not (k == "phone" and _phone(cur) == v)):
                     changes.append(k)
@@ -408,7 +439,7 @@ def _patients(db: Session, recs: list[dict], res: Result, by, write: bool) -> No
             if write:
                 if ext and not existing.external_id:
                     existing.external_id = ext
-                for k, v in (("phone", phone), ("sex", sex), ("age", age), ("address", address)):
+                for k, v in (("phone", phone), ("sex", sex), ("dob", dob), ("age", age), ("address", address)):
                     if v and not (k == "phone" and _phone(existing.phone) == v):
                         setattr(existing, k, v)
                 if note and note not in (existing.note or ""):

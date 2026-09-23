@@ -135,3 +135,63 @@ def test_age_from_dob_or_recorded_age():
     assert q.age == 53
     q.age = None
     assert q.age is None and q.age_recorded_on is None
+
+
+def test_by_phone_matches_last_ten_digits(client, admin_headers):
+    """New-patient duplicate check: numbers typed with spaces / +91 / dashes all match the same 10 digits."""
+    def mk(name, phone):
+        return client.post("/api/patients", json={"name": name, "phone": phone, "age": 40, "sex": "F"},
+                           headers=admin_headers).json()["id"]
+
+    a = mk("Phone Mother", "+91 97111 22233")
+    b = mk("Phone Son", "9711122233")
+    c = mk("Phone Aunt", "097111-22233")
+    other = mk("Phone Other", "9711122234")
+    vid = client.post("/api/visits", json={"patientId": b}, headers=admin_headers).json()
+
+    r = client.get("/api/patients/by-phone", params={"phone": "97111 22233"}, headers=admin_headers)
+    assert r.status_code == 200, r.text
+    got = {p["id"]: p for p in r.json()}
+    assert set(got) == {a, b, c} and other not in got
+    assert got[b]["token"] == vid["token"] and got[b]["stage"] == "reg" and got[b]["visitId"] == vid["id"]
+    assert got[a]["age"] == 40 and got[a]["sex"] == "F" and got[a]["lastVisitDate"] is None
+    assert {p["id"] for p in client.get("/api/patients/by-phone", params={"phone": "+919711122233"},
+                                        headers=admin_headers).json()} == {a, b, c}
+    # fewer than 10 digits: no lookup
+    assert client.get("/api/patients/by-phone", params={"phone": "97111"}, headers=admin_headers).json() == []
+    assert client.get("/api/patients/by-phone", params={"phone": "9000000999"}, headers=admin_headers).json() == []
+    assert client.get("/api/patients/by-phone?phone=9711122233").status_code == 401
+
+
+def test_dob_sets_age_and_is_validated(client, admin_headers):
+    from datetime import date, timedelta
+
+    today = date.today()
+    dob = date(today.year - 62, 1, 1)
+    r = client.post("/api/patients", json={"name": "Dob Person", "dob": dob.isoformat(), "age": 10},
+                    headers=admin_headers)
+    assert r.status_code == 201, r.text
+    p = r.json()
+    assert p["dob"] == dob.isoformat() and p["age"] == 62  # DOB wins over the typed age
+    pid = p["id"]
+
+    # future / too old -> 422 with a plain message
+    bad = client.post("/api/patients", json={"name": "X", "dob": (today + timedelta(days=1)).isoformat()},
+                      headers=admin_headers)
+    assert bad.status_code == 422 and bad.json()["detail"] == "Date of birth cannot be in the future"
+    bad = client.patch(f"/api/patients/{pid}", json={"dob": "1850-01-01"}, headers=admin_headers)
+    assert bad.status_code == 422 and "120 years" in bad.text
+
+    # change the DOB -> age follows
+    r = client.patch(f"/api/patients/{pid}", json={"dob": date(today.year - 30, 1, 1).isoformat()},
+                     headers=admin_headers)
+    assert r.json()["age"] == 30
+    # the age corrected on its own drops the (wrong) DOB
+    r = client.patch(f"/api/patients/{pid}", json={"age": 45}, headers=admin_headers)
+    assert r.json()["dob"] is None and r.json()["age"] == 45
+    # clearing the DOB with an age sent falls back to the told age
+    client.patch(f"/api/patients/{pid}", json={"dob": date(today.year - 30, 1, 1).isoformat()}, headers=admin_headers)
+    r = client.patch(f"/api/patients/{pid}", json={"dob": None, "age": 51}, headers=admin_headers)
+    assert r.json()["dob"] is None and r.json()["age"] == 51
+    # without a DOB the told age is kept as before
+    assert client.post("/api/patients", json={"name": "Age Only", "age": 70}, headers=admin_headers).json()["age"] == 70

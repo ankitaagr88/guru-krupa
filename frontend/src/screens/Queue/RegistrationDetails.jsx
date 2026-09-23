@@ -1,5 +1,7 @@
 import ConditionGrid, { PillToggle, ElsewhereToggle } from './ConditionGrid';
-import { LANGUAGES, SEXES, referralNeedsDetail } from './queueModel';
+import { LANGUAGES, SEXES, numOrNull, referralNeedsDetail } from './queueModel';
+import DobAgeFields from '../Patient/DobAgeFields';
+import { ageFromDob, dobProblem } from '../../lib/format';
 
 const hintStyle = { fontSize: 11, color: 'var(--ink-faint)', margin: '-4px 0 10px' };
 
@@ -26,22 +28,31 @@ export default function RegistrationDetails({ draft, config, setField, setDraft,
         onChange={(e) => setField('phone', e.target.value)}
         inputMode="tel"
       />
-      <div className="detail-grid">
-        <input
-          className="fake-input"
-          id="detAge"
-          placeholder="Age"
-          value={draft.age ?? ''}
-          onChange={(e) => setField('age', e.target.value)}
-          inputMode="numeric"
-        />
-        <PillToggle
-          options={SEXES}
-          value={draft.sex}
-          onChange={(v) => setField('sex', v, { immediate: true })}
-          dataKey="sex"
-        />
-      </div>
+      <DobAgeFields
+        dob={draft.dob || ''}
+        age={draft.age}
+        idPrefix="det"
+        onDob={(v) => {
+          if (!v) {
+            // DOB cleared: keep the age it gave as the told age.
+            const keep = ageFromDob(draft.dob) ?? numOrNull(draft.age, { int: true });
+            setDraft((d) => ({ ...d, dob: '', age: keep ?? '' }));
+            queueSave({ dob: null, age: keep });
+          } else if (dobProblem(v)) {
+            setDraft((d) => ({ ...d, dob: v })); // shown under the field, not saved
+          } else {
+            setDraft((d) => ({ ...d, dob: v, age: ageFromDob(v) }));
+            queueSave({ dob: v });
+          }
+        }}
+        onAge={(v) => setField('age', v)}
+      />
+      <PillToggle
+        options={SEXES}
+        value={draft.sex}
+        onChange={(v) => setField('sex', v, { immediate: true })}
+        dataKey="sex"
+      />
       <input
         className="fake-input"
         id="detAddress"
