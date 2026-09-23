@@ -50,10 +50,10 @@ describe('New patient: already registered with this number', () => {
     // Pooja Trivedi (id 9) finished earlier, so she is not in the queue right now.
     await openForm();
     await userEvent.type(screen.getByPlaceholderText('Full name'), 'Pooja Trivedi');
-    await userEvent.type(screen.getByPlaceholderText('Phone number'), '+91 98240-89012');
+    await userEvent.type(screen.getByPlaceholderText('10-digit mobile number'), '+91 98240-89012');
 
-    const panel = await screen.findByTestId('same-phone');
-    expect(panel).toHaveTextContent('Already registered with this number');
+    const panel = await screen.findByTestId('family-join');
+    expect(panel).toHaveTextContent('This number belongs to the family of');
     const row = within(panel).getByTestId('same-phone-9');
     expect(row).toHaveTextContent('Pooja Trivedi');
     expect(row).toHaveTextContent('52 y · F');
@@ -70,7 +70,7 @@ describe('New patient: already registered with this number', () => {
 
   it('someone already in today\'s queue is offered "Open today\'s visit"', async () => {
     await openForm();
-    await userEvent.type(screen.getByPlaceholderText('Phone number'), '9825012345');
+    await userEvent.type(screen.getByPlaceholderText('10-digit mobile number'), '9825012345');
     const row = await screen.findByTestId('same-phone-1');
     expect(row).toHaveTextContent('Rasilaben Patel');
     expect(row).toHaveTextContent("in today's queue · #014");
@@ -79,13 +79,13 @@ describe('New patient: already registered with this number', () => {
     await waitFor(() => expect(document.querySelector('#drawer')).toHaveClass('show'));
   });
 
-  it('"No — separate patient" hides the prompt and the form creates a new record on the same number', async () => {
+  it('"Not related — separate patient" hides the prompt and the form creates a new record on the same number', async () => {
     await openForm();
     await userEvent.type(screen.getByPlaceholderText('Full name'), 'Rasila Sister');
-    await userEvent.type(screen.getByPlaceholderText('Phone number'), '98250 12345');
-    const panel = await screen.findByTestId('same-phone');
-    await userEvent.click(within(panel).getByRole('button', { name: 'No — separate patient' }));
-    expect(screen.queryByTestId('same-phone')).toBeNull();
+    await userEvent.type(screen.getByPlaceholderText('10-digit mobile number'), '98250 12345');
+    const panel = await screen.findByTestId('family-join');
+    await userEvent.click(within(panel).getByRole('button', { name: 'Not related — separate patient' }));
+    expect(screen.queryByTestId('family-join')).toBeNull();
 
     await userEvent.click(screen.getByRole('button', { name: 'Add to queue' }));
     expect(await screen.findByText('Rasila Sister added to the queue')).toBeInTheDocument();
@@ -95,9 +95,9 @@ describe('New patient: already registered with this number', () => {
 
   it('no prompt for a number nobody has', async () => {
     await openForm();
-    await userEvent.type(screen.getByPlaceholderText('Phone number'), '90000 00000');
+    await userEvent.type(screen.getByPlaceholderText('10-digit mobile number'), '90000 00000');
     await new Promise((r) => setTimeout(r, 400));
-    expect(screen.queryByTestId('same-phone')).toBeNull();
+    expect(screen.queryByTestId('family-join')).toBeNull();
   });
 });
 

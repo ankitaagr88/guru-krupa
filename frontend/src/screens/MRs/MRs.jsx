@@ -4,6 +4,7 @@ import Modal from '../../components/Modal';
 import { useToast } from '../../components/Toast';
 import { mr as mrApi, onDataChange, errorMessage } from '../../api';
 import './mrs.css';
+import PhoneInput from '../../components/PhoneInput';
 
 /* MR visits (mockup renderMRs / openMrModal / addMrVisit / openMrDetail /
    closeMrDetail) with a rep/company filter, the rep summary from
@@ -276,15 +277,7 @@ function MrVisitModal({ open, reps, onClose, onSaved }) {
         value={f.company}
         onChange={(e) => setF({ ...f, company: e.target.value })}
       />
-      <input
-        className="fake-input"
-        id="mrPhone"
-        placeholder="Phone number"
-        aria-label="Phone number"
-        inputMode="tel"
-        value={f.phone}
-        onChange={(e) => setF({ ...f, phone: e.target.value })}
-      />
+      <PhoneInput id="mrPhone" value={f.phone} onChange={(v) => setF({ ...f, phone: v })} />
       <input
         className="fake-input"
         id="mrProducts"

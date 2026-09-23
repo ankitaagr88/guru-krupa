@@ -41,14 +41,18 @@ describe('New patient: "Add as a family member"', () => {
     await waitFor(() => expect(document.querySelector('#board')).toHaveTextContent('Rasilaben Patel'));
     await userEvent.click(screen.getByRole('button', { name: '+ New patient' }));
     await userEvent.type(screen.getByPlaceholderText('Full name'), 'Jay Patel');
-    await userEvent.type(screen.getByPlaceholderText('Phone number'), '98250 12345');
+    await userEvent.type(screen.getByPlaceholderText('10-digit mobile number'), '98250 12345');
 
-    const panel = await screen.findByTestId('same-phone');
-    expect(within(panel).getByRole('button', { name: 'No — separate patient' })).toBeInTheDocument();
-    await userEvent.click(within(panel).getByRole('button', { name: 'Add as a family member' }));
+    const panel = await screen.findByTestId('family-join');
+    expect(within(panel).getByRole('button', { name: 'Not related — separate patient' })).toBeInTheDocument();
     const join = screen.getByTestId('family-join');
-    expect(join).toHaveTextContent('New family member of Rasilaben Patel');
+    expect(join).toHaveTextContent('This number belongs to the family of Rasilaben Patel');
     await within(join).findByRole('option', { name: 'बेटा (Son)' });
+    // the relation is required: saving without one says what to do and adds no one
+    const count = mockStore.state.patients.length;
+    await userEvent.click(screen.getByRole('button', { name: 'Add to queue' }));
+    expect(await within(join).findByText('Choose their relation to Rasilaben Patel (or “Not related”).')).toBeInTheDocument();
+    expect(mockStore.state.patients.length).toBe(count);
     await userEvent.selectOptions(within(join).getByLabelText('Their relation to Rasilaben Patel'), 'son');
 
     await userEvent.click(screen.getByRole('button', { name: 'Add to queue' }));
@@ -116,7 +120,7 @@ describe('Patient page: Family on this number', () => {
     // Add a new family member: the New patient form opens with the phone and the family chosen.
     await userEvent.click(within(card).getByTestId('family-add'));
     expect(await screen.findByRole('heading', { name: 'Add family member' })).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Phone number')).toHaveValue('98250 12345');
+    expect(screen.getByPlaceholderText('10-digit mobile number')).toHaveValue('9825012345');
     const join = screen.getByTestId('family-join');
     expect(join).toHaveTextContent('New family member of Jay Patel');
     await userEvent.type(screen.getByPlaceholderText('Full name'), 'Baby Patel');
@@ -144,8 +148,7 @@ describe('Staff /register: add as a family member; the public page never links',
     await screen.findByTestId('reg-cond-Asthma');
     await userEvent.type(screen.getByLabelText(/Your full name/), 'Kavya Patel');
     await userEvent.type(screen.getByLabelText(/Mobile number/), '98250 12345');
-    const panel = await screen.findByTestId('same-phone');
-    await userEvent.click(within(panel).getByRole('button', { name: 'Add as a family member' }));
+    await screen.findByTestId('family-join');
     const join = screen.getByTestId('family-join');
     await within(join).findByRole('option', { name: 'पोती / नातिन (Granddaughter)' });
     await userEvent.selectOptions(within(join).getByLabelText('Their relation to Rasilaben Patel'), 'granddaughter');

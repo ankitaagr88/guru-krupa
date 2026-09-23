@@ -5,19 +5,19 @@ import { useToast } from '../../components/Toast';
 import { reception as receptionApi, visits as visitsApi, errorMessage } from '../../api';
 import { dobProblem, phoneKey } from '../../lib/format';
 import DobAgeFields from '../Patient/DobAgeFields';
-import { SamePhonePrompt, useRelations } from '../Patient/familyParts';
+import { SamePhonePrompt, relationMissing, useRelations } from '../Patient/familyParts';
 import ConditionGrid, { PillToggle, ElsewhereToggle } from './ConditionGrid';
 import { LANGUAGES, SEXES, numOrNull, referralNeedsDetail } from './queueModel';
+import PhoneInput from '../../components/PhoneInput';
 
 /* Patient entry form (mockup `openModal` / `addNewPatient` and the np* drafts).
    `onSubmit(body)` receives the PatientIn payload; the caller creates the patient,
    registers the visit and closes the modal.
-   Duplicate check: once the phone has 10 digits we look up who is already registered with
-   that number. Families share phones, so it is a prompt, never a block: "Use this patient"
-   registers today's visit for the existing record (`onRegistered` lets the queue reload),
-   "Add as a family member" makes the new patient a member of the number's family, with their
-   relation to the owner (`familyOwnerId` + `relationKey` go with the body); "No — separate
-   patient" carries on with the form.
+   Number already on file: once the phone has 10 digits we look up who is registered with it.
+   That usually means a relative, so the form shows whose number it is and asks the new patient's
+   relation to its owner (required; `familyOwnerId` + `relationKey` go with the body). "Use this
+   patient" on a row registers today's visit for that existing record instead (`onRegistered` lets
+   the queue reload); "Not related — separate patient" carries on without a family link.
    `preset` = {phone, ownerId, ownerName} opens it straight in "Add as a family member" (patient
    page); `submitLabel` / `title` change the wording there. */
 const EMPTY = {
@@ -58,6 +58,7 @@ export default function NewPatientModal({
   const [using, setUsing] = useState(null); // patient id being registered
   // "Add as a family member": {key (the phone key it was chosen for), ownerId, ownerName, relationKey}
   const [fam, setFam] = useState(null);
+  const [relError, setRelError] = useState('');
   const relations = useRelations();
   const presetPhone = preset?.phone || '';
   const presetOwnerId = preset?.ownerId ?? null;
@@ -71,6 +72,7 @@ export default function NewPatientModal({
         referralSource: hasSelf ? 'self' : config.referralSources[0]?.key || 'self',
       });
       setError('');
+      setRelError('');
       setSame({ key: '', rows: [] });
       setDismissed('');
       setFam(
@@ -142,6 +144,11 @@ export default function NewPatientModal({
       return;
     }
     if (dobProblem(d.dob)) return; // shown under the field
+    const missing = relationMissing(famChoice);
+    if (missing) {
+      setRelError(missing);
+      return;
+    }
     onSubmit({
       name,
       phone: d.phone.trim(),
@@ -200,24 +207,21 @@ export default function NewPatientModal({
             {error}
           </p>
         )}
-        <input
-          className="fake-input"
-          id="npPhone"
-          placeholder="Phone number"
-          value={d.phone}
-          onChange={(e) => set('phone', e.target.value)}
-          inputMode="tel"
-        />
+        <PhoneInput id="npPhone" value={d.phone} onChange={(v) => set('phone', v)} />
         <SamePhonePrompt
           matches={matches}
           choice={famChoice}
-          onChoice={(c) => setFam(c ? { ...c, key } : null)}
+          onChoice={(c) => {
+            setFam(c ? { ...c, key } : null);
+            if (c?.relationKey) setRelError('');
+          }}
           onDismiss={() => setDismissed(key)}
           relations={relations}
+          relationError={relError}
           renderUse={(m) => (
             <button
               type="button"
-              className="btn-primary"
+              className="btn-ghost"
               onClick={() => registerExisting(m)}
               disabled={using != null || busy}
             >

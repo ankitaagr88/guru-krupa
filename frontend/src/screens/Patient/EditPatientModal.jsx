@@ -6,6 +6,7 @@ import ConditionGrid, { PillToggle } from '../Queue/ConditionGrid';
 import { LANGUAGES, SEXES, numOrNull } from '../Queue/queueModel';
 import useConfig from '../Queue/useConfig';
 import DobAgeFields from './DobAgeFields';
+import PhoneInput from '../../components/PhoneInput';
 
 /* "Edit details" on the patient record: the person's own details (not a visit's).
    Saves with one PATCH and hands the saved patient to `onSaved`. */
@@ -102,15 +103,7 @@ export default function EditPatientModal({ open, patient, onClose, onSaved }) {
           value={d.name}
           onChange={(e) => set('name', e.target.value)}
         />
-        <input
-          className="fake-input num"
-          id="edPhone"
-          aria-label="Phone number"
-          placeholder="Phone number"
-          value={d.phone}
-          onChange={(e) => set('phone', e.target.value)}
-          inputMode="tel"
-        />
+        <PhoneInput id="edPhone" value={d.phone} onChange={(v) => set('phone', v)} />
         <p className="label" style={{ marginTop: 8 }}>
           Age
         </p>

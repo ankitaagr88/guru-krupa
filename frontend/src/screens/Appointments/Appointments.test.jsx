@@ -49,7 +49,7 @@ describe('Appointments', () => {
     await waitFor(() => expect(list()).toHaveTextContent('Priya Mehta'));
     await userEvent.click(screen.getByRole('button', { name: '+ New appointment' }));
     await userEvent.type(screen.getByPlaceholderText('Patient name'), 'Nita Joshi');
-    await userEvent.type(screen.getByPlaceholderText('Phone number'), '91111 22222');
+    await userEvent.type(screen.getByPlaceholderText('10-digit mobile number'), '91111 22222');
     await userEvent.click(screen.getByRole('button', { name: 'Call' }));
     await userEvent.click(screen.getByRole('button', { name: 'Book appointment' }));
     await waitFor(() => expect(list()).toHaveTextContent('Nita Joshi'));

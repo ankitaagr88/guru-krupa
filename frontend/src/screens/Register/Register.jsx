@@ -4,12 +4,13 @@ import { useAuth } from '../../auth/AuthContext';
 import { useToast } from '../../components/Toast';
 import { intake as intakeApi, reception as receptionApi, visits as visitsApi, errorMessage } from '../../api';
 import { ageFromDob, dobProblem, localIso, MAX_AGE_YEARS, phoneKey } from '../../lib/format';
-import { SamePhonePrompt, useRelations } from '../Patient/familyParts';
+import { SamePhonePrompt, relationMissing, useRelations } from '../Patient/familyParts';
 import { HOSPITAL_PRINT } from '../Prescription/hospital';
 import { LANGUAGES, numOrNull, referralNeedsDetail } from '../Queue/queueModel';
 import { UI_LANGS, listLabel, t as tr } from './strings';
 import '../Patient/patient.css'; // the same-phone panel
 import './register.css';
+import PhoneInput from '../../components/PhoneInput';
 
 /* New patient form (/register). One page, two uses:
    - PUBLIC, no sign-in: a patient scans the QR poster at the front desk and fills it on their own
@@ -133,6 +134,7 @@ export default function Register() {
   const matches = staff && key.length >= 10 && same.key === key && dismissed !== key ? same.rows : [];
   // Staff "Add as a family member": {key (phone key it was chosen for), ownerId, ownerName, relationKey}
   const [fam, setFam] = useState(null);
+  const [relError, setRelError] = useState('');
   const famChoice = staff && fam && fam.key === key ? fam : null;
   const relations = useRelations(staff);
 
@@ -179,7 +181,13 @@ export default function Register() {
     if (!name) next.name = t('errName');
     if (!staff && key.length < 10) next.phone = t('errPhone');
     if (dobProblem(d.dob)) next.dob = t('dobProblem');
+    const missing = staff ? relationMissing(famChoice) : '';
+    setRelError(missing);
     setErrors(next);
+    if (missing) {
+      document.getElementById('regFamilyRelation')?.focus?.();
+      return;
+    }
     if (Object.keys(next).length) {
       document.getElementById(`reg-${Object.keys(next)[0]}`)?.focus?.();
       return;
@@ -333,16 +341,14 @@ export default function Register() {
               help={t('qPhoneHelp')}
               error={errors.phone}
             >
-              <input
+              <PhoneInput
                 id="reg-phone"
-                className={`reg-input num${errors.phone ? ' error' : ''}`}
+                className="reg-input num"
+                ariaLabel={t('qPhone')}
+                placeholder="9876543210"
+                invalid={!!errors.phone}
                 value={d.phone}
-                onChange={(e) => set('phone', e.target.value.replace(/[^\d+\-() .]/g, ''))}
-                inputMode="tel"
-                type="tel"
-                maxLength={20}
-                autoComplete="tel"
-                aria-invalid={!!errors.phone}
+                onChange={(v) => set('phone', v)}
               />
             </Question>
             {staff && (
@@ -351,13 +357,17 @@ export default function Register() {
                 idPrefix="reg"
                 matches={matches}
                 choice={famChoice}
-                onChoice={(c) => setFam(c ? { ...c, key } : null)}
+                onChoice={(c) => {
+                  setFam(c ? { ...c, key } : null);
+                  if (c?.relationKey) setRelError('');
+                }}
                 onDismiss={() => setDismissed(key)}
                 relations={relations}
+                relationError={relError}
                 renderUse={(m) => (
                   <button
                     type="button"
-                    className="btn-primary"
+                    className="btn-ghost"
                     onClick={() => registerExisting(m)}
                     disabled={using != null || busy}
                   >

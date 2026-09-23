@@ -89,6 +89,9 @@ body.mobile-mode .dob-age-row { grid-template-columns: 1fr; }
 .family-field .drop-select { padding-top: 9px; padding-bottom: 9px; }
 .family-join { border-color: var(--sapphire-line); background: var(--sapphire-wash); }
 .family-join .same-phone-title { color: var(--sapphire-ink); }
+.same-phone-ask { font-family: var(--font-ui); font-size: 13px; font-weight: 600; color: var(--ink); margin: 12px 0 6px; }
+.family-field-error { font-family: var(--font-ui); font-size: 12px; color: var(--alert-ink); }
+.drop-select.error { border-color: var(--alert); }
 .family-join-owner { font-family: var(--font-serif); font-size: 15px; }
 .family-join-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
 .family-join-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; border-top: 1px solid var(--gold-line); padding-top: 10px; margin-top: 2px; }

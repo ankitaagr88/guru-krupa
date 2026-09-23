@@ -272,6 +272,12 @@ textarea, .fake-input { width: 100%; border: 1px solid var(--line); border-radiu
 .fake-input::placeholder, textarea::placeholder { color: var(--ink-faint); }
 .fake-input:focus, textarea:focus { outline: 2px solid var(--focus); outline-offset: 1px; border-color: var(--sapphire); }
 .fake-input.error { border-color: var(--alert); }
+/* Mobile number: fixed +91 in front of the 10 digits (components/PhoneInput.jsx). */
+.phone-field { margin-bottom: 8px; }
+.phone-row { display: flex; align-items: stretch; }
+.phone-prefix { display: flex; align-items: center; padding: 0 12px; border: 1px solid var(--line); border-right: 0; border-radius: 10px 0 0 10px; background: var(--surface); font-family: var(--font-mono); font-size: 14px; color: var(--ink-soft); }
+.phone-row input { flex: 1; min-width: 0; margin: 0 !important; border-radius: 0 10px 10px 0 !important; font-family: var(--font-mono); letter-spacing: 0.04em; }
+.phone-count { margin: 4px 0 0; font-size: 12px; color: var(--ink-faint); }
 .sex-toggle, .seg-toggle, .channel-toggle { display: flex; gap: 4px; }
 .sex-toggle button, .seg-toggle button, .channel-opt { flex: 1; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 11px 6px; font-family: var(--font-ui); font-weight: 500; font-size: 14px; color: var(--ink-soft); cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s; }
 .sex-toggle button.active, .seg-toggle button.active { background: var(--sapphire-wash); border-color: var(--sapphire); color: var(--sapphire-deep); font-weight: 600; }

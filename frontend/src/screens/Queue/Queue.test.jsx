@@ -55,7 +55,7 @@ describe('Queue board', () => {
     await waitFor(() => expect(board()).toHaveTextContent('Mahesh Desai'));
     await userEvent.click(screen.getByRole('button', { name: '+ New patient' }));
     await userEvent.type(screen.getByPlaceholderText('Full name'), 'Test Person');
-    await userEvent.type(screen.getByPlaceholderText('Phone number'), '90000 00000');
+    await userEvent.type(screen.getByPlaceholderText('10-digit mobile number'), '90000 00000');
     await userEvent.click(screen.getByTestId('np-cond-Diabetes'));
     await userEvent.click(screen.getByRole('button', { name: 'Add to queue' }));
 

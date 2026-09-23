@@ -10,6 +10,7 @@ import { CHANNEL_LABEL } from '../Queue/queueModel';
 import { IconPencil } from '../../components/Icons';
 import PatientLink from '../../components/PatientLink';
 import './appointments.css';
+import PhoneInput from '../../components/PhoneInput';
 
 const CHANNELS = ['whatsapp', 'call', 'walkin'];
 
@@ -232,14 +233,7 @@ export default function Appointments() {
                 {modal.error}
               </p>
             )}
-            <input
-              className="fake-input"
-              id="apptPhone"
-              placeholder="Phone number"
-              value={modal.phone}
-              onChange={(e) => setModal((m) => ({ ...m, phone: e.target.value }))}
-              inputMode="tel"
-            />
+            <PhoneInput id="apptPhone" value={modal.phone} onChange={(v) => setModal((m) => ({ ...m, phone: v }))} />
             <p className="label" style={{ marginBottom: 6 }}>
               Day
             </p>

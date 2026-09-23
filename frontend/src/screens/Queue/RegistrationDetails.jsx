@@ -3,6 +3,7 @@ import { LANGUAGES, SEXES, numOrNull, referralNeedsDetail } from './queueModel';
 import DobAgeFields from '../Patient/DobAgeFields';
 import RegistrationFamily from '../Patient/RegistrationFamily';
 import { ageFromDob, dobProblem } from '../../lib/format';
+import PhoneInput from '../../components/PhoneInput';
 
 const hintStyle = { fontSize: 11, color: 'var(--ink-faint)', margin: '-4px 0 10px' };
 
@@ -23,14 +24,7 @@ export default function RegistrationDetails({ draft, config, setField, setDraft,
         value={draft.name || ''}
         onChange={(e) => setField('name', e.target.value)}
       />
-      <input
-        className="fake-input"
-        id="detPhone"
-        placeholder="Phone number"
-        value={draft.phone || ''}
-        onChange={(e) => setField('phone', e.target.value)}
-        inputMode="tel"
-      />
+      <PhoneInput id="detPhone" value={draft.phone || ''} onChange={(v) => setField('phone', v)} />
       {patientId != null && <RegistrationFamily patientId={patientId} phone={draft.phone} />}
       <DobAgeFields
         dob={draft.dob || ''}

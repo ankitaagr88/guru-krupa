@@ -37,19 +37,32 @@ export function useRelations(enabled = true) {
   return rows;
 }
 
-/** Relation picker; '' = not set. */
-export function RelationSelect({ relations, value, onChange, id, label = 'Relation', disabled = false }) {
-  return (
+/** Relation picker; '' = not set. `placeholder` names the empty choice ("Not set yet" by default;
+    "Choose their relation" where one is required), `error` shows under it. */
+export function RelationSelect({
+  relations,
+  value,
+  onChange,
+  id,
+  label = 'Relation',
+  disabled = false,
+  placeholder = 'Not set yet',
+  error = '',
+}) {
+  const errId = error ? `${id}-error` : undefined;
+  const field = (
     <label className="family-field" htmlFor={id}>
       <span className="family-field-label">{label}</span>
       <select
         id={id}
-        className="drop-select"
+        className={`drop-select${error ? ' error' : ''}`}
         value={value || ''}
         onChange={(e) => onChange(e.target.value || null)}
         disabled={disabled}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={errId}
       >
-        <option value="">Not set yet</option>
+        <option value="">{placeholder}</option>
         {relations.map((r) => (
           <option key={r.key} value={r.key}>
             {r.label}
@@ -57,6 +70,15 @@ export function RelationSelect({ relations, value, onChange, id, label = 'Relati
         ))}
       </select>
     </label>
+  );
+  if (!error) return field;
+  return (
+    <div className="family-field-wrap">
+      {field}
+      <span id={errId} className="family-field-error" role="alert">
+        {error}
+      </span>
+    </div>
   );
 }
 
@@ -73,12 +95,14 @@ export function ownerChoices(matches, extra = null) {
   return out;
 }
 
-/* The "Already registered with this number" prompt of the staff new-patient forms (queue "New
-   patient" and the staff /register page). Three answers: "Use this patient" (an existing record),
-   "Add as a family member" (a new patient linked to the number's owner with their relation) or
-   "No — separate patient". `choice` = {ownerId, ownerName, relationKey} while adding as a family
-   member (the caller sends it with the new patient), else null. `renderUse(m)` draws the per-row
-   "Use this patient" button, which each form handles its own way. */
+/* The "this number is already registered" panel of the staff new-patient forms (queue "New
+   patient" and the staff /register page). A number that is already on file usually means a relative
+   of an existing patient, so the panel leads with who the number belongs to and asks the new
+   patient's relation to its owner straight away (the form won't save without one — see
+   `relationMissing`). The same person? Each row keeps its "Use this patient" (`renderUse(m)`, which
+   each form handles its own way). Not related? "Not related — separate patient" (`onDismiss`).
+   `choice` = {ownerId, ownerName, relationKey} while adding as a family member (the caller sends
+   it with the new patient); it is filled in for the number's owner as soon as matches arrive. */
 export function SamePhonePrompt({
   matches,
   choice,
@@ -88,84 +112,91 @@ export function SamePhonePrompt({
   renderUse,
   idPrefix = 'np',
   className = '',
+  relationError = '',
 }) {
   const owners = ownerChoices(matches, choice);
-  if (choice) {
-    return (
-      <div className={`same-phone family-join ${className}`} role="region" aria-label="Add as a family member" data-testid="family-join">
+  const first = owners[0];
+  // A number on file → start as "new family member of the number's owner".
+  useEffect(() => {
+    if (!choice && first) onChoice({ ownerId: first.id, ownerName: first.name, relationKey: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [choice, first?.id]);
+  if (!choice) return null;
+
+  const notRelated = () => {
+    onChoice(null);
+    onDismiss?.();
+  };
+  return (
+    <div className={`same-phone family-join ${className}`} role="region" aria-label="Add as a family member" data-testid="family-join">
+      {matches.length > 0 ? (
+        <>
+          <p className="same-phone-title">
+            This number belongs to the family of <span className="family-join-owner">{choice.ownerName}</span>
+          </p>
+          {matches.map((m) => (
+            <div key={m.id} className="same-phone-row" data-testid={`same-phone-${m.id}`}>
+              <div className="same-phone-who">
+                <span className="same-phone-name">{m.name}</span>
+                <span className="same-phone-meta">
+                  {ageSexLabel(m)}
+                  {m.visitId
+                    ? ` · in today's queue${m.token ? ` · ${m.token}` : ''}`
+                    : m.lastVisitDate
+                      ? ` · last visit ${fmtDob(String(m.lastVisitDate).slice(0, 10))}`
+                      : ' · no visit yet'}
+                </span>
+                {familyLine(m, { short: true }) && <span className="family-line">{familyLine(m, { short: true })}</span>}
+              </div>
+              {renderUse(m)}
+            </div>
+          ))}
+          <p className="same-phone-ask">New patient on this number? Choose how they are related:</p>
+        </>
+      ) : (
         <p className="same-phone-title">
           New family member of <span className="family-join-owner">{choice.ownerName}</span> on this number
         </p>
-        <div className="family-join-grid">
-          {owners.length > 1 && (
-            <label className="family-field" htmlFor={`${idPrefix}FamilyOwner`}>
-              <span className="family-field-label">Family of</span>
-              <select
-                id={`${idPrefix}FamilyOwner`}
-                className="drop-select"
-                value={choice.ownerId}
-                onChange={(e) => {
-                  const o = owners.find((x) => String(x.id) === e.target.value);
-                  if (o) onChoice({ ...choice, ownerId: o.id, ownerName: o.name });
-                }}
-              >
-                {owners.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-          <RelationSelect
-            id={`${idPrefix}FamilyRelation`}
-            relations={relations}
-            label={`Their relation to ${choice.ownerName}`}
-            value={choice.relationKey}
-            onChange={(v) => onChoice({ ...choice, relationKey: v })}
-          />
-        </div>
-        <button type="button" className="link-btn same-phone-no" onClick={() => onChoice(null)}>
-          Not a family member
-        </button>
+      )}
+      <div className="family-join-grid">
+        {owners.length > 1 && (
+          <label className="family-field" htmlFor={`${idPrefix}FamilyOwner`}>
+            <span className="family-field-label">Family of</span>
+            <select
+              id={`${idPrefix}FamilyOwner`}
+              className="drop-select"
+              value={choice.ownerId}
+              onChange={(e) => {
+                const o = owners.find((x) => String(x.id) === e.target.value);
+                if (o) onChoice({ ...choice, ownerId: o.id, ownerName: o.name });
+              }}
+            >
+              {owners.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <RelationSelect
+          id={`${idPrefix}FamilyRelation`}
+          relations={relations}
+          label={`Their relation to ${choice.ownerName}`}
+          placeholder="Choose their relation"
+          value={choice.relationKey}
+          error={relationError}
+          onChange={(v) => onChoice({ ...choice, relationKey: v })}
+        />
       </div>
-    );
-  }
-  if (!matches.length) return null;
-  const first = owners[0];
-  return (
-    <div className={`same-phone ${className}`} role="region" aria-label="Already registered with this number" data-testid="same-phone">
-      <p className="same-phone-title">Already registered with this number — is it one of these?</p>
-      {matches.map((m) => (
-        <div key={m.id} className="same-phone-row" data-testid={`same-phone-${m.id}`}>
-          <div className="same-phone-who">
-            <span className="same-phone-name">{m.name}</span>
-            <span className="same-phone-meta">
-              {ageSexLabel(m)}
-              {m.visitId
-                ? ` · in today's queue${m.token ? ` · ${m.token}` : ''}`
-                : m.lastVisitDate
-                  ? ` · last visit ${fmtDob(String(m.lastVisitDate).slice(0, 10))}`
-                  : ' · no visit yet'}
-            </span>
-            {familyLine(m, { short: true }) && <span className="family-line">{familyLine(m, { short: true })}</span>}
-          </div>
-          {renderUse(m)}
-        </div>
-      ))}
-      <div className="family-join-actions">
-        <button
-          type="button"
-          className="btn-ghost"
-          data-testid="family-add-member"
-          onClick={() => onChoice({ ownerId: first.id, ownerName: first.name, relationKey: null })}
-        >
-          Add as a family member
-        </button>
-        <button type="button" className="link-btn same-phone-no" onClick={onDismiss}>
-          No — separate patient
-        </button>
-      </div>
+      <button type="button" className="link-btn same-phone-no" onClick={notRelated}>
+        Not related — separate patient
+      </button>
     </div>
   );
+}
+
+/** The message to show when a new patient joins a family without a relation picked, else ''. */
+export function relationMissing(choice) {
+  return choice && !choice.relationKey ? `Choose their relation to ${choice.ownerName} (or “Not related”).` : '';
 }

@@ -99,7 +99,7 @@ describe('New patient form, filled by the patient (public)', () => {
     expect(thanks).toHaveTextContent('કૃપા કરીને આ નંબર રિસેપ્શન પર બતાવો.');
     // Nothing on the page says the number was known; reception gets the flag in the note.
     expect(screen.queryByText(/Pooja/)).not.toBeInTheDocument();
-    expect(screen.queryByTestId('same-phone')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('family-join')).not.toBeInTheDocument();
     expect(newest().note).toBe(`${SELF_FILLED_NOTE} ${SAME_PHONE_NOTE}`);
     expect(screen.getByRole('button', { name: 'બીજી વ્યક્તિ માટે ફોર્મ ભરો' })).toBeInTheDocument();
   });
@@ -124,8 +124,8 @@ describe('New patient form, filled by staff at the desk', () => {
     expect(screen.getByRole('heading', { name: 'New patient form' })).toBeInTheDocument(); // staff start in English
 
     await userEvent.type(screen.getByLabelText(/Mobile number/), '+91 98240-89012');
-    const panel = await screen.findByTestId('same-phone');
-    expect(panel).toHaveTextContent('Already registered with this number');
+    const panel = await screen.findByTestId('family-join');
+    expect(panel).toHaveTextContent('This number belongs to the family of');
     const row = within(panel).getByTestId('same-phone-9');
     expect(row).toHaveTextContent('Pooja Trivedi');
 
