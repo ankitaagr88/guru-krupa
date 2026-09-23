@@ -11,7 +11,8 @@ from app.schemas.patients import PatientDetail, PatientIn, PatientOut, PatientPa
 
 
 _NULLABLE = {"dob", "age", "sex", "phone", "address", "occupation", "screen_hours", "language"}
-_COMPUTED = {"referral_source", "last_visit_date", "visit_id", "token", "stage"}
+_COMPUTED = {"referral_source", "last_visit_date", "visit_id", "token", "stage", "family_owner_id", "relation_key",
+             "relation_label", "family_owner_name", "family_size", "family_phone_updated"}
 
 
 def phone_key(phone: str | None) -> str:
@@ -32,18 +33,33 @@ def _referral_id(db: Session, key: str | None) -> int | None:
     return src.id
 
 
-def create_patient(db: Session, data: PatientIn) -> Patient:
-    values = data.model_dump(exclude={"referral_source"})
+def create_patient(db: Session, data: PatientIn, by=None) -> Patient:
+    """Raises UnknownReferralSource, or (with `family_owner_id`) the family service's NotFound /
+    BadValue for an unknown owner or relation. Nothing is saved when it raises."""
+    from app.services import family as family_svc
+
+    values = data.model_dump(exclude={"referral_source", "family_owner_id", "relation_key"})
     if values.get("dob") is not None:
         values.pop("age", None)  # the DOB wins over a told age
     patient = Patient(**values, referral_source_id=_referral_id(db, data.referral_source))
     db.add(patient)
+    if data.family_owner_id is not None:
+        try:
+            db.flush()
+            family_svc.link(db, patient, data.family_owner_id, data.relation_key, by=by, commit=False)
+        except Exception:
+            db.rollback()
+            raise
     db.commit()
     return patient
 
 
-def update_patient(db: Session, patient: Patient, data: PatientPatch) -> Patient:
+def update_patient(db: Session, patient: Patient, data: PatientPatch) -> int:
+    """Returns how many family members' phones followed a change of the owner's phone."""
+    from app.services import family as family_svc
+
     values = data.model_dump(exclude_unset=True)
+    old_phone = patient.phone
     if "referral_source" in values:
         patient.referral_source_id = _referral_id(db, values.pop("referral_source"))
     if values.get("dob") is not None:
@@ -54,8 +70,11 @@ def update_patient(db: Session, patient: Patient, data: PatientPatch) -> Patient
     for k, v in values.items():
         if v is not None or k in _NULLABLE:
             setattr(patient, k, v)
+    followed = 0
+    if patient.phone != old_phone and not patient.family_owner_id:
+        followed = family_svc.phone_followed(db, patient)  # the owner's number is the family's number
     db.commit()
-    return patient
+    return followed
 
 
 def search_patients(db: Session, q: str, limit: int = 20) -> list[Patient]:
@@ -108,18 +127,27 @@ def today_active_visits(db: Session, patient_ids: list[int], today: date) -> dic
     return {v.patient_id: v for v in rows}
 
 
-def patient_out(patient: Patient, last_visit: date | None = None, today_visit: Visit | None = None) -> PatientOut:
+def patient_out(patient: Patient, last_visit: date | None = None, today_visit: Visit | None = None,
+                family: dict | None = None) -> PatientOut:
+    """`family` = this patient's entry from family.family_bits (worked out here when not given)."""
+    from app.services import family as family_svc
+
     cols = {k: getattr(patient, k) for k in PatientOut.model_fields if k not in _COMPUTED}
     tv = today_visit
+    if family is None:
+        family = family_svc.family_bits(None, [patient]).get(patient.id, {})
     return PatientOut(**cols, referral_source=patient.referral_source.key if patient.referral_source else None,
                       last_visit_date=last_visit, visit_id=tv and tv.id, token=tv and tv.token,
-                      stage=tv and tv.stage_key)
+                      stage=tv and tv.stage_key, **family)
 
 
 def patients_out(db: Session, patients: list[Patient], today: date) -> list[PatientOut]:
+    from app.services import family as family_svc
+
     ids = [p.id for p in patients]
     last, active = last_visit_dates(db, ids), today_active_visits(db, ids, today)
-    return [patient_out(p, last.get(p.id), active.get(p.id)) for p in patients]
+    fam = family_svc.family_bits(db, patients)
+    return [patient_out(p, last.get(p.id), active.get(p.id), fam.get(p.id)) for p in patients]
 
 
 def patient_detail(db: Session, patient: Patient, today: date) -> PatientDetail:

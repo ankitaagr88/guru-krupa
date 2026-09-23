@@ -49,7 +49,7 @@ def submit_intake(data: IntakeIn, request: Request, db: Session = Depends(get_db
         if data.website:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Could not submit the form")
     try:
-        patient, visit = svc.submit(db, data, by_staff=staff is not None)
+        patient, visit = svc.submit(db, data, by_staff=staff is not None, staff=staff)
     except svc.IntakeError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))
     if staff is None:

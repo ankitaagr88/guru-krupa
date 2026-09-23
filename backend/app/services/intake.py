@@ -16,6 +16,7 @@ from app.schemas.intake import IntakeIn
 from app.schemas.patients import PatientIn, check_dob
 from app.seed.reference import CONDITIONS
 from app.services import admin as admin_svc
+from app.services.admin import AdminError
 from app.services import patients as patients_svc
 from app.services import queue as queue_svc
 
@@ -60,7 +61,7 @@ def lists(db: Session) -> dict:
     return {"referral_sources": admin_svc.referral_sources(db), "conditions": list(CONDITIONS)}
 
 
-def submit(db: Session, data: IntakeIn, *, by_staff: bool) -> tuple[Patient, Visit]:
+def submit(db: Session, data: IntakeIn, *, by_staff: bool, staff=None) -> tuple[Patient, Visit]:
     """Create the patient and today's visit at the first stage. Raises IntakeError (-> 422)."""
     try:
         check_dob(data.dob)
@@ -79,12 +80,18 @@ def submit(db: Session, data: IntakeIn, *, by_staff: bool) -> tuple[Patient, Vis
         if patients_svc.patients_by_phone(db, data.phone, limit=1):
             notes.append(SAME_PHONE_NOTE)
 
-    body = PatientIn(**data.model_dump(exclude={"website"}))
+    fields = data.model_dump(exclude={"website"})
+    if not by_staff:
+        fields.pop("family_owner_id", None)  # the public page never links anyone to a family
+        fields.pop("relation_key", None)
+    body = PatientIn(**fields)
     if body.dob is not None:
         body.age = None  # the DOB wins over a told age
     try:
-        patient = patients_svc.create_patient(db, body)
+        patient = patients_svc.create_patient(db, body, by=staff)
     except patients_svc.UnknownReferralSource as exc:
         raise IntakeError(f"Unknown referral source '{exc}'")
+    except AdminError as exc:  # staff "Add as a family member": unknown owner or relation
+        raise IntakeError(str(exc))
     visit = queue_svc.register_visit(db, patient, note=" ".join(notes))
     return patient, visit
