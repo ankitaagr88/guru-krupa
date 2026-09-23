@@ -418,13 +418,57 @@ export const MEDICINE_PRICES = {
   'MOSI LP': 240,
 };
 
-// One-tap bill charges (Admin › Standard charges). The real server seeds these names at ₹0.
+// One-tap bill charges (Admin › Standard charges): Dr Anu's fee list, as the real server seeds it
+// (ref files/Fees.pdf, Eye_Procedure_Charges.pdf). Tests and packages are priced per eye:
+// `amount` = one eye, `amountBothEyes` = both. `groupLabel` = the heading on the bill.
+const charge = (id, label, amount, amountBothEyes, groupLabel) => ({
+  id,
+  label,
+  amount,
+  amountBothEyes,
+  groupLabel,
+  active: true,
+  sortOrder: id - 1,
+});
 export const STANDARD_CHARGES = [
-  { id: 1, label: 'Consultation', amount: 500, active: true, sortOrder: 0 },
-  { id: 2, label: 'Follow-up consultation', amount: 300, active: true, sortOrder: 1 },
-  { id: 3, label: 'Pre-test', amount: 250, active: true, sortOrder: 2 },
-  { id: 4, label: 'Dilation', amount: 150, active: true, sortOrder: 3 },
+  charge(1, 'Consultation / new file', 700, null, 'Visit fees'),
+  charge(2, 'Follow-up', 350, null, 'Visit fees'),
+  charge(3, 'New case', 500, null, 'Visit fees'),
+  charge(4, 'OT follow-up', 350, null, 'Visit fees'),
+  charge(5, 'Emergency', 1000, null, 'Visit fees'),
+  charge(6, 'Perimetry', 2500, 4000, 'Tests'),
+  charge(7, 'Fundus photo', 500, 1000, 'Tests'),
+  charge(8, 'Macular OCT', 1500, 2000, 'Tests'),
+  charge(9, 'RNFL (retinal nerve fibre layer)', 1500, 2000, 'Tests'),
+  charge(10, 'CCT (central corneal thickness)', 1000, 1500, 'Tests'),
+  charge(11, 'Package 1 — Fundus + OCT + RNFL', 3500, 5000, 'Packages'),
+  charge(12, 'Package 2 — Fundus + OCT + RNFL + Perimetry', 5000, 7000, 'Packages'),
 ];
+
+// Visit kinds (Admin › Visit types & fee rules) and the charge each puts on the bill (null = free).
+export const VISIT_KINDS = [
+  { id: 1, key: 'new', label: 'New patient', standardChargeId: 1, sortOrder: 0, active: true },
+  { id: 2, key: 'free_follow_up', label: 'Follow-up · free', standardChargeId: null, sortOrder: 1, active: true },
+  { id: 3, key: 'follow_up', label: 'Follow-up', standardChargeId: 2, sortOrder: 2, active: true },
+  { id: 4, key: 'new_case', label: 'New case', standardChargeId: 3, sortOrder: 3, active: true },
+  { id: 5, key: 'post_op', label: 'After surgery', standardChargeId: null, sortOrder: 4, active: true },
+];
+
+// The fee rules that pick a visit kind (same shape as GET /fee-rules).
+export const FEE_RULES = {
+  freeFollowUpDays: 6,
+  newCaseAfterDays: 182,
+  postOpDays: 30, // to confirm with Dr Anu
+  emergencyFrom: '20:00',
+  emergencyTo: '08:00',
+  emergencyOnSunday: true,
+  emergencyChargeId: 5,
+  newPatientKind: 'new',
+  freeFollowUpKind: 'free_follow_up',
+  followUpKind: 'follow_up',
+  newCaseKind: 'new_case',
+  postOpKind: 'post_op',
+};
 
 /** Every seeded medicine as a store row (generics first, then brands) — mirrors the backend seed. */
 export function seedMedicines() {

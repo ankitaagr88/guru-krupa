@@ -35,22 +35,22 @@ describe('Billing panel', () => {
   it('adds a standard charge with one tap and lets reception change an amount', async () => {
     renderBilling();
     await waitFor(() => expect(drawer()).toHaveClass('show'));
-    const chip = await within(drawer()).findByRole('button', { name: 'Dilation ₹150' });
+    const chip = await within(drawer()).findByRole('button', { name: 'OT follow-up ₹350' });
     await userEvent.click(chip);
-    await waitFor(() => expect(billSection()).toHaveTextContent('₹900'));
+    await waitFor(() => expect(billSection()).toHaveTextContent('₹1100'));
     let bill = await billing.get(8);
-    const line = bill.items.find((i) => i.label === 'Dilation');
-    expect(line).toMatchObject({ kind: 'charge', standardChargeId: 4, amount: 150 });
+    const line = bill.items.find((i) => i.label === 'OT follow-up');
+    expect(line).toMatchObject({ kind: 'charge', standardChargeId: 4, amount: 350 });
     // already on the bill -> the chip is spent
     await waitFor(() =>
-      expect(within(drawer()).getByRole('button', { name: 'Dilation ₹150' })).toBeDisabled()
+      expect(within(drawer()).getByRole('button', { name: 'OT follow-up ₹350' })).toBeDisabled()
     );
 
     // a discount on the consultation
     const amt = within(billSection()).getByLabelText('Amount for Consultation fee');
     fireEvent.change(amt, { target: { value: '400' } });
     fireEvent.blur(amt);
-    await waitFor(() => expect(billSection()).toHaveTextContent('₹800'));
+    await waitFor(() => expect(billSection()).toHaveTextContent('₹1000'));
     bill = await billing.get(8);
     expect(bill.items.find((i) => i.label === 'Consultation fee').amount).toBe(400);
   });

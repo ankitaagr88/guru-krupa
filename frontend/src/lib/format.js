@@ -153,6 +153,7 @@ export function computeRowStatus(p, stageKey, now = Date.now()) {
   if (p.elsewhere) tags.push({ text: 'Prior records on file', cls: 'teal' });
   if (REFERRAL_NEEDS_DETAIL.includes(p.referralSource) && p.referralDetail)
     tags.push({ text: 'Ref: ' + p.referralDetail, cls: 'sage' });
+  if (Array.isArray(p.extraTags)) tags.unshift(...p.extraTags); // e.g. the visit kind (Queue.jsx)
   const waitMs = now - (p.stageEnteredAt || now);
   const waitMin = waitMs / 60000;
   const waitCls = waitMin >= WAIT_CORAL_MIN ? 'coral' : waitMin >= WAIT_AMBER_MIN ? 'amber' : '';

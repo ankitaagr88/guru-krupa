@@ -21,6 +21,8 @@ function createStore() {
     otSlots: D.OT_TIME_SLOTS.map((label, i) => ({ id: i + 1, label, active: true, sortOrder: i })),
     otProcedures: D.OT_PROCEDURES.map((name, i) => ({ id: i + 1, name, active: true, sortOrder: i })),
     standardCharges: clone(D.STANDARD_CHARGES), // lane B: one-tap bill charges
+    visitKinds: clone(D.VISIT_KINDS), // lane E2: new patient / follow-up / new case…
+    feeRules: clone(D.FEE_RULES),
     treatmentStandards: {}, // diagnosisId -> {lines, updatedAt, updatedBy}
     inventory: clone(D.INVENTORY).map((it, i) => ({ id: i + 1, ...it })),
     stockMovements: [],
@@ -47,6 +49,7 @@ function createStore() {
       otSlot: D.OT_TIME_SLOTS.length,
       otProcedure: D.OT_PROCEDURES.length,
       standardCharge: D.STANDARD_CHARGES.length,
+      visitKind: D.VISIT_KINDS.length,
       billItem: 100,
       receipt: 0, // per-year sequence of demo receipt numbers (GK-YYYY-00001…)
     },

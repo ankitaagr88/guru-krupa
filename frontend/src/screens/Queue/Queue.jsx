@@ -10,6 +10,7 @@ import useConfig from './useConfig';
 import PatientDrawer from './PatientDrawer';
 import NewPatientModal from './NewPatientModal';
 import { normalizeVisit, normalizeVisits, stepRemaining } from './queueModel';
+import { visitKindTags } from './visitKind';
 import './queue.css';
 
 const POLL_MS = 15000;
@@ -77,7 +78,11 @@ export default function Queue() {
   }, [stageParam, stages, navigate]);
 
   /* ---------- derived ---------- */
-  const rows = useMemo(() => all.filter((r) => r.stage === stage?.key), [all, stage?.key]);
+  // Each row carries its visit-kind tag ("Follow-up · free", "New case", "Emergency").
+  const rows = useMemo(
+    () => all.filter((r) => r.stage === stage?.key).map((r) => ({ ...r, extraTags: visitKindTags(r) })),
+    [all, stage?.key]
+  );
   const counts = useMemo(() => {
     if (!loaded) return stageCounts || {};
     const c = {};
@@ -313,6 +318,7 @@ export default function Queue() {
         onStartDilation={startDilation}
         onComplete={complete}
         onStepGiven={stepGiven}
+        onVisitChange={afterMutation}
         busy={busy}
       />
 

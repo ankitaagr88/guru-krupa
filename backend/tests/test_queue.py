@@ -45,6 +45,9 @@ def test_register_tokens_and_duplicate(client, admin_headers):
     assert v1["dilation"] is None and v1["hasBill"] is False and v1["readingsCount"] == 0
     assert isinstance(v1["waitingSeconds"], int) and v1["waitingSeconds"] >= 0
     assert v1["stageEnteredAt"].endswith(("+00:00", "Z"))
+    # visit kind (lane E2): a first visit is a new patient; no earlier visit -> no day count
+    assert v1["visitKindKey"] == "new" and v1["visitKindLabel"] == "New patient"
+    assert v1["daysSinceLastVisit"] is None and v1["feeReason"] == "No earlier visit on record"
 
     v2 = client.post("/api/visits", json={"patientId": b, "note": "Routine"}, headers=admin_headers).json()
     assert v2["token"] == "#002" and v2["note"] == "Routine"

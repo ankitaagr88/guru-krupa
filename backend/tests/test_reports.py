@@ -88,6 +88,9 @@ def test_today_report_numbers(client, admin_headers, clinic_day):
     assert (stages["billing"]["avgMinutes"], stages["billing"]["visits"]) == (10.0, 1)
     assert stages["dilate"]["avgMinutes"] is None and stages["dilate"]["visits"] == 0
     assert stages["reg"]["label"] == "Registration"
+    # visits by kind (lane E2): these two were made without one
+    kinds = rep["visitKinds"]
+    assert kinds["notSet"] == 2 and kinds["emergencies"] == 0 and all(k["count"] == 0 for k in kinds["kinds"])
 
     money = rep["collections"]
     modes = {m["mode"]: (m["bills"], m["amount"]) for m in money["byMode"]}

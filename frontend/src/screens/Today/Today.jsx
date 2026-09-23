@@ -120,6 +120,8 @@ export default function Today() {
             />
           </div>
 
+          {rep.visitKinds && <VisitKindCounts counts={rep.visitKinds} />}
+
           <div className="today-grid">
             <section className="today-card" aria-labelledby="h-stage-time">
               <h3 id="h-stage-time">Time spent in each stage</h3>
@@ -256,6 +258,24 @@ export default function Today() {
       )}
       {printing && <ReceiptPrint bill={printing} onDone={() => setPrinting(null)} />}
     </div>
+  );
+}
+
+/* Visits by visit type (lane E2): new patients, follow-ups (paid / free), new cases… and emergencies. */
+function VisitKindCounts({ counts }) {
+  const rows = [...(counts.kinds || []), { key: '_emergency', label: 'Emergencies', count: counts.emergencies || 0 }];
+  if (counts.notSet) rows.push({ key: '_none', label: 'Type not set', count: counts.notSet });
+  return (
+    <section className="today-card today-kinds" aria-labelledby="h-visit-kinds">
+      <h3 id="h-visit-kinds">Visits by type</h3>
+      <ul className="today-kind-list" data-testid="visit-kind-counts">
+        {rows.map((k) => (
+          <li key={k.key} data-testid={`kind-count-${k.key}`} className={k.key === '_emergency' ? 'emergency' : ''}>
+            <span className="mono">{k.count}</span> {k.label}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

@@ -238,3 +238,37 @@
     padding: 14px 12px;
   }
 }
+
+/* Visits by type (lane E2) */
+.today-kinds {
+  margin: 0 0 16px;
+}
+.today-kind-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.today-kind-list li {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  background: var(--surface-sunk);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.today-kind-list li .mono {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.today-kind-list li.emergency {
+  background: var(--alert-wash);
+  color: var(--alert-ink);
+}
