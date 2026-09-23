@@ -1,14 +1,24 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Modal from '../../components/Modal';
+import { useToast } from '../../components/Toast';
+import { reception as receptionApi, visits as visitsApi, errorMessage } from '../../api';
+import { ageSexLabel, dobProblem, fmtDob, phoneKey } from '../../lib/format';
+import DobAgeFields from '../Patient/DobAgeFields';
 import ConditionGrid, { PillToggle, ElsewhereToggle } from './ConditionGrid';
 import { LANGUAGES, SEXES, numOrNull, referralNeedsDetail } from './queueModel';
 
 /* Patient entry form (mockup `openModal` / `addNewPatient` and the np* drafts).
    `onSubmit(body)` receives the PatientIn payload; the caller creates the patient,
-   registers the visit and closes the modal. */
+   registers the visit and closes the modal.
+   Duplicate check: once the phone has 10 digits we look up who is already registered with
+   that number. Families share phones, so it is a prompt, never a block: "Use this patient"
+   registers today's visit for the existing record (`onRegistered` lets the queue reload),
+   "No — new patient" carries on with the form. */
 const EMPTY = {
   name: '',
   phone: '',
+  dob: '',
   age: '',
   sex: null,
   address: '',
@@ -23,19 +33,76 @@ const EMPTY = {
   elsewhereNote: '',
 };
 
-export default function NewPatientModal({ open, onClose, onSubmit, config, busy = false }) {
+export default function NewPatientModal({ open, onClose, onSubmit, onRegistered, config, busy = false }) {
+  const navigate = useNavigate();
+  const toast = useToast();
   const [d, setD] = useState(EMPTY);
   const [error, setError] = useState('');
+  const [same, setSame] = useState({ key: '', rows: [] }); // same-phone lookup result
+  const [dismissed, setDismissed] = useState(''); // phone key the person said "new patient" for
+  const [using, setUsing] = useState(null); // patient id being registered
   useEffect(() => {
     if (open) {
       const hasSelf = config.referralSources.some((r) => r.key === 'self');
       setD({ ...EMPTY, referralSource: hasSelf ? 'self' : config.referralSources[0]?.key || 'self' });
       setError('');
+      setSame({ key: '', rows: [] });
+      setDismissed('');
     }
   }, [open, config.referralSources]);
 
+  const key = phoneKey(d.phone);
+  useEffect(() => {
+    if (!open || key.length < 10 || typeof receptionApi?.samePhone !== 'function') return undefined;
+    let alive = true;
+    const t = setTimeout(() => {
+      receptionApi
+        .samePhone(key)
+        .then((rows) => alive && setSame({ key, rows: Array.isArray(rows) ? rows : [] }))
+        .catch(() => {}); // the check is a convenience; the form still works without it
+    }, 250);
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
+  }, [open, key]);
+  const matches = key.length >= 10 && same.key === key && dismissed !== key ? same.rows : [];
+
   const set = (k, v) => setD((x) => ({ ...x, [k]: v }));
   const needsDetail = referralNeedsDetail(config.referralSources, d.referralSource);
+  const firstStage = config.stages?.[0]?.key || 'reg';
+
+  const showInQueue = (m, stageKey) => {
+    onClose();
+    navigate(`/queue/${stageKey || firstStage}?patient=${m.id}`);
+  };
+
+  const registerExisting = async (m) => {
+    if (m.visitId) {
+      showInQueue(m, m.stage);
+      return;
+    }
+    setUsing(m.id);
+    try {
+      const v = await visitsApi.create({ patientId: m.id });
+      toast.success(`${m.name} added to the queue`, v?.token ? `Token ${v.token}` : undefined);
+      await onRegistered?.();
+      showInQueue(m, v?.stageKey || v?.stage || firstStage);
+    } catch (err) {
+      if (err?.response?.status === 409) {
+        // Registered a moment ago (another desk / double click): just open them.
+        const fresh = await receptionApi.samePhone(key).catch(() => []);
+        const now = (fresh || []).find((x) => x.id === m.id);
+        toast.info(`${m.name} is already in today's queue`, now?.token ? `Token ${now.token}` : undefined);
+        await onRegistered?.();
+        showInQueue(m, now?.stage);
+      } else {
+        toast.error('Could not add to the queue', errorMessage(err));
+      }
+    } finally {
+      setUsing(null);
+    }
+  };
 
   const submit = () => {
     const name = d.name.trim();
@@ -43,10 +110,12 @@ export default function NewPatientModal({ open, onClose, onSubmit, config, busy 
       setError('At least a name is needed.');
       return;
     }
+    if (dobProblem(d.dob)) return; // shown under the field
     onSubmit({
       name,
       phone: d.phone.trim(),
-      age: numOrNull(d.age, { int: true }),
+      dob: d.dob || null,
+      age: d.dob ? null : numOrNull(d.age, { int: true }),
       sex: d.sex,
       address: d.address.trim(),
       occupation: d.occupation.trim(),
@@ -107,16 +176,45 @@ export default function NewPatientModal({ open, onClose, onSubmit, config, busy 
           onChange={(e) => set('phone', e.target.value)}
           inputMode="tel"
         />
-        <div className="detail-grid" style={{ marginBottom: 10 }}>
-          <input
-            className="fake-input"
-            id="npAge"
-            placeholder="Age"
-            value={d.age}
-            onChange={(e) => set('age', e.target.value)}
-            inputMode="numeric"
-            style={{ marginBottom: 0 }}
-          />
+        {matches.length > 0 && (
+          <div className="same-phone" role="region" aria-label="Already registered with this number" data-testid="same-phone">
+            <p className="same-phone-title">Already registered with this number — is it one of these?</p>
+            {matches.map((m) => (
+              <div key={m.id} className="same-phone-row" data-testid={`same-phone-${m.id}`}>
+                <div className="same-phone-who">
+                  <span className="same-phone-name">{m.name}</span>
+                  <span className="same-phone-meta">
+                    {ageSexLabel(m)}
+                    {m.visitId
+                      ? ` · in today's queue${m.token ? ` · ${m.token}` : ''}`
+                      : m.lastVisitDate
+                        ? ` · last visit ${fmtDob(String(m.lastVisitDate).slice(0, 10))}`
+                        : ' · no visit yet'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => registerExisting(m)}
+                  disabled={using != null || busy}
+                >
+                  {m.visitId ? "Open today's visit" : using === m.id ? 'Adding…' : 'Use this patient'}
+                </button>
+              </div>
+            ))}
+            <button type="button" className="link-btn same-phone-no" onClick={() => setDismissed(key)}>
+              No — new patient
+            </button>
+          </div>
+        )}
+        <DobAgeFields
+          dob={d.dob}
+          age={d.age}
+          onDob={(v) => set('dob', v)}
+          onAge={(v) => set('age', v)}
+          idPrefix="np"
+        />
+        <div style={{ marginBottom: 10 }}>
           <PillToggle options={SEXES} value={d.sex} onChange={(v) => set('sex', v)} dataKey="sex" />
         </div>
         <input

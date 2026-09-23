@@ -33,6 +33,94 @@ export function fmtLastVisit(dateStrVal, todayStr = new Date().toISOString().sli
   return months === 1 ? '1 month ago' : months + ' months ago';
 }
 
+/* ---- age & date of birth ----
+   A DOB is kept as 'YYYY-MM-DD'; the age is worked out from it (same rule as the server). */
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+export const MAX_AGE_YEARS = 120;
+
+function dobParts(dob) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(dob || ''));
+  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
+}
+
+/** Today's date as 'YYYY-MM-DD' in the clinic's local time. */
+export function localIso(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Whole years since the DOB, or null when there is no (valid) DOB. */
+export function ageFromDob(dob, today = new Date()) {
+  const p = dobParts(dob);
+  if (!p) return null;
+  const [y, m, d] = p;
+  const tm = today.getMonth() + 1;
+  const td = today.getDate();
+  const age = today.getFullYear() - y - (tm < m || (tm === m && td < d) ? 1 : 0);
+  return age >= 0 ? age : null;
+}
+
+/** "12 Mar 1964" */
+export function fmtDob(dob) {
+  const p = dobParts(dob);
+  return p ? `${p[2]} ${MONTHS[p[1] - 1]} ${p[0]}` : '';
+}
+
+/** Plain-language problem with a typed DOB, or '' when it is fine (or empty). */
+export function dobProblem(dob, today = new Date()) {
+  if (!dob) return '';
+  const p = dobParts(dob);
+  if (!p) return 'Date of birth is not a real date.';
+  const iso = localIso(today);
+  if (dob.slice(0, 10) > iso) return 'Date of birth cannot be in the future.';
+  const oldest = `${today.getFullYear() - MAX_AGE_YEARS}${iso.slice(4)}`;
+  if (dob.slice(0, 10) < oldest) return `Date of birth is more than ${MAX_AGE_YEARS} years ago. Please check it.`;
+  return '';
+}
+
+/** "62 y · F" (age from the DOB when there is one); "—" when neither is known. */
+export function ageSexLabel(p) {
+  if (!p) return '—';
+  const age = p.dob ? ageFromDob(p.dob) : p.age;
+  const parts = [];
+  if (age != null && age !== '') parts.push(`${age} y`);
+  if (p.sex) parts.push(p.sex[0]);
+  return parts.length ? parts.join(' · ') : '—';
+}
+
+/** Digits only, last 10 — how two phone numbers are compared ("+91 98250 12345" = "9825012345"). */
+export function phoneKey(phone) {
+  return String(phone || '').replace(/\D/g, '').slice(-10);
+}
+
+/** A DOB cell from a spreadsheet → 'YYYY-MM-DD' or null. Understands dd/mm/yyyy, dd-mm-yyyy,
+ *  d/m/yy (a two-digit year in the future means last century), yyyy-mm-dd and Excel serial numbers. */
+export function parseDobCell(v, today = new Date()) {
+  const t = String(v ?? '').trim();
+  if (!t) return null;
+  let y;
+  let mo;
+  let d;
+  let m;
+  if (/^\d{1,5}(\.0+)?$/.test(t)) {
+    const n = Math.floor(Number(t));
+    if (n <= 60 || n >= 80000) return null;
+    const dt = new Date(Date.UTC(1899, 11, 30) + n * 86400000);
+    [y, mo, d] = [dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate()];
+  } else if ((m = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/.exec(t))) {
+    [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  } else if ((m = /^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2}|\d{4})$/.exec(t))) {
+    [d, mo, y] = [Number(m[1]), Number(m[2]), Number(m[3])];
+    if (m[3].length === 2) {
+      y += 2000;
+      if (y > today.getFullYear()) y -= 100;
+    }
+  } else return null;
+  const check = new Date(Date.UTC(y, mo - 1, d));
+  if (check.getUTCMonth() !== mo - 1 || check.getUTCDate() !== d) return null;
+  const iso = `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  return dobProblem(iso, today) ? null : iso;
+}
+
 export function ageSex(p) {
   return p.age ? p.age + (p.sex ? p.sex[0] : '') : '—';
 }

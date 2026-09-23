@@ -344,6 +344,7 @@ export default function Queue() {
         open={npOpen}
         onClose={() => setNpOpen(false)}
         onSubmit={addNewPatient}
+        onRegistered={afterMutation}
         config={config}
         busy={busy}
       />

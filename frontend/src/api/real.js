@@ -58,7 +58,11 @@ export const billing = {
 export const reports = {};
 
 /* Reception additions — duplicate-patient check etc. (lane A owns this block). */
-export const reception = {};
+export const reception = {
+  // Everyone already registered with this number (last 10 digits compared), as PatientOut:
+  // age, sex, lastVisitDate and — when they are in today's queue — visitId, token, stage.
+  samePhone: (phone) => data(client.get('/patients/by-phone', { params: { phone } })),
+};
 
 /* Doctor's panel — diagnosis on the visit, follow-up date (lane C owns this block). */
 export const doctor = {};

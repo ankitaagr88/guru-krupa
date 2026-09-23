@@ -13,6 +13,8 @@ import {
   emptyOtBilling,
 } from './data';
 import { billOut } from './billing';
+import { patientRead } from './reception';
+import { ageFromDob, dobProblem, parseDobCell } from '../lib/format';
 
 // Each lane keeps its own demo adapters in its own file (session 3).
 export { billing, reports } from './billing';
@@ -67,6 +69,19 @@ function currentUserName() {
 }
 
 /* ---------------- patients & visits (queue) ---------------- */
+// Same DOB rules as the server: a real past day within 120 years; the DOB wins over a typed age;
+// correcting the age alone drops a DOB that was wrong.
+function applyDob(p, patch, { isNew = false } = {}) {
+  if ('dob' in patch) {
+    const problem = dobProblem(patch.dob || '');
+    if (problem) throw httpError(422, problem.replace(/\.$/, ''));
+    p.dob = patch.dob || null;
+  } else if (!isNew && 'age' in patch && p.dob && Number(patch.age) !== ageFromDob(p.dob)) {
+    p.dob = null;
+  }
+  if (p.dob) p.age = ageFromDob(p.dob);
+}
+
 export const patients = {
   async list({ q = '' } = {}) {
     await latency(60);
@@ -80,13 +95,13 @@ export const patients = {
           (p.phone || '').toLowerCase().includes(query)
       );
     }
-    return c(rows);
+    return rows.map(patientRead);
   },
   async get(id) {
     await latency(40);
     const p = S.patients.find((x) => x.id === Number(id));
     if (!p) throw httpError(404, 'Patient not found');
-    return c(p);
+    return patientRead(p);
   },
   // Real: GET /patients/{id}/history. In demo mode a "patient" row is today's visit, so the
   // history is that visit plus any earlier dates (PATIENT_HISTORY) and imported prescriptions.
@@ -128,7 +143,7 @@ export const patients = {
     const otCases = S.otCases.filter((k) => k.patientId === p.id || k.patientName === p.name).map(otCaseOut).reverse();
     const appointments = S.appointments.filter((a) => a.patientId === p.id || (a.phone && a.phone === p.phone)).map((a) => c(a));
     return {
-      patient: c(p),
+      patient: patientRead(p),
       visits,
       otCases,
       appointments,
@@ -142,8 +157,12 @@ export const patients = {
   },
   async create(data) {
     await latency();
+    const { dob, ...rest } = data;
+    const draft = {};
+    applyDob(draft, dob !== undefined ? { dob } : {}, { isNew: true });
     const p = normalizePatient({
-      ...data,
+      ...rest,
+      ...draft,
       id: store.nextId('patient'),
       token: store.nextToken(),
       stage: S.stages[0]?.key || 'reg',
@@ -152,15 +171,21 @@ export const patients = {
     });
     S.patients.push(p);
     store.notify();
-    return c(p);
+    return patientRead(p);
   },
   async update(id, patch) {
     await latency(30);
     const p = S.patients.find((x) => x.id === Number(id));
     if (!p) throw httpError(404, 'Patient not found');
-    Object.assign(p, patch);
+    const { dob, ...rest } = patch;
+    if (dob !== undefined) {
+      const problem = dobProblem(dob || '');
+      if (problem) throw httpError(422, problem.replace(/\.$/, ''));
+    }
+    Object.assign(p, rest);
+    applyDob(p, patch);
     store.notify();
-    return c(p);
+    return patientRead(p);
   },
   async remove(id) {
     await latency();
@@ -1770,7 +1795,7 @@ const IMPORT_FIELDS = {
       { key: 'phone', label: 'Phone', syn: ['contact', 'mobile', 'phone', 'mobile no', 'phone number'] },
       { key: 'sex', label: 'Gender', syn: ['gender', 'sex'] },
       { key: 'age', label: 'Age', syn: ['age', 'age(y)', 'age (y)'] },
-      { key: 'dob', label: 'Date of birth', hint: 'used to work out the age when Age is empty', syn: ['dob', 'date of birth'] },
+      { key: 'dob', label: 'Date of birth', hint: 'kept as the date of birth; Age is used when it is empty', syn: ['dob', 'd o b', 'date of birth', 'birth date', 'birthdate'] },
       { key: 'address', label: 'Address', syn: ['address'] },
       { key: 'area', label: 'Area', hint: 'joined into the address', syn: ['area', 'locality'] },
       { key: 'city', label: 'City', hint: 'joined into the address', syn: ['city', 'town'] },
@@ -1921,7 +1946,9 @@ function importApply(target, recs, write) {
       if (ext) seen.add(ext);
       const phone = normPhone(r.phone);
       const sex = normSex(r.sex);
-      const age = normInt(r.age);
+      // A readable DOB is kept (the age follows from it); without one, Age(Y) as before.
+      const dob = parseDobCell(r.dob);
+      const age = dob ? ageFromDob(dob) : normInt(r.age);
       const address = [r.address, r.area, r.city].filter(Boolean).join(', ') || null;
       let existing = ext ? S.patients.find((p) => p.externalId === ext) : null;
       if (!existing)
@@ -1929,7 +1956,7 @@ function importApply(target, recs, write) {
       if (!existing) {
         add(n, 'new', name, ext || '');
         if (write) {
-          const p = normalizePatient({ id: store.nextId('patient'), name, phone, sex, age, address, externalId: ext, stage: null });
+          const p = normalizePatient({ id: store.nextId('patient'), name, phone, sex, dob, age, address, externalId: ext, stage: null });
           p.stage = null;
           p.medicines = [];
           S.patients.push(p);
@@ -1940,7 +1967,8 @@ function importApply(target, recs, write) {
       if (ext && !existing.externalId) changes.push('id');
       if (phone && normPhone(existing.phone) !== phone) changes.push('phone');
       if (sex && existing.sex !== sex) changes.push('sex');
-      if (age != null && existing.age !== age) changes.push('age');
+      if (dob && existing.dob !== dob) changes.push('dob');
+      else if (!dob && !existing.dob && age != null && existing.age !== age) changes.push('age');
       if (address && existing.address !== address) changes.push('address');
       if (!changes.length) return add(n, 'skip', name, 'already here, nothing new');
       add(n, 'update', name, 'fills in ' + changes.join(', '));
@@ -1949,7 +1977,8 @@ function importApply(target, recs, write) {
           externalId: existing.externalId || ext,
           phone: phone && normPhone(existing.phone) !== phone ? phone : existing.phone,
           sex: sex || existing.sex,
-          age: age ?? existing.age,
+          dob: dob || existing.dob || null,
+          age: dob ? age : existing.dob ? existing.age : (age ?? existing.age),
           address: address || existing.address,
         });
     });
