@@ -28,6 +28,7 @@ const DETAIL_KEYS = [
   'name',
   'phone',
   'age',
+  'dob', // 'YYYY-MM-DD' or null; when set, the server works the age out from it
   'sex',
   'address',
   'occupation',
@@ -143,7 +144,8 @@ export default function PatientDrawer({
 
   const setField = (k, v, opts) => {
     setDraft((d) => ({ ...d, [k]: v }));
-    const out = k === 'age' ? numOrNull(v, { int: true }) : k === 'screenHours' ? numOrNull(v) : v;
+    const out =
+      k === 'age' ? numOrNull(v, { int: true }) : k === 'screenHours' ? numOrNull(v) : k === 'dob' ? v || null : v;
     queueSave({ [k]: out }, opts);
   };
 
