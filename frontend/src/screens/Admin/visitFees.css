@@ -1,0 +1,106 @@
+/* Admin › Visit types & fee rules (lane E2). */
+.fee-subhead {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: 16px;
+  margin: 14px 0 8px;
+  color: var(--ink);
+}
+.fee-in-use {
+  display: block;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--ink-faint);
+  margin-top: 2px;
+}
+.fee-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 760px;
+}
+.fee-rule {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--surface);
+}
+.fee-rule-confirm {
+  border-color: var(--alert);
+}
+.fee-rule-text {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 30px;
+  color: var(--ink);
+}
+.fee-rule-aside {
+  margin: 4px 0 0;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.fee-rule .fake-input.fee-rule-days,
+.fee-rule .fake-input.fee-rule-time {
+  display: inline-block;
+  width: 72px;
+  margin: 0 2px;
+  padding: 4px 8px;
+  text-align: center;
+  font-family: var(--font-mono);
+}
+.fee-confirm-tag {
+  margin-top: 6px;
+}
+.fee-rule-check {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  cursor: pointer;
+}
+.fee-rule-select {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 8px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.fee-rule-select .admin-select {
+  width: auto;
+  min-width: 200px;
+  max-width: 100%;
+}
+.fee-rule-summary {
+  margin: 0;
+  padding: 10px 12px 10px 28px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--ink);
+}
+.fee-rule-summary li + li {
+  margin-top: 6px;
+}
+.fee-rule-summary .fee-confirm-tag {
+  margin-top: 0;
+  vertical-align: middle;
+}
+.fee-rule-kinds summary {
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--sapphire);
+}
+.fee-rule-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}

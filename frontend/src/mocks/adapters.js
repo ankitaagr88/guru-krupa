@@ -24,7 +24,8 @@ export { doctor } from './doctor';
 export { family } from './family';
 export { fees } from './fees';
 export { intake } from './intake';
-import { doctor as doctorMock, doctorVisitOut } from './doctor';
+import { doctor as doctorMock } from './doctor';
+import { applySuggestion, feeVisitOut } from './fees';
 
 const S = store.state;
 const c = store.clone;
@@ -224,7 +225,7 @@ export const visits = {
   async today({ stage } = {}) {
     await latency(60);
     const rows = stage ? S.patients.filter((p) => p.stage === stage) : S.patients;
-    return rows.map(doctorVisitOut);
+    return rows.map(feeVisitOut); // + visit kind & fee (lane E2)
   },
   async counts() {
     await latency(20);
@@ -266,6 +267,7 @@ export const visits = {
     p.stage = S.stages[0]?.key || 'reg';
     p.stageEnteredAt = Date.now();
     p.patientId = p.id;
+    applySuggestion(p); // visit kind + emergency from the fee rules (lane E2)
     if (note != null) p.note = note;
     if (elsewhere != null) p.elsewhere = !!elsewhere;
     if (elsewhereNote != null) p.elsewhereNote = elsewhereNote;
@@ -275,7 +277,7 @@ export const visits = {
   async get(id) {
     const p = S.patients.find((x) => x.id === Number(id));
     if (!p) throw httpError(404, 'Visit not found');
-    return doctorVisitOut(p);
+    return feeVisitOut(p);
   },
   // PATCH /visits/{id} {note?, doctorNotes?, elsewhere?, elsewhereNote?, diagnosisId?}
   async update(id, patch) {
@@ -287,7 +289,7 @@ export const visits = {
       if (patch[k] !== undefined) p[k] = patch[k];
     });
     store.notify();
-    return doctorVisitOut(p);
+    return feeVisitOut(p);
   },
   // Dilation (B5)
   async dilation(id) {

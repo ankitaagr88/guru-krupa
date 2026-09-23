@@ -4,7 +4,9 @@ import { billing as billingApi, errorMessage } from '../../api';
 import { PAYMENT_MODES, normalizeBill } from './queueModel';
 import ReceiptPrint from '../Billing/Receipt';
 import { BILL_CHANGED } from '../Billing/billEvents';
+import { rupees } from './visitKind';
 import '../Billing/billing.css';
+import './visitKind.css';
 
 /* Bill panel for the billing stage (mockup `renderBilling` / `addBillItem` /
    `removeBillItem` / `selectPaymentMode`). Self-contained (lane B owns it): loads and
@@ -17,7 +19,13 @@ import '../Billing/billing.css';
    here" in the medicines panel above puts the medicine on the bill on the server and
    announces it with a `gk:bill-changed` window event, so the panel reloads. Every amount
    can be changed (a discount, or a medicine that has no price yet). Paying gives the bill
-   a receipt number and a "Print receipt" button. */
+   a receipt number and a "Print receipt" button.
+
+   Visit fees (lane E2): a visit with no bill yet gets one started on the server with its visit
+   kind's fee (and Emergency when flagged) already on it, marked "Suggested" — reception can
+   remove or change it; changing the visit type in the drawer swaps that line. Chips sit under
+   their Admin heading (Visit fees / Tests / Packages); a test priced per eye asks "One eye /
+   Both eyes" and the line reads "Perimetry — both eyes". */
 
 const itemBody = (it) => ({
   label: it.label,
@@ -26,7 +34,29 @@ const itemBody = (it) => ({
   qty: Math.max(1, Number(it.qty) || 1),
   standardChargeId: it.standardChargeId ?? null,
   prescriptionLineId: it.prescriptionLineId ?? null,
+  eyes: it.eyes ?? null,
 });
+
+const EYES = { one: 'one eye', both: 'both eyes' };
+
+/** Charges in admin order, under their headings (first appearance decides the heading order). */
+function groupCharges(charges) {
+  const groups = [];
+  charges.forEach((ch) => {
+    const heading = (ch.groupLabel || '').trim();
+    let g = groups.find((x) => x.heading === heading);
+    if (!g) groups.push((g = { heading, charges: [] }));
+    g.charges.push(ch);
+  });
+  return groups;
+}
+
+/** GET the bill; none yet -> start it with the visit's suggested fee lines. */
+const fetchBill = (visitId) =>
+  billingApi.get(visitId).catch((err) => {
+    if (err?.response?.status === 404 && typeof billingApi.start === 'function') return billingApi.start(visitId);
+    throw err;
+  });
 
 export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaymentMode, busy = false }) {
   const toast = useToast();
@@ -36,10 +66,10 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
   const report = useRef(onPaymentMode);
   report.current = onPaymentMode;
 
+  const [eyesFor, setEyesFor] = useState(null); // the eye-wise charge waiting for "one / both eyes"
   const load = useCallback(
     () =>
-      billingApi
-        .get(visitId)
+      fetchBill(visitId)
         .then((b) => setBill(normalizeBill(b)))
         .catch((err) => {
           if (err?.response?.status === 404) setBill((b) => b || normalizeBill(null));
@@ -49,8 +79,7 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
 
   useEffect(() => {
     let alive = true;
-    billingApi
-      .get(visitId)
+    fetchBill(visitId)
       .then((b) => alive && setBill(normalizeBill(b)))
       .catch(() => alive && setBill(normalizeBill(fallbackBill)));
     return () => {
@@ -119,11 +148,21 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
     setLabel('');
     setAmount('');
   };
-  const addCharge = (ch) =>
-    onItems([
-      ...items,
-      { label: ch.label, amount: ch.amount, kind: 'charge', qty: 1, standardChargeId: ch.id },
-    ]);
+  const addCharge = (ch, eyes = null) => {
+    setEyesFor(null);
+    if (ch.amountBothEyes != null && !eyes) {
+      setEyesFor(ch); // ask "One eye / Both eyes" first
+      return;
+    }
+    const line = eyes
+      ? {
+          label: `${ch.label} — ${EYES[eyes]}`,
+          amount: eyes === 'both' ? ch.amountBothEyes : ch.amount,
+          eyes,
+        }
+      : { label: ch.label, amount: ch.amount };
+    onItems([...items, { ...line, kind: 'charge', qty: 1, standardChargeId: ch.id }]);
+  };
   const remove = (i) => onItems(items.filter((_, j) => j !== i));
   const reprice = (i, value) => {
     const n = Math.round(Number(value));
@@ -138,24 +177,52 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
     <div id="billingSection">
       <div className="field-label">Bill</div>
       {charges.length > 0 ? (
-        <div className="bill-charges" role="group" aria-label="Add a standard charge">
-          {charges.map((ch) => (
-            <button
-              key={ch.id}
-              type="button"
-              className="charge-chip"
-              data-testid={`charge-chip-${ch.id}`}
-              onClick={() => addCharge(ch)}
-              disabled={busy || onBill.has(ch.id)}
-              title={onBill.has(ch.id) ? 'Already on the bill' : `Add ${ch.label} to the bill`}
-            >
-              {ch.label} <span className="mono">₹{ch.amount}</span>
-            </button>
-          ))}
-        </div>
+        groupCharges(charges).map((g) => (
+          <div className="bill-charge-group" key={g.heading || '-'}>
+            {g.heading && <p className="bill-charge-heading">{g.heading}</p>}
+            <div className="bill-charges" role="group" aria-label={g.heading || 'Add a standard charge'}>
+              {g.charges.map((ch) => (
+                <button
+                  key={ch.id}
+                  type="button"
+                  className="charge-chip"
+                  data-testid={`charge-chip-${ch.id}`}
+                  onClick={() => addCharge(ch)}
+                  disabled={busy || onBill.has(ch.id)}
+                  title={onBill.has(ch.id) ? 'Already on the bill' : `Add ${ch.label} to the bill`}
+                >
+                  {ch.label}{' '}
+                  <span className="mono">
+                    {rupees(ch.amount)}
+                    {ch.amountBothEyes != null && ` / ${rupees(ch.amountBothEyes)}`}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))
       ) : (
         <p className="charge-chip-empty">
           No standard charges yet — Admin › Standard charges adds them here.
+        </p>
+      )}
+      {eyesFor && (
+        <div className="bill-eyes" role="group" aria-label={`${eyesFor.label}: one eye or both eyes`}>
+          <b>{eyesFor.label}</b>
+          <button type="button" className="btn-ghost sm" onClick={() => addCharge(eyesFor, 'one')} disabled={busy}>
+            One eye <span className="mono">{rupees(eyesFor.amount)}</span>
+          </button>
+          <button type="button" className="btn-ghost sm" onClick={() => addCharge(eyesFor, 'both')} disabled={busy}>
+            Both eyes <span className="mono">{rupees(eyesFor.amountBothEyes)}</span>
+          </button>
+          <button type="button" className="btn-ghost sm" onClick={() => setEyesFor(null)}>
+            Cancel
+          </button>
+        </div>
+      )}
+      {bill?.feeNote && (
+        <p className="bill-fee-note" data-testid="bill-fee-note">
+          {bill.feeNote}
         </p>
       )}
       {items.length > 0 && (
@@ -172,6 +239,11 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
                 >
                   <td className="bill-line-label">
                     {it.label}
+                    {it.suggested && (
+                      <span className="bill-suggested" title="Added from the visit type — remove it if it does not apply">
+                        Suggested
+                      </span>
+                    )}
                     {needsPrice && <small>Price not set — type the amount</small>}
                   </td>
                   <td data-label="Amount" style={{ textAlign: 'right' }}>

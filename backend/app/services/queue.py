@@ -14,6 +14,7 @@ from app.models.config import Stage
 from app.models.patients import Patient, Visit
 from app.models.staff import Staff
 from app.schemas.visits import DilationOut, VisitOut
+from app.services import fees
 from app.services.patients import last_visit_dates, patient_out
 
 DONE_STAGE = "done"
@@ -62,8 +63,9 @@ def _next_token(db: Session, on: date) -> str:
 
 
 def register_visit(db: Session, patient: Patient, *, note: str | None = None, elsewhere: bool | None = None,
-                   elsewhere_note: str | None = None, on: date | None = None) -> Visit:
-    """Put `patient` on the day's queue at the first stage with the next `#NNN` token.
+                   elsewhere_note: str | None = None, on: date | None = None, at: datetime | None = None) -> Visit:
+    """Put `patient` on the day's queue at the first stage with the next `#NNN` token, with the
+    suggested visit kind and emergency flag (`at` = registration time, default now).
     Raises ActiveVisitExists if they already have an active visit that day."""
     on = on or today()
     if active_visit(db, patient.id, on):
@@ -77,6 +79,8 @@ def register_visit(db: Session, patient: Patient, *, note: str | None = None, el
                       note=patient.note if note is None else note,
                       elsewhere=patient.elsewhere if elsewhere is None else elsewhere,
                       elsewhere_note=patient.elsewhere_note if elsewhere_note is None else elsewhere_note)
+        # Visit kind (new / follow-up / new case...) + emergency, from Admin › Visit types & fee rules.
+        fees.apply_suggestion(db, visit, patient.id, on, at)
         db.add(visit)
         try:
             db.commit()
@@ -136,7 +140,7 @@ def follow_up_appointments(db: Session, visit_ids: list[int]) -> dict[int, Appoi
 
 
 def visit_out(visit: Visit, *, last_visit: date | None = None, now: datetime | None = None,
-              follow_up: Appointment | None = None) -> VisitOut:
+              follow_up: Appointment | None = None, fee: dict | None = None) -> VisitOut:
     now = now or utcnow()
     run = visit.dilation_run
     return VisitOut(
@@ -154,7 +158,8 @@ def visit_out(visit: Visit, *, last_visit: date | None = None, now: datetime | N
         diagnosis_id=visit.diagnosis_id, diagnosis_name=visit.diagnosis.name if visit.diagnosis else None,
         follow_up_date=visit.follow_up_date,
         follow_up_note=(follow_up.note or "") if follow_up and visit.follow_up_date else "",
-        follow_up_appointment_id=follow_up.id if follow_up and visit.follow_up_date else None)
+        follow_up_appointment_id=follow_up.id if follow_up and visit.follow_up_date else None,
+        **(fee or {}))
 
 
 def visits_out(db: Session, visits: list[Visit]) -> list[VisitOut]:
@@ -168,4 +173,6 @@ def visits_out(db: Session, visits: list[Visit]) -> list[VisitOut]:
         last.update(last_visit_dates(db, ids, before=on))
     now = utcnow()
     follow = follow_up_appointments(db, [v.id for v in visits if v.follow_up_date])
-    return [visit_out(v, last_visit=last.get(v.patient_id), now=now, follow_up=follow.get(v.id)) for v in visits]
+    fee = fees.visit_fee_fields(db, visits)
+    return [visit_out(v, last_visit=last.get(v.patient_id), now=now, follow_up=follow.get(v.id), fee=fee.get(v.id))
+            for v in visits]

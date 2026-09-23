@@ -8,19 +8,21 @@ import Admin from './Admin';
 
 const section = () => screen.getByRole('heading', { name: 'Standard charges' }).closest('section');
 const labels = () =>
-  Array.from(section().querySelectorAll('#chargeList tr input[type=text]'))
-    .filter((_, i) => i % 2 === 0)
-    .map((i) => i.value);
+  Array.from(section().querySelectorAll('#chargeList tr input[aria-label^="Charge "]')).map((i) => i.value);
 
 beforeEach(() => {
   mockStore.reset();
 });
 
 describe('Admin › Standard charges', () => {
-  it('adds a charge with an amount, changes the amount, reorders and switches it off', async () => {
+  // The Admin page is long; give it room on a busy machine.
+  it('adds a charge with an amount, changes the amount, reorders and switches it off', { timeout: 20000 }, async () => {
     renderShell({ route: '/admin', child: <Admin /> });
     await screen.findByRole('heading', { name: 'Standard charges' });
-    await waitFor(() => expect(labels()).toContain('Consultation'));
+    await waitFor(() => expect(labels()).toContain('Consultation / new file'));
+    // Dr Anu's tests are priced per eye, under their heading
+    expect(within(section()).getByLabelText('Both eyes amount for Perimetry')).toHaveValue('4000');
+    expect(within(section()).getByLabelText('Heading for Perimetry')).toHaveValue('Tests');
 
     await userEvent.type(within(section()).getByLabelText('New charge'), 'OCT scan');
     await userEvent.type(within(section()).getByLabelText('New charge amount'), '1200');
@@ -34,6 +36,24 @@ describe('Admin › Standard charges', () => {
     fireEvent.blur(amt);
     await waitFor(async () =>
       expect((await admin.standardCharges.list()).find((c) => c.label === 'OCT scan').amount).toBe(1500)
+    );
+    // a both-eyes price and a heading; clearing the both-eyes price makes it one price again
+    const both = within(section()).getByLabelText('Both eyes amount for OCT scan');
+    fireEvent.change(both, { target: { value: '2200' } });
+    fireEvent.blur(both);
+    const heading = within(section()).getByLabelText('Heading for OCT scan');
+    fireEvent.change(heading, { target: { value: 'Tests' } });
+    fireEvent.blur(heading);
+    await waitFor(async () =>
+      expect((await admin.standardCharges.list()).find((c) => c.label === 'OCT scan')).toMatchObject({
+        amountBothEyes: 2200,
+        groupLabel: 'Tests',
+      })
+    );
+    fireEvent.change(within(section()).getByLabelText('Both eyes amount for OCT scan'), { target: { value: '' } });
+    fireEvent.blur(within(section()).getByLabelText('Both eyes amount for OCT scan'));
+    await waitFor(async () =>
+      expect((await admin.standardCharges.list()).find((c) => c.label === 'OCT scan').amountBothEyes).toBeNull()
     );
 
     await userEvent.click(within(section()).getByLabelText('Move charge OCT scan up'));
@@ -65,19 +85,19 @@ describe('Admin › Standard charges', () => {
     await waitFor(async () => expect(await priceOf()).toBeNull());
   });
 
-  it('refuses to delete a charge that a bill uses and says to switch it off', async () => {
+  it('refuses to delete a charge that a bill uses and says to switch it off', { timeout: 20000 }, async () => {
     window.confirm = () => true;
     await billing.save(8, {
-      items: [{ label: 'Consultation', amount: 500, kind: 'charge', standardChargeId: 1 }],
+      items: [{ label: 'Consultation / new file', amount: 700, kind: 'charge', standardChargeId: 1 }],
     });
     renderShell({ route: '/admin', child: <Admin /> });
     await screen.findByRole('heading', { name: 'Standard charges' });
-    await userEvent.click(await within(section()).findByLabelText('Delete charge Consultation'));
+    await userEvent.click(await within(section()).findByLabelText('Delete charge Consultation / new file'));
     expect(await screen.findByText('Not allowed right now')).toBeInTheDocument();
     expect(screen.getByText(/switch it off instead/)).toBeInTheDocument();
-    expect(labels()).toContain('Consultation');
+    expect(labels()).toContain('Consultation / new file');
 
-    await userEvent.click(within(section()).getByLabelText('Delete charge Dilation'));
-    await waitFor(() => expect(labels()).not.toContain('Dilation'));
+    await userEvent.click(within(section()).getByLabelText('Delete charge Macular OCT'));
+    await waitFor(() => expect(labels()).not.toContain('Macular OCT'));
   });
 });

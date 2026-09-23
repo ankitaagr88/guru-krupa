@@ -4,6 +4,7 @@
    so the bill lives on it. */
 import { store } from './store';
 import { dateStr } from './data';
+import { feeChargeIds, feeFields, feeNote, suggestedItems } from './fees';
 
 const S = store.state;
 const c = store.clone;
@@ -38,7 +39,7 @@ function reconcile(p) {
   });
 }
 
-function itemOut(it) {
+function itemOut(it, feeIds) {
   const kind = it.kind || 'other';
   return {
     id: it.id ?? null,
@@ -49,16 +50,31 @@ function itemOut(it) {
     standardChargeId: it.standardChargeId ?? null,
     prescriptionLineId: it.prescriptionLineId ?? null,
     priceMissing: kind === 'medicine' && Number(it.amount || 0) === 0,
+    eyes: it.eyes ?? null,
+    suggested: kind === 'charge' && feeIds.has(it.standardChargeId),
   };
+}
+
+/* A bill exists once it was started (the billing panel opened it, "Bought here", a save) — or
+   the demo seeded it with lines. Until then GET 404s, like the server. */
+const started = (p) => !!(p.bill && (p.bill.started || p.bill.paidAt || (p.bill.items || []).length));
+
+/** A new bill starts with the visit's suggested fee lines (visit kind + Emergency when flagged). */
+function startBill(p) {
+  if (started(p)) return;
+  p.bill = { ...(p.bill || {}), items: suggestedItems(p), paymentMode: p.bill?.paymentMode ?? null, started: true };
 }
 
 export function billOut(p) {
   reconcile(p);
   const b = p.bill || { items: [], paymentMode: null };
+  const { kindIds, emergency } = feeChargeIds();
+  const feeIds = new Set([...kindIds, ...(emergency != null ? [emergency] : [])]);
+  const fee = feeFields(p);
   return {
     id: p.id,
     visitId: p.id,
-    items: (b.items || []).map(itemOut),
+    items: (b.items || []).map((it) => itemOut(it, feeIds)),
     total: sumItems(b.items),
     paymentMode: b.paymentMode ?? null,
     paidAt: b.paidAt ?? null,
@@ -67,6 +83,10 @@ export function billOut(p) {
     patientName: p.name,
     token: p.token,
     visitDate: dateStr(0),
+    visitKindKey: fee.visitKindKey,
+    visitKindLabel: fee.visitKindLabel,
+    emergency: fee.emergency,
+    feeNote: feeNote(p),
   };
 }
 
@@ -80,10 +100,18 @@ function nextReceiptNo() {
   return `GK-${year}-${String(n).padStart(5, '0')}`;
 }
 
-// GET / PUT {items, paymentMode?} / POST pay {paymentMode} / GET charges
+// GET / POST start / PUT {items, paymentMode?} / POST pay {paymentMode} / GET charges
 export const billing = {
   async get(visitId) {
-    return billOut(visitRow(visitId));
+    const p = visitRow(visitId);
+    if (!started(p)) throw httpError(404, 'No bill for this visit');
+    return billOut(p);
+  },
+  async start(visitId) {
+    const p = visitRow(visitId);
+    startBill(p);
+    store.notify();
+    return billOut(p);
   },
   async save(visitId, bill) {
     const p = visitRow(visitId);
@@ -99,7 +127,7 @@ export const billing = {
       );
       return old?.medicineName ? { ...it, medicineName: old.medicineName } : it;
     });
-    p.bill = { ...p.bill, items };
+    p.bill = { ...p.bill, items, started: true };
     if (bill.paymentMode !== undefined) p.bill.paymentMode = bill.paymentMode;
     store.notify();
     return billOut(p);
@@ -120,7 +148,7 @@ export const billing = {
 
 /* ---------------- "Bought here" -> bill line (called by the prescriptions mock) ---------------- */
 export function syncMedicineLine(p, line, price) {
-  p.bill = p.bill || { items: [], paymentMode: null };
+  startBill(p); // a bill "Bought here" creates starts with the suggested visit fee too
   p.bill.items = p.bill.items || [];
   const qty = Number(line.dispensedQty) || 1;
   const amount = price != null ? qty * Number(price) : 0;
@@ -158,11 +186,13 @@ export const standardChargesAdmin = {
   async list() {
     return ordered();
   },
-  async create({ label, amount = 0 }) {
+  async create({ label, amount = 0, amountBothEyes = null, groupLabel = '' }) {
     const row = {
       id: store.nextId('standardCharge'),
       label: cleanLabel(label),
       amount: Math.max(0, Math.round(Number(amount) || 0)),
+      amountBothEyes: amountBothEyes == null ? null : Math.max(0, Math.round(Number(amountBothEyes) || 0)),
+      groupLabel: (groupLabel || '').split(/\s+/).filter(Boolean).join(' '),
       active: true,
       sortOrder: Math.max(0, ...S.standardCharges.map((s) => s.sortOrder)) + 1,
     };
@@ -178,6 +208,12 @@ export const standardChargesAdmin = {
       if (Number.isNaN(n) || n < 0) throw httpError(422, 'Amount must be 0 or more');
       row.amount = Math.round(n);
     }
+    if (patch.amountBothEyes !== undefined) {
+      const n = patch.amountBothEyes == null ? null : Number(patch.amountBothEyes);
+      if (n != null && (Number.isNaN(n) || n < 0)) throw httpError(422, 'Amount must be 0 or more');
+      row.amountBothEyes = n == null ? null : Math.round(n); // null = one price whatever the eyes
+    }
+    if (patch.groupLabel != null) row.groupLabel = patch.groupLabel.split(/\s+/).filter(Boolean).join(' ');
     if (patch.active != null) row.active = !!patch.active;
     store.notify();
     return c(row);
@@ -225,6 +261,7 @@ const EARLIER_TODAY = {
     { name: 'Meena Rathod', token: '#010', total: 860, mode: 'card', minsAgo: 80 },
     { name: 'Arjun Nair', token: '#013', total: 300, mode: 'cash', minsAgo: 50 },
   ],
+  kinds: { new: 2, free_follow_up: 1, follow_up: 2, new_case: 1 },
   medicines: [
     ['Moxifloxacin 0.5% eye drops', 3, 255],
     ['Carboxymethylcellulose 0.5% (tear drops)', 2, 280],
@@ -232,12 +269,27 @@ const EARLIER_TODAY = {
   ],
 };
 
+function emptyKinds() {
+  const kinds = [...S.visitKinds]
+    .filter((k) => k.active)
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((k) => ({ key: k.key, label: k.label, count: 0 }));
+  return { kinds, emergencies: 0, notSet: 0 };
+}
+
+function countKind(rep, key, n = 1) {
+  const row = rep.visitKinds.kinds.find((k) => k.key === key);
+  if (row) row.count += n;
+  else rep.visitKinds.notSet += n;
+}
+
 function emptyReport(date, stages) {
   return {
     date,
     patients: { registered: 0, seen: 0, inProgress: 0 },
     avgVisitMinutes: null,
     stages: stages.map((s) => ({ key: s.key, label: s.label, avgMinutes: null, visits: 0, waitingNow: 0 })),
+    visitKinds: emptyKinds(),
     collections: {
       byMode: MODES.map((mode) => ({ mode, bills: 0, amount: 0 })),
       total: 0,
@@ -306,7 +358,11 @@ function todayReport(date, stages) {
     })
   );
   EARLIER_TODAY.medicines.forEach(([name, qty, amount]) => addMedicine(rep, name, qty, amount));
+  Object.entries(EARLIER_TODAY.kinds).forEach(([key, n]) => countKind(rep, key, n));
   live.forEach((p) => {
+    const fee = feeFields(p);
+    countKind(rep, fee.visitKindKey);
+    if (fee.emergency) rep.visitKinds.emergencies += 1;
     const b = billOut(p);
     if (b.paid)
       addReceipt(rep, {
@@ -342,6 +398,14 @@ function pastReport(date, stages) {
   };
   const seen = rnd(16, 28);
   rep.patients = { registered: seen, seen, inProgress: 0 };
+  const newPatients = rnd(3, 7);
+  const free = rnd(2, 5);
+  const newCases = rnd(1, 3);
+  countKind(rep, 'new', newPatients);
+  countKind(rep, 'free_follow_up', free);
+  countKind(rep, 'new_case', newCases);
+  countKind(rep, 'follow_up', Math.max(0, seen - newPatients - free - newCases));
+  rep.visitKinds.emergencies = rnd(0, 1);
   const typical = { reg: [4, 9], pretest: [10, 18], doctor: [8, 15], dilate: [28, 40], billing: [3, 8] };
   let visitMins = 0;
   rep.stages.forEach((s) => {

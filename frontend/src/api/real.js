@@ -47,14 +47,18 @@ export const visits = {
 };
 
 /* Per-visit bill, standard charges and receipts (lane B owns this block).
-   GET 404s until a bill exists; PUT upserts {items:[{label, amount, kind?, qty?, standardChargeId?,
-   prescriptionLineId?}], paymentMode?}. BillOut: {id, visitId, items:[…, priceMissing], total, paymentMode,
-   paidAt, paid, receiptNo, patientName, token, visitDate}. Paying gives the bill its receipt number. */
+   GET 404s until a bill exists; start() creates it with the visit's suggested fee lines (visit kind's
+   charge + Emergency when flagged). PUT upserts {items:[{label, amount, kind?, qty?, standardChargeId?,
+   prescriptionLineId?, eyes? ('one'|'both')}], paymentMode?}. BillOut: {id, visitId, items:[…, priceMissing,
+   eyes, suggested], total, paymentMode, paidAt, paid, receiptNo, patientName, token, visitDate,
+   visitKindKey, visitKindLabel, emergency, feeNote}. Paying gives the bill its receipt number. */
 export const billing = {
   get: (visitId) => data(client.get(`/visits/${visitId}/bill`)),
+  start: (visitId) => data(client.post(`/visits/${visitId}/bill/start`)),
   save: (visitId, bill) => data(client.put(`/visits/${visitId}/bill`, bill)),
   pay: (visitId, paymentMode) => data(client.post(`/visits/${visitId}/bill/pay`, { paymentMode })),
-  // The active standard charges, in order, for the one-tap chips: [{id, label, amount, active, sortOrder}]
+  // The active standard charges, in order, for the one-tap chips:
+  // [{id, label, amount, amountBothEyes (null = one price), groupLabel, active, sortOrder}]
   charges: () => data(client.get('/standard-charges')),
 };
 
@@ -115,8 +119,26 @@ export const family = {
   },
 };
 
-/* Visit kinds, fee rules and the suggested fee for a visit (lane E2 owns this block). */
-export const fees = {};
+/* Visit kinds, fee rules and the suggested fee for a visit (lane E2 owns this block).
+   kinds() → active [{id, key, label, standardChargeId, chargeLabel, chargeAmount (null = free), sortOrder, active}]
+   rules() → {freeFollowUpDays, newCaseAfterDays, postOpDays, emergencyFrom, emergencyTo ('HH:MM'),
+   emergencyOnSunday, emergencyChargeId, newPatientKind, freeFollowUpKind, followUpKind, newCaseKind, postOpKind}
+   visitFee(id) → {visitKindKey, visitKindLabel, suggestedKindKey, emergency, suggestedEmergency,
+   daysSinceLastVisit, reason, lines:[{label, amount, standardChargeId}], note}
+   setKind(id, {visitKindKey?, emergency?}) → VisitOut; an unpaid bill's suggested fee line follows. */
+export const fees = {
+  kinds: () => data(client.get('/visit-kinds')),
+  rules: () => data(client.get('/fee-rules')),
+  visitFee: (visitId) => data(client.get(`/visits/${visitId}/fee`)),
+  setKind: (visitId, patch) => data(client.put(`/visits/${visitId}/kind`, patch)),
+  admin: {
+    // + inUse (visits carrying the kind); DELETE 409s when a rule or a visit uses it
+    kinds: crud('/admin/visit-kinds'),
+    rules: () => data(client.get('/admin/fee-rules')),
+    // any subset of the rules; 422 with a plain message when they don't add up
+    saveRules: (patch) => data(client.put('/admin/fee-rules', patch)),
+  },
+};
 
 /* Doctor's panel — diagnosis on the visit, follow-up date (lane C owns this block).
    Each returns the updated visit (VisitOut: …, diagnosisId, diagnosisName, followUpDate,
@@ -327,7 +349,8 @@ export const admin = {
     // replace with a regular grid: start/end "HH:MM" (24h), every N minutes; booked slots are kept
     generate: (start, end, everyMin) => data(client.post('/admin/ot-slots/generate', { start, end, everyMin })),
   },
-  // Standard charges [{id, label, amount, active, sortOrder}] — one tap onto a bill; DELETE 409s once a bill uses it
+  // Standard charges [{id, label, amount, amountBothEyes, groupLabel, active, sortOrder}] — one tap onto a bill;
+  // DELETE 409s once a bill uses it. amountBothEyes set = priced per eye (amount = one eye).
   standardCharges: crud('/admin/standard-charges'),
   // OT procedure list [{id, name, active, sortOrder}]
   otProcedures: {

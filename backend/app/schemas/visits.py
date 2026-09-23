@@ -78,3 +78,10 @@ class VisitOut(CamelModel):
     follow_up_date: date_type | None = None
     follow_up_note: str = ""
     follow_up_appointment_id: int | None = None  # the appointment the follow-up booked
+    # Visit kind + fee (lane E2): suggested at registration from Admin › Visit types & fee rules.
+    visit_kind_key: str | None = None
+    visit_kind_label: str | None = None
+    visit_kind_charge: int | None = None  # the kind's fee; None = free
+    emergency: bool = False  # night / Sunday emergency fee applies
+    days_since_last_visit: int | None = None  # None = no earlier visit (new patient)
+    fee_reason: str = ""  # "Last visit 12 days ago"

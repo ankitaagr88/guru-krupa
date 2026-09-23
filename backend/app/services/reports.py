@@ -20,8 +20,9 @@ from app.models.billing import PAYMENT_MODES, Bill, BillItem
 from app.models.config import Stage
 from app.models.patients import Visit
 from app.models.pharmacy import PrescriptionLine
-from app.schemas.reports import (Collections, MedicineSold, ModeTotal, PatientCounts, ReceiptRow, StageTime,
-                                 TodayReport, UnpaidBill)
+from app.schemas.reports import (Collections, KindCount, MedicineSold, ModeTotal, PatientCounts, ReceiptRow,
+                                 StageTime, TodayReport, UnpaidBill, VisitKindCounts)
+from app.services.fees import visit_kinds as all_visit_kinds
 
 DONE_STAGE = "done"
 
@@ -87,6 +88,15 @@ def stage_times(db: Session, visits: list[Visit]) -> list[StageTime]:
             for s in stages if s.key != DONE_STAGE]
 
 
+def visit_kind_counts(db: Session, visits: list[Visit]) -> VisitKindCounts:
+    counts: dict[str, int] = defaultdict(int)
+    for v in visits:
+        counts[v.visit_kind_key or ""] += 1
+    kinds = [KindCount(key=k.key, label=k.label, count=counts.get(k.key, 0))
+             for k in all_visit_kinds(db) if k.active or counts.get(k.key)]
+    return VisitKindCounts(kinds=kinds, emergencies=sum(1 for v in visits if v.emergency), not_set=counts.get("", 0))
+
+
 def _bill_total(bill: Bill) -> int:
     return sum(i.amount for i in bill.items)
 
@@ -144,6 +154,7 @@ def today_report(db: Session, day: date | None = None) -> TodayReport:
     return TodayReport(
         date=day,
         patients=PatientCounts(registered=len(visits), seen=len(completed), in_progress=len(visits) - len(completed)),
-        avg_visit_minutes=_avg(visit_minutes), stages=stage_times(db, visits), collections=money,
+        avg_visit_minutes=_avg(visit_minutes), stages=stage_times(db, visits),
+        visit_kinds=visit_kind_counts(db, visits), collections=money,
         medicines=meds, medicines_qty=sum(m.qty for m in meds), medicines_amount=sum(m.amount for m in meds),
         receipts=receipts)

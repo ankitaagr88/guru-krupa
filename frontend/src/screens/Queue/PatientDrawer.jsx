@@ -12,6 +12,7 @@ import { PrescriptionModal } from '../Prescription';
 import { ageSex, fmtLastVisit } from '../../lib/format';
 import DilationChecklist from './DilationChecklist';
 import BillingPanel from './BillingPanel';
+import VisitKindPanel from './VisitKindPanel';
 import RegistrationDetails from './RegistrationDetails';
 import DispensePanel from './DispensePanel';
 import { DiagnosisPicker, FollowUpPicker, fmtFollowUp } from './DoctorPanel';
@@ -71,7 +72,8 @@ const hintStyle = { fontSize: 11, color: 'var(--ink-faint)', margin: '-4px 0 10p
 /* Patient drawer (mockup `openDrawer`): summary + the stage-specific section +
    the "Move patient" buttons. Everything autosaves (debounced PATCH). `row` is the
    normalised visit (see queueModel.js); `now` is the 1 s ticker; `refreshKey`
-   bumps after every board reload so readings/bill refetch. */
+   bumps after every board reload so readings/bill refetch. The visit type & fee panel
+   (registration, doctor: "Different problem", billing) calls `onVisitChange` so the board reloads. */
 export default function PatientDrawer({
   open,
   row,
@@ -84,6 +86,7 @@ export default function PatientDrawer({
   onStartDilation,
   onComplete,
   onStepGiven,
+  onVisitChange,
   busy,
 }) {
   const toast = useToast();
@@ -239,6 +242,10 @@ export default function PatientDrawer({
     >
       <PatientSummary row={row} draft={draft} readings={allReadings} config={config} doc={doc} />
 
+      {(stageKey === 'reg' || stageKey === 'billing') && (
+        <VisitKindPanel row={row} busy={busy} onChanged={onVisitChange} />
+      )}
+
       {stageKey === 'reg' && (
         <RegistrationDetails
           draft={draft}
@@ -320,6 +327,7 @@ export default function PatientDrawer({
             onVisit={applyVisit}
             disabled={busy}
           />
+          <VisitKindPanel row={row} mode="doctor" busy={busy} onChanged={onVisitChange} />
         </div>
       )}
 
