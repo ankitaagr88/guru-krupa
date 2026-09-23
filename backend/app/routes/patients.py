@@ -6,7 +6,7 @@ from app.db import get_db
 from app.models.patients import Patient
 from app.routes import register
 from app.schemas.history import PatientHistoryOut
-from app.schemas.patients import PatientDetail, PatientIn, PatientOut, PatientPatch
+from app.schemas.patients import PatientDetail, PatientIn, PatientOut, PatientPatch, check_dob
 from app.services import patients as svc
 from app.services.queue import today
 
@@ -24,8 +24,17 @@ def _referral_422(exc: svc.UnknownReferralSource):
     return HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Unknown referralSource '{exc}'")
 
 
+def _check_dob(data: PatientIn | PatientPatch) -> None:
+    """422 with a plain sentence (not pydantic's error list) for a DOB in the future or >120 years back."""
+    try:
+        check_dob(data.dob)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))
+
+
 @router.post("", response_model=PatientOut, status_code=status.HTTP_201_CREATED)
 def create_patient(data: PatientIn, db: Session = Depends(get_db)):
+    _check_dob(data)
     try:
         return svc.patient_out(svc.create_patient(db, data))
     except svc.UnknownReferralSource as exc:
@@ -57,6 +66,7 @@ def get_patient_history(patient_id: int, db: Session = Depends(get_db)):
 @router.patch("/{patient_id}", response_model=PatientOut)
 def patch_patient(patient_id: int, data: PatientPatch, db: Session = Depends(get_db)):
     patient = _get(db, patient_id)
+    _check_dob(data)
     try:
         svc.update_patient(db, patient, data)
     except svc.UnknownReferralSource as exc:

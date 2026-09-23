@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from pydantic import Field, field_validator
+from pydantic import Field
 
 from app.schemas.common import CamelModel
 
@@ -44,8 +44,6 @@ class PatientIn(CamelModel):
     existing_conditions: list[str] = []
     condition_other: str = ""
 
-    valid_dob = field_validator("dob")(check_dob)
-
 
 class PatientPatch(CamelModel):
     """Partial update (`onDetailInput`, setSex, setLanguage, conditions, referral)."""
@@ -66,8 +64,6 @@ class PatientPatch(CamelModel):
     referral_detail: str | None = None
     existing_conditions: list[str] | None = None
     condition_other: str | None = None
-
-    valid_dob = field_validator("dob")(check_dob)
 
 
 class PatientOut(CamelModel):

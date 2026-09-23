@@ -178,7 +178,7 @@ def test_dob_sets_age_and_is_validated(client, admin_headers):
     # future / too old -> 422 with a plain message
     bad = client.post("/api/patients", json={"name": "X", "dob": (today + timedelta(days=1)).isoformat()},
                       headers=admin_headers)
-    assert bad.status_code == 422 and "future" in bad.text
+    assert bad.status_code == 422 and bad.json()["detail"] == "Date of birth cannot be in the future"
     bad = client.patch(f"/api/patients/{pid}", json={"dob": "1850-01-01"}, headers=admin_headers)
     assert bad.status_code == 422 and "120 years" in bad.text
 
