@@ -39,7 +39,7 @@ def _family(client, h, pid):
 
 def test_seed_is_idempotent_and_keeps_admin_edits(db):
     keys = [r.key for r in db.query(Relation).order_by(Relation.sort_order)]
-    assert keys[:3] == ["spouse", "son", "daughter"] and len(keys) >= len(RELATIONS)
+    assert keys[:4] == ["husband", "wife", "son", "daughter"] and len(keys) >= len(RELATIONS)
     son = db.query(Relation).filter_by(key="son").one()
     son.label = "Son (beta)"
     db.commit()
@@ -103,7 +103,7 @@ def test_link_change_relation_make_owner_remove(client, reception_headers):
     assert fam["ownerId"] is None and fam["members"] == []
     assert {x["name"] for x in fam["samePhone"]} == {"Mahesh Shah", "Om Shah"}
 
-    r = client.post(f"/api/patients/{mom['id']}/family", json={"ownerId": dad["id"], "relationKey": "spouse"},
+    r = client.post(f"/api/patients/{mom['id']}/family", json={"ownerId": dad["id"], "relationKey": "wife"},
                     headers=h)
     assert r.status_code == 200, r.text
     r = client.post(f"/api/patients/{son['id']}/family", json={"ownerId": mom["id"]}, headers=h)
@@ -122,13 +122,13 @@ def test_link_change_relation_make_owner_remove(client, reception_headers):
                     headers=h)
     assert r.status_code == 409
 
-    # Make Nita the owner: the others re-point to her, Mahesh becomes her spouse.
-    r = client.post(f"/api/patients/{mom['id']}/family/owner", json={"oldOwnerRelationKey": "spouse"}, headers=h)
+    # Make Nita the owner: the others re-point to her, Mahesh becomes her husband.
+    r = client.post(f"/api/patients/{mom['id']}/family/owner", json={"oldOwnerRelationKey": "husband"}, headers=h)
     assert r.status_code == 200, r.text
     fam = r.json()
     assert fam["ownerId"] == mom["id"] and "check" in fam["message"]
     by_name = {m["name"]: m for m in fam["members"]}
-    assert by_name["Nita Shah"]["isOwner"] and by_name["Mahesh Shah"]["relationKey"] == "spouse"
+    assert by_name["Nita Shah"]["isOwner"] and by_name["Mahesh Shah"]["relationKey"] == "husband"
     assert by_name["Om Shah"]["relationKey"] == "son"
     assert client.get(f"/api/patients/{son['id']}", headers=h).json()["familyOwnerName"] == "Nita Shah"
     # Only a member can be made owner.
@@ -187,7 +187,7 @@ def test_family_endpoints_need_sign_in_and_real_patients(client, admin_headers):
 def test_relations_admin_crud(client, admin_headers, reception_headers):
     h = admin_headers
     listed = client.get("/api/relations", headers=reception_headers).json()
-    assert listed[0]["key"] == "spouse" and all(r["active"] for r in listed)
+    assert listed[0]["key"] == "husband" and all(r["active"] for r in listed)
 
     # Admin only for writes.
     assert client.post("/api/admin/relations", json={"label": "Nephew"}, headers=reception_headers).status_code == 403

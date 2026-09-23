@@ -48,7 +48,7 @@ describe('New patient: "Add as a family member"', () => {
     await userEvent.click(within(panel).getByRole('button', { name: 'Add as a family member' }));
     const join = screen.getByTestId('family-join');
     expect(join).toHaveTextContent('New family member of Rasilaben Patel');
-    await within(join).findByRole('option', { name: 'Son' });
+    await within(join).findByRole('option', { name: 'बेटा (Son)' });
     await userEvent.selectOptions(within(join).getByLabelText('Their relation to Rasilaben Patel'), 'son');
 
     await userEvent.click(screen.getByRole('button', { name: 'Add to queue' }));
@@ -57,7 +57,7 @@ describe('New patient: "Add as a family member"', () => {
     expect(jay.familyOwnerId).toBe(1);
     expect(jay.relationKey).toBe('son');
     const [read] = await patients.list({ q: 'Jay Patel' });
-    expect(read.relationLabel).toBe('Son');
+    expect(read.relationLabel).toBe('बेटा (Son)');
     expect(read.familyOwnerName).toBe('Rasilaben Patel');
   }, SLOW);
 });
@@ -74,7 +74,7 @@ describe('Patient page: Family on this number', () => {
         </Routes>
       ),
     });
-    expect(await screen.findByTestId('patient-family-line')).toHaveTextContent('Son of Rasilaben Patel');
+    expect(await screen.findByTestId('patient-family-line')).toHaveTextContent('बेटा (Son) of Rasilaben Patel');
     const card = await screen.findByTestId('family-card');
     await within(card).findByTestId('family-member-1');
     expect(within(card).getByTestId('family-member-1')).toHaveTextContent('Owns this number');
@@ -83,7 +83,7 @@ describe('Patient page: Family on this number', () => {
     // Someone already on the number joins the family.
     const other = within(card).getByTestId(`family-other-${mina.id}`);
     await userEvent.click(within(other).getByRole('button', { name: 'Add to this family' }));
-    await within(other).findByRole('option', { name: 'Daughter-in-law' });
+    await within(other).findByRole('option', { name: 'बहू (Daughter-in-law)' });
     await userEvent.selectOptions(within(other).getByLabelText("Mina Patel's relation to Rasilaben Patel"), 'daughter_in_law');
     await userEvent.click(within(other).getByRole('button', { name: 'Add to this family' }));
     await waitFor(() => expect(byName('Mina Patel').familyOwnerId).toBe(1));
@@ -120,7 +120,7 @@ describe('Patient page: Family on this number', () => {
     const join = screen.getByTestId('family-join');
     expect(join).toHaveTextContent('New family member of Jay Patel');
     await userEvent.type(screen.getByPlaceholderText('Full name'), 'Baby Patel');
-    await within(join).findByRole('option', { name: 'Daughter' });
+    await within(join).findByRole('option', { name: 'बेटी (Daughter)' });
     await userEvent.selectOptions(within(join).getByLabelText('Their relation to Jay Patel'), 'daughter');
     await userEvent.click(screen.getByRole('button', { name: 'Save family member' }));
     await waitFor(() => expect(byName('Baby Patel')).toBeTruthy());
@@ -147,7 +147,7 @@ describe('Staff /register: add as a family member; the public page never links',
     const panel = await screen.findByTestId('same-phone');
     await userEvent.click(within(panel).getByRole('button', { name: 'Add as a family member' }));
     const join = screen.getByTestId('family-join');
-    await within(join).findByRole('option', { name: 'Granddaughter' });
+    await within(join).findByRole('option', { name: 'पोती / नातिन (Granddaughter)' });
     await userEvent.selectOptions(within(join).getByLabelText('Their relation to Rasilaben Patel'), 'granddaughter');
     await userEvent.click(screen.getByRole('button', { name: 'Add to queue' }));
     expect(await screen.findByTestId('reg-last')).toHaveTextContent('Kavya Patel added to the queue');
@@ -176,7 +176,7 @@ describe('Admin › Family relations', () => {
     await patients.create({ name: 'Son Owner', phone: '70000 12121' });
     await patients.create({ name: 'Son Member', phone: '7000012121', familyOwnerId: mockStore.state.patients.at(-1).id, relationKey: 'son' });
     renderWithProviders(<RelationsSection run={run} />, { route: '/admin' });
-    expect(await screen.findByTestId('relation-spouse')).toBeInTheDocument();
+    expect(await screen.findByTestId('relation-husband')).toBeInTheDocument();
 
     await userEvent.type(screen.getByLabelText('New relation'), 'Nephew');
     await userEvent.click(screen.getByRole('button', { name: '+ Add a relation' }));
@@ -195,7 +195,7 @@ describe('Admin › Family relations', () => {
 
     // In use: the delete is refused ("switch it off instead"), the row stays.
     expect(screen.getByTestId('relation-son')).toHaveTextContent('1');
-    await userEvent.click(screen.getByRole('button', { name: 'Delete relation Son' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Delete relation बेटा (Son)' }));
     await expect(family.admin.remove('son')).rejects.toMatchObject({ response: { status: 409 } });
     expect(screen.getByTestId('relation-son')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Delete relation Nephew / Niece' }));

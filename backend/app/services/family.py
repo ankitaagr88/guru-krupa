@@ -6,7 +6,7 @@ number (e.g. the parent); every other member points at that owner with their rel
   - an owner never has an owner itself: linking to a member links to that member's owner;
   - a family never loops (a patient is never linked to themselves or to their own member);
   - a member takes the owner's phone, and when the owner's phone changes the members' follows.
-The relations list (Son, Daughter, Spouse...) is admin-configurable (`Relation`).
+The relations list (पति / Husband, बेटा / Son...) is admin-configurable (`Relation`).
 Errors are the admin service's NotFound / Conflict / BadValue, mapped to 404 / 409 / 422 by routes.
 """
 import re

@@ -4,7 +4,7 @@ import { EditableText, ReorderBtns } from './pieces';
 import '../Patient/patient.css'; // .family-msg / .family-err
 
 /* Admin › Family relations (lane E1 owns this file): the relations a family member can have to the
-   owner of the shared mobile number (Son, Daughter, Spouse...), and "Group patients who share a
+   owner of the shared mobile number (पति / Husband, बेटा / Son...), and "Group patients who share a
    number" for records that came in before families existed (e.g. the KiviHealth import).
    Takes the parent's `run(fn, okMsg)`. */
 export function RelationsSection({ run }) {

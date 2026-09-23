@@ -5,23 +5,24 @@ from sqlalchemy.orm import Session
 
 from app.models.config import Relation
 
-# A family member's relation to the owner of the shared number. Seeded once; afterwards Admin owns
+# A family member's relation to the owner of the shared number, in Hindi with the English in brackets. Seeded once; afterwards Admin owns
 # the list (rename, reorder, switch off, add more), so a re-seed never undoes those edits.
 RELATIONS = [
-    ("spouse", "Spouse"),
-    ("son", "Son"),
-    ("daughter", "Daughter"),
-    ("father", "Father"),
-    ("mother", "Mother"),
-    ("brother", "Brother"),
-    ("sister", "Sister"),
-    ("grandson", "Grandson"),
-    ("granddaughter", "Granddaughter"),
-    ("grandfather", "Grandfather"),
-    ("grandmother", "Grandmother"),
-    ("son_in_law", "Son-in-law"),
-    ("daughter_in_law", "Daughter-in-law"),
-    ("other", "Other"),
+    ("husband", "पति (Husband)"),
+    ("wife", "पत्नी (Wife)"),
+    ("son", "बेटा (Son)"),
+    ("daughter", "बेटी (Daughter)"),
+    ("father", "पिता (Father)"),
+    ("mother", "माता (Mother)"),
+    ("brother", "भाई (Brother)"),
+    ("sister", "बहन (Sister)"),
+    ("grandson", "पोता / नाती (Grandson)"),
+    ("granddaughter", "पोती / नातिन (Granddaughter)"),
+    ("grandfather", "दादा / नाना (Grandfather)"),
+    ("grandmother", "दादी / नानी (Grandmother)"),
+    ("son_in_law", "दामाद (Son-in-law)"),
+    ("daughter_in_law", "बहू (Daughter-in-law)"),
+    ("other", "अन्य (Other)"),
 ]
 
 

@@ -9,20 +9,21 @@ const c = store.clone;
 
 // Same starting list as the server seed (backend/app/seed/family.py); Admin edits it afterwards.
 const SEED_RELATIONS = [
-  ['spouse', 'Spouse'],
-  ['son', 'Son'],
-  ['daughter', 'Daughter'],
-  ['father', 'Father'],
-  ['mother', 'Mother'],
-  ['brother', 'Brother'],
-  ['sister', 'Sister'],
-  ['grandson', 'Grandson'],
-  ['granddaughter', 'Granddaughter'],
-  ['grandfather', 'Grandfather'],
-  ['grandmother', 'Grandmother'],
-  ['son_in_law', 'Son-in-law'],
-  ['daughter_in_law', 'Daughter-in-law'],
-  ['other', 'Other'],
+  ['husband', 'पति (Husband)'],
+  ['wife', 'पत्नी (Wife)'],
+  ['son', 'बेटा (Son)'],
+  ['daughter', 'बेटी (Daughter)'],
+  ['father', 'पिता (Father)'],
+  ['mother', 'माता (Mother)'],
+  ['brother', 'भाई (Brother)'],
+  ['sister', 'बहन (Sister)'],
+  ['grandson', 'पोता / नाती (Grandson)'],
+  ['granddaughter', 'पोती / नातिन (Granddaughter)'],
+  ['grandfather', 'दादा / नाना (Grandfather)'],
+  ['grandmother', 'दादी / नानी (Grandmother)'],
+  ['son_in_law', 'दामाद (Son-in-law)'],
+  ['daughter_in_law', 'बहू (Daughter-in-law)'],
+  ['other', 'अन्य (Other)'],
 ];
 
 function relationRows() {
