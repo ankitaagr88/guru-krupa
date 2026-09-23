@@ -79,12 +79,12 @@ describe('New patient: already registered with this number', () => {
     await waitFor(() => expect(document.querySelector('#drawer')).toHaveClass('show'));
   });
 
-  it('"No — new patient" hides the prompt and the form creates a new record on the same number', async () => {
+  it('"No — separate patient" hides the prompt and the form creates a new record on the same number', async () => {
     await openForm();
     await userEvent.type(screen.getByPlaceholderText('Full name'), 'Rasila Sister');
     await userEvent.type(screen.getByPlaceholderText('Phone number'), '98250 12345');
     const panel = await screen.findByTestId('same-phone');
-    await userEvent.click(within(panel).getByRole('button', { name: 'No — new patient' }));
+    await userEvent.click(within(panel).getByRole('button', { name: 'No — separate patient' }));
     expect(screen.queryByTestId('same-phone')).toBeNull();
 
     await userEvent.click(screen.getByRole('button', { name: 'Add to queue' }));

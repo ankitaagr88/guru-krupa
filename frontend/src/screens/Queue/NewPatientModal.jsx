@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import Modal from '../../components/Modal';
 import { useToast } from '../../components/Toast';
 import { reception as receptionApi, visits as visitsApi, errorMessage } from '../../api';
-import { ageSexLabel, dobProblem, fmtDob, phoneKey } from '../../lib/format';
+import { dobProblem, phoneKey } from '../../lib/format';
 import DobAgeFields from '../Patient/DobAgeFields';
+import { SamePhonePrompt, useRelations } from '../Patient/familyParts';
 import ConditionGrid, { PillToggle, ElsewhereToggle } from './ConditionGrid';
 import { LANGUAGES, SEXES, numOrNull, referralNeedsDetail } from './queueModel';
 
@@ -14,7 +15,11 @@ import { LANGUAGES, SEXES, numOrNull, referralNeedsDetail } from './queueModel';
    Duplicate check: once the phone has 10 digits we look up who is already registered with
    that number. Families share phones, so it is a prompt, never a block: "Use this patient"
    registers today's visit for the existing record (`onRegistered` lets the queue reload),
-   "No — new patient" carries on with the form. */
+   "Add as a family member" makes the new patient a member of the number's family, with their
+   relation to the owner (`familyOwnerId` + `relationKey` go with the body); "No — separate
+   patient" carries on with the form.
+   `preset` = {phone, ownerId, ownerName} opens it straight in "Add as a family member" (patient
+   page); `submitLabel` / `title` change the wording there. */
 const EMPTY = {
   name: '',
   phone: '',
@@ -33,7 +38,17 @@ const EMPTY = {
   elsewhereNote: '',
 };
 
-export default function NewPatientModal({ open, onClose, onSubmit, onRegistered, config, busy = false }) {
+export default function NewPatientModal({
+  open,
+  onClose,
+  onSubmit,
+  onRegistered,
+  config,
+  busy = false,
+  preset = null,
+  submitLabel = 'Add to queue',
+  title = 'Patient entry form',
+}) {
   const navigate = useNavigate();
   const toast = useToast();
   const [d, setD] = useState(EMPTY);
@@ -41,15 +56,30 @@ export default function NewPatientModal({ open, onClose, onSubmit, onRegistered,
   const [same, setSame] = useState({ key: '', rows: [] }); // same-phone lookup result
   const [dismissed, setDismissed] = useState(''); // phone key the person said "new patient" for
   const [using, setUsing] = useState(null); // patient id being registered
+  // "Add as a family member": {key (the phone key it was chosen for), ownerId, ownerName, relationKey}
+  const [fam, setFam] = useState(null);
+  const relations = useRelations();
+  const presetPhone = preset?.phone || '';
+  const presetOwnerId = preset?.ownerId ?? null;
+  const presetOwnerName = preset?.ownerName || '';
   useEffect(() => {
     if (open) {
       const hasSelf = config.referralSources.some((r) => r.key === 'self');
-      setD({ ...EMPTY, referralSource: hasSelf ? 'self' : config.referralSources[0]?.key || 'self' });
+      setD({
+        ...EMPTY,
+        phone: presetPhone,
+        referralSource: hasSelf ? 'self' : config.referralSources[0]?.key || 'self',
+      });
       setError('');
       setSame({ key: '', rows: [] });
       setDismissed('');
+      setFam(
+        presetOwnerId != null
+          ? { key: phoneKey(presetPhone), ownerId: presetOwnerId, ownerName: presetOwnerName, relationKey: null }
+          : null
+      );
     }
-  }, [open, config.referralSources]);
+  }, [open, config.referralSources, presetPhone, presetOwnerId, presetOwnerName]);
 
   const key = phoneKey(d.phone);
   useEffect(() => {
@@ -67,6 +97,7 @@ export default function NewPatientModal({ open, onClose, onSubmit, onRegistered,
     };
   }, [open, key]);
   const matches = key.length >= 10 && same.key === key && dismissed !== key ? same.rows : [];
+  const famChoice = fam && fam.key === key ? fam : null; // typing another number drops the family choice
 
   const set = (k, v) => setD((x) => ({ ...x, [k]: v }));
   const needsDetail = referralNeedsDetail(config.referralSources, d.referralSource);
@@ -128,6 +159,7 @@ export default function NewPatientModal({ open, onClose, onSubmit, onRegistered,
       referralDetail: needsDetail ? d.referralDetail.trim() : '',
       existingConditions: d.existingConditions.slice(),
       conditionOther: d.conditionOther.trim(),
+      ...(famChoice ? { familyOwnerId: famChoice.ownerId, relationKey: famChoice.relationKey || null } : {}),
     });
   };
 
@@ -137,7 +169,7 @@ export default function NewPatientModal({ open, onClose, onSubmit, onRegistered,
       onClose={onClose}
       id="modalOverlay"
       className="entry-modal"
-      title="Patient entry form"
+      title={title}
       sub="Token number is given automatically. This is everything reception needs at first contact."
       actions={
         <>
@@ -145,7 +177,7 @@ export default function NewPatientModal({ open, onClose, onSubmit, onRegistered,
             Cancel
           </button>
           <button className="btn-primary full" onClick={submit} type="button" disabled={busy} id="npSubmit">
-            {busy ? 'Adding…' : 'Add to queue'}
+            {busy ? 'Adding…' : submitLabel}
           </button>
         </>
       }
@@ -176,37 +208,23 @@ export default function NewPatientModal({ open, onClose, onSubmit, onRegistered,
           onChange={(e) => set('phone', e.target.value)}
           inputMode="tel"
         />
-        {matches.length > 0 && (
-          <div className="same-phone" role="region" aria-label="Already registered with this number" data-testid="same-phone">
-            <p className="same-phone-title">Already registered with this number — is it one of these?</p>
-            {matches.map((m) => (
-              <div key={m.id} className="same-phone-row" data-testid={`same-phone-${m.id}`}>
-                <div className="same-phone-who">
-                  <span className="same-phone-name">{m.name}</span>
-                  <span className="same-phone-meta">
-                    {ageSexLabel(m)}
-                    {m.visitId
-                      ? ` · in today's queue${m.token ? ` · ${m.token}` : ''}`
-                      : m.lastVisitDate
-                        ? ` · last visit ${fmtDob(String(m.lastVisitDate).slice(0, 10))}`
-                        : ' · no visit yet'}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={() => registerExisting(m)}
-                  disabled={using != null || busy}
-                >
-                  {m.visitId ? "Open today's visit" : using === m.id ? 'Adding…' : 'Use this patient'}
-                </button>
-              </div>
-            ))}
-            <button type="button" className="link-btn same-phone-no" onClick={() => setDismissed(key)}>
-              No — new patient
+        <SamePhonePrompt
+          matches={matches}
+          choice={famChoice}
+          onChoice={(c) => setFam(c ? { ...c, key } : null)}
+          onDismiss={() => setDismissed(key)}
+          relations={relations}
+          renderUse={(m) => (
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => registerExisting(m)}
+              disabled={using != null || busy}
+            >
+              {m.visitId ? "Open today's visit" : using === m.id ? 'Adding…' : 'Use this patient'}
             </button>
-          </div>
-        )}
+          )}
+        />
         <DobAgeFields
           dob={d.dob}
           age={d.age}

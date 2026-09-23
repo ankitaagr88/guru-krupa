@@ -2,12 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.auth.deps import get_current_user
+from app.models.staff import Staff
 from app.db import get_db
 from app.models.patients import Patient
 from app.routes import register
 from app.schemas.history import PatientHistoryOut
 from app.schemas.patients import PatientDetail, PatientIn, PatientOut, PatientPatch, check_dob
 from app.services import patients as svc
+from app.services.admin import AdminError, BadValue, NotFound
 from app.services.queue import today
 
 router = register(APIRouter(prefix="/patients", tags=["patients"], dependencies=[Depends(get_current_user)]))
@@ -33,12 +35,18 @@ def _check_dob(data: PatientIn | PatientPatch) -> None:
 
 
 @router.post("", response_model=PatientOut, status_code=status.HTTP_201_CREATED)
-def create_patient(data: PatientIn, db: Session = Depends(get_db)):
+def create_patient(data: PatientIn, db: Session = Depends(get_db), user: Staff = Depends(get_current_user)):
+    """With `familyOwnerId` (+ `relationKey`) the new patient joins that family ("Add as a family member")."""
     _check_dob(data)
     try:
-        return svc.patient_out(svc.create_patient(db, data))
+        patient = svc.create_patient(db, data, by=user)
     except svc.UnknownReferralSource as exc:
         raise _referral_422(exc)
+    except AdminError as exc:
+        code = {NotFound: status.HTTP_404_NOT_FOUND, BadValue: status.HTTP_422_UNPROCESSABLE_ENTITY}.get(
+            type(exc), status.HTTP_409_CONFLICT)
+        raise HTTPException(code, str(exc))
+    return svc.patients_out(db, [patient], today())[0]
 
 
 @router.get("", response_model=list[PatientOut])
@@ -68,7 +76,9 @@ def patch_patient(patient_id: int, data: PatientPatch, db: Session = Depends(get
     patient = _get(db, patient_id)
     _check_dob(data)
     try:
-        svc.update_patient(db, patient, data)
+        followed = svc.update_patient(db, patient, data)
     except svc.UnknownReferralSource as exc:
         raise _referral_422(exc)
-    return svc.patients_out(db, [patient], today())[0]
+    out = svc.patients_out(db, [patient], today())[0]
+    out.family_phone_updated = followed  # the owner's new number went to this many family members too
+    return out

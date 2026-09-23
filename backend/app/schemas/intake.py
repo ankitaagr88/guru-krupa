@@ -42,6 +42,10 @@ class IntakeIn(CamelModel):
     condition_other: str = Field(default="", max_length=120)
     # Honeypot: hidden on the page, so only a bot fills it in.
     website: str = Field(default="", max_length=200)
+    # Staff only ("Add as a family member" after the same-phone check). Ignored on the public page:
+    # it never links anyone or says who else is on a number.
+    family_owner_id: int | None = None
+    relation_key: str | None = Field(default=None, max_length=30)
 
     @field_validator("name", "phone", "address", "occupation", "elsewhere_note", "referral_detail",
                      "condition_other")

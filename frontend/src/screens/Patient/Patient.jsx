@@ -2,17 +2,23 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useTopbar, useShell } from '../../components/AppShell';
 import { patients as patientsApi, errorMessage } from '../../api';
+import { useToast } from '../../components/Toast';
 import { PhotoTile } from '../Machines/ExamPhotos';
 import { OT_STATUS } from '../OT/constants';
 import { ageSexLabel, fmtDob, fmtLastVisit } from '../../lib/format';
 import { PrescriptionModal } from '../Prescription';
+import NewPatientModal from '../Queue/NewPatientModal';
+import useConfig from '../Queue/useConfig';
 import EditPatientModal from './EditPatientModal';
+import FamilyCard from './FamilyCard';
+import { useRelations } from './familyParts';
 import './patient.css';
 
 /* Patient screen — everything the clinic holds on one person, newest first.
    Reached by clicking a patient's name anywhere in the app (/patients/:id).
    The person's own details can be edited here (Edit details); the day's work still happens
-   on the Queue / OT screens. */
+   on the Queue / OT screens. "Family on this number" shows who shares the mobile number (the
+   owner and the members with their relation) and adds / links / re-arranges them. */
 
 const fmtDate = (d) => {
   if (!d) return '';
@@ -35,6 +41,11 @@ export default function Patient() {
   const [rxVisit, setRxVisit] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [editing, setEditing] = useState(false);
+  const [addingMember, setAddingMember] = useState(null); // {phone, ownerId, ownerName} while the form is open
+  const [savingMember, setSavingMember] = useState(false);
+  const config = useConfig();
+  const relations = useRelations();
+  const toast = useToast();
 
   useEffect(() => {
     let cancelled = false;
@@ -96,6 +107,19 @@ export default function Patient() {
       <div className="patient-head">
         <div>
           <h2 className="patient-name">{p.name}</h2>
+          {p.familyOwnerId ? (
+            <p className="patient-family-line" data-testid="patient-family-line">
+              {p.relationLabel || 'Family member'} of{' '}
+              <Link to={`/patients/${p.familyOwnerId}`}>{p.familyOwnerName || 'the owner of this number'}</Link>
+              {!p.relationLabel && ' (relation not set)'}
+            </p>
+          ) : (
+            (p.familySize || 1) > 1 && (
+              <p className="patient-family-line" data-testid="patient-family-line">
+                Owns this number · family of {p.familySize}
+              </p>
+            )
+          )}
           <div className="patient-meta">
             <span className="num" data-testid="patient-age-sex">{ageSexLabel(p)}</span>
             {p.dob && <span className="num">DOB {fmtDob(p.dob)}</span>}
@@ -137,6 +161,14 @@ export default function Patient() {
           <span>machine readings</span>
         </div>
       </div>
+
+      <FamilyCard
+        patient={p}
+        relations={relations}
+        reloadKey={reloadKey}
+        onAddMember={setAddingMember}
+        onChanged={() => setReloadKey((k) => k + 1)}
+      />
 
       <div className="patient-grid">
         <section className="card patient-card-static" aria-labelledby="ph-details">
@@ -325,9 +357,38 @@ export default function Patient() {
         open={editing}
         patient={p}
         onClose={() => setEditing(false)}
-        onSaved={() => {
+        onSaved={(saved) => {
+          if (saved?.familyPhoneUpdated > 0) {
+            const n = saved.familyPhoneUpdated;
+            toast.info(`The new number went to ${n} family member${n === 1 ? '' : 's'} too`);
+          }
           setEditing(false);
           setReloadKey((k) => k + 1);
+        }}
+      />
+
+      <NewPatientModal
+        open={!!addingMember}
+        preset={addingMember}
+        title="Add family member"
+        submitLabel="Save family member"
+        config={config}
+        busy={savingMember}
+        onClose={() => setAddingMember(null)}
+        onRegistered={() => setReloadKey((k) => k + 1)}
+        onSubmit={async (body) => {
+          setSavingMember(true);
+          try {
+            const created = await patientsApi.create(body);
+            const where = created?.familyOwnerName ? ` to ${created.familyOwnerName}'s family` : '';
+            toast.success(`${created?.name || body.name} added${where}`);
+            setAddingMember(null);
+            setReloadKey((k) => k + 1);
+          } catch (e) {
+            toast.error('Could not save the family member', errorMessage(e));
+          } finally {
+            setSavingMember(false);
+          }
         }}
       />
 

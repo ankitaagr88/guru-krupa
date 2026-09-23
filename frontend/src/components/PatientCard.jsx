@@ -1,9 +1,11 @@
 import { ageSexLabel, computeRowStatus, fmtDob } from '../lib/format';
 import PatientLink from './PatientLink';
+import { familyLine } from '../screens/Patient/familyParts';
 
 /* Mobile queue card (mockup `patientCardHtml`). Desktop uses <QueueRow> inside
    #boardTable. Both share computeRowStatus(). `now` lets the queue ticker
-   re-render every second without each card owning a timer. */
+   re-render every second without each card owning a timer. Under the name: the family
+   line ("Son of Rasila Patel") when the patient shares a number with family. */
 
 export function StatusPills({ status, note, tags }) {
   return (
@@ -33,6 +35,7 @@ export default function PatientCard({ patient: p, stage, selected, onClick, now 
       <div className="pc-top">
         <div className="pc-name">
           <PatientLink id={p.patientId} name={p.name} />
+          {familyLine(p, { short: true }) && <span className="family-line">{familyLine(p, { short: true })}</span>}
         </div>
         <div className="pc-token">{p.token}</div>
       </div>
@@ -75,6 +78,7 @@ export function QueueRow({ patient: p, stage, selected, onClick, now = Date.now(
       <td className="td-token">{p.token}</td>
       <td className="td-name">
         <PatientLink id={p.patientId} name={p.name} />
+        {p.familyOwnerId && <span className="family-line">{familyLine(p, { short: true })}</span>}
       </td>
       <td className="num" title={p.dob ? `DOB ${fmtDob(p.dob)}` : undefined}>
         {ageSexLabel(p)}

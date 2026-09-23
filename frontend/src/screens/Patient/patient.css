@@ -79,3 +79,52 @@ body.mobile-mode .patient-details dt, body.mobile-mode .patient-kv > span:first-
 .patient-edit-err { font-family: var(--font-ui); font-size: 13px; color: var(--alert-ink); margin: 4px 0 0; }
 body.mobile-mode .dob-age-row { grid-template-columns: 1fr; }
 @media (max-width: 420px) { .dob-age-row { grid-template-columns: 1fr; } }
+
+/* Families on one mobile number: "Son of Rasila Patel", the family card, the join prompt. */
+.family-line { display: block; font-family: var(--font-ui); font-size: 12px; line-height: 16px; color: var(--sapphire-deep); margin-top: 2px; }
+.patient-family-line { font-family: var(--font-ui); font-size: 14px; color: var(--sapphire-deep); margin: 2px 0 0; }
+.patient-family-line a { color: inherit; }
+.family-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.family-field-label { font-family: var(--font-ui); font-size: 12px; line-height: 16px; color: var(--ink-soft); }
+.family-field .drop-select { padding-top: 9px; padding-bottom: 9px; }
+.family-join { border-color: var(--sapphire-line); background: var(--sapphire-wash); }
+.family-join .same-phone-title { color: var(--sapphire-ink); }
+.family-join-owner { font-family: var(--font-serif); font-size: 15px; }
+.family-join-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
+.family-join-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; border-top: 1px solid var(--gold-line); padding-top: 10px; margin-top: 2px; }
+.family-join-actions .btn-ghost { flex: none; padding: 8px 14px; font-size: 13px; }
+.family-join-actions .same-phone-no { margin-top: 0; }
+
+.patient-family { margin-bottom: 20px; }
+.patient-family-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.patient-family-head .section-title { margin: 0; }
+.patient-family-head .btn-ghost { flex: none; padding: 8px 14px; font-size: 13px; }
+.family-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.family-row:last-child { border-bottom: none; }
+.family-row.is-me { background: var(--surface-sunk); border-radius: 10px; padding-left: 10px; padding-right: 10px; }
+.family-who { flex: 1 1 200px; min-width: 0; }
+.family-name { font-family: var(--font-serif); font-size: 16px; font-weight: 600; color: var(--ink); text-decoration: none; }
+a.family-name:hover { color: var(--sapphire-deep); }
+.family-rel { display: inline-block; font-family: var(--font-ui); font-size: 12px; font-weight: 600; color: var(--sapphire-ink); background: var(--sapphire-wash); border-radius: var(--radius-pill); padding: 1px 9px; margin-left: 8px; vertical-align: 2px; }
+.family-rel.unset { color: var(--ink-soft); background: var(--surface-sunk); font-weight: 500; }
+.family-meta { display: block; font-family: var(--font-mono); font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+.family-actions { display: flex; gap: 4px; flex-wrap: wrap; }
+.family-actions[hidden] { display: none; }
+.family-actions .link-btn { padding: 4px 6px; }
+.family-actions .link-btn.danger { color: var(--alert-ink); }
+.family-edit { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; width: 100%; padding: 8px 0 2px; }
+.family-edit .family-field { flex: 1 1 200px; }
+.family-edit .btn-primary, .family-edit .btn-ghost { flex: none; padding: 9px 14px; font-size: 13px; }
+.family-edit-note { width: 100%; font-family: var(--font-ui); font-size: 12px; color: var(--ink-soft); margin: 0; }
+.family-others { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.family-others .field-label { margin: 0 0 6px; }
+.family-msg { font-family: var(--font-ui); font-size: 13px; color: var(--ink-soft); background: var(--surface-sunk); border-radius: 10px; padding: 8px 12px; margin: 8px 0 0; }
+.family-err { font-family: var(--font-ui); font-size: 13px; color: var(--alert-ink); margin: 8px 0 0; }
+
+/* The queue drawer's registration box. */
+.reg-family { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin: 0 0 12px; }
+.reg-family .family-line { font-size: 13px; }
+.reg-family-row { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.reg-family-row .family-field { flex: 1 1 160px; }
+.reg-family-row .btn-primary, .reg-family-row .btn-ghost { flex: none; padding: 9px 14px; font-size: 13px; }
+.reg-family-q { font-family: var(--font-ui); font-size: 13px; font-weight: 600; color: var(--ink); margin: 0; }

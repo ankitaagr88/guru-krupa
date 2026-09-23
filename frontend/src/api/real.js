@@ -83,8 +83,37 @@ export const intake = {
   submit: (body) => data(client.post('/intake', body)),
 };
 
-/* Families on one mobile number + admin relations list (lane E1 owns this block). */
-export const family = {};
+/* Families on one mobile number + admin relations list (lane E1 owns this block).
+   get(patientId) → FamilyOut {patientId, ownerId (null = in no family), phone, members:[owner first, then
+   members: {id, name, age, sex, phone, isOwner, relationKey, relationLabel, lastVisitDate}], samePhone:[others on
+   the number who are not in this family, + familyOwnerId/familyOwnerName/familySize], message}. Every change
+   answers with the fresh FamilyOut; `message` says what else changed (a phone that followed the owner…).
+   PatientOut also carries familyOwnerId, relationKey, relationLabel, familyOwnerName, familySize; a PATCH
+   answer carries familyPhoneUpdated (members whose phone followed the owner's new number). */
+export const family = {
+  get: (patientId) => data(client.get(`/patients/${patientId}/family`)),
+  // join the family of ownerId (or of that person's owner); relationKey null = not set yet
+  link: (patientId, ownerId, relationKey = null) =>
+    data(client.post(`/patients/${patientId}/family`, { ownerId, relationKey })),
+  setRelation: (patientId, relationKey) => data(client.patch(`/patients/${patientId}/family`, { relationKey })),
+  // this member becomes the owner; the old owner becomes a member with `oldOwnerRelationKey` (null = not set)
+  makeOwner: (patientId, oldOwnerRelationKey = null) =>
+    data(client.post(`/patients/${patientId}/family/owner`, { oldOwnerRelationKey })),
+  remove: (patientId) => data(client.delete(`/patients/${patientId}/family`)),
+  // [{id, key, label, sortOrder, active, patientCount}] — switched-on ones unless includeInactive
+  relations: ({ includeInactive = false } = {}) =>
+    data(client.get('/relations', includeInactive ? { params: { includeInactive: true } } : undefined)),
+  admin: {
+    create: (label) => data(client.post('/admin/relations', { label })),
+    update: (key, patch) => data(client.patch(`/admin/relations/${key}`, patch)),
+    // 409 while patients have it: switch it off instead
+    remove: (key) => data(client.delete(`/admin/relations/${key}`)),
+    reorder: (keys) => data(client.put('/admin/relations/order', { keys })),
+    // "Group patients who share a number" → {numbers, newFamilies, membersLinked, written, sample:[…]}
+    groupingPreview: () => data(client.get('/admin/family/grouping')),
+    groupingRun: () => data(client.post('/admin/family/grouping')),
+  },
+};
 
 /* Visit kinds, fee rules and the suggested fee for a visit (lane E2 owns this block). */
 export const fees = {};

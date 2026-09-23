@@ -137,3 +137,32 @@ def test_stale_token_is_treated_as_public(client):
     r = client.post("/api/intake", json={**FORM, "phone": "7000066666"},
                     headers={"Authorization": "Bearer not-a-real-token"})
     assert r.status_code == 201 and r.json()["patientId"] is None
+
+
+def test_staff_can_add_as_family_member(client, db, admin_headers):
+    owner = client.post("/api/intake", json={**FORM, "name": "Hasmukh Joshi", "phone": "7000077777"},
+                        headers=admin_headers).json()
+    r = client.post("/api/intake", json={**FORM, "name": "Mira Joshi", "phone": "70000 77777",
+                                         "familyOwnerId": owner["patientId"], "relationKey": "daughter"},
+                    headers=admin_headers)
+    assert r.status_code == 201, r.text
+    kid = db.get(Patient, r.json()["patientId"])
+    assert kid.family_owner_id == owner["patientId"] and kid.relation_key == "daughter"
+    r = client.post("/api/intake", json={**FORM, "name": "Bad Relation", "phone": "7000077777",
+                                         "familyOwnerId": owner["patientId"], "relationKey": "cousin"},
+                    headers=admin_headers)
+    assert r.status_code == 422
+
+
+def test_public_page_never_links_a_family(client, db, admin_headers):
+    owner = client.post("/api/intake", json={**FORM, "name": "Public Owner", "phone": "7000088888"},
+                        headers=admin_headers).json()
+    r = client.post("/api/intake", json={**FORM, "name": "Public Kid", "phone": "7000088888",
+                                         "familyOwnerId": owner["patientId"], "relationKey": "son"})
+    assert r.status_code == 201, r.text
+    assert set(r.json()) == {"token", "patientId", "visitId"} and r.json()["patientId"] is None
+    assert "Public Owner" not in r.text
+    visit = _visit(db, r.json()["token"])
+    kid = db.get(Patient, visit.patient_id)
+    assert kid.family_owner_id is None and kid.relation_key is None
+    assert intake_svc.SAME_PHONE_NOTE in visit.note  # still flagged for reception, as before

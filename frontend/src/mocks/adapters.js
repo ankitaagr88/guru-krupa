@@ -14,6 +14,7 @@ import {
 } from './data';
 import { billOut, dropMedicineLine, standardChargesAdmin, syncMedicineLine } from './billing';
 import { patientRead } from './reception';
+import { followOwnerPhone, linkInStore } from './family';
 import { ageFromDob, dobProblem, parseDobCell } from '../lib/format';
 
 // Each lane keeps its own demo adapters in its own file (session 3).
@@ -159,9 +160,10 @@ export const patients = {
       },
     };
   },
+  // familyOwnerId (+ relationKey): "Add as a family member" — joins that family, like the server.
   async create(data) {
     await latency();
-    const { dob, ...rest } = data;
+    const { dob, familyOwnerId, relationKey, ...rest } = data;
     const draft = {};
     applyDob(draft, dob !== undefined ? { dob } : {}, { isNew: true });
     const p = normalizePatient({
@@ -173,6 +175,7 @@ export const patients = {
       stageEnteredAt: Date.now(),
       lastVisitDate: lookupLastVisit(data.phone),
     });
+    if (familyOwnerId != null) linkInStore(p, familyOwnerId, relationKey ?? null);
     S.patients.push(p);
     store.notify();
     return patientRead(p);
@@ -186,10 +189,13 @@ export const patients = {
       const problem = dobProblem(dob || '');
       if (problem) throw httpError(422, problem.replace(/\.$/, ''));
     }
+    const oldPhone = p.phone;
     Object.assign(p, rest);
     applyDob(p, patch);
+    // The owner's number is the family's number: members follow a change.
+    const familyPhoneUpdated = p.phone !== oldPhone ? followOwnerPhone(p) : 0;
     store.notify();
-    return patientRead(p);
+    return { ...patientRead(p), familyPhoneUpdated };
   },
   async remove(id) {
     await latency();

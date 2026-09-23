@@ -2,14 +2,16 @@
    other front-desk helpers. Same method names and shapes as `reception` in src/api/real.js. */
 import { store, latency } from './store';
 import { ageFromDob, phoneKey } from '../lib/format';
+import { familyBits } from './family';
 
 const S = store.state;
 
-/** A demo patient as the server would send it: age worked out from the DOB when there is one. */
+/** A demo patient as the server would send it: age worked out from the DOB when there is one,
+    and the family facts (familyOwnerId, relationKey, relationLabel, familyOwnerName, familySize). */
 export function patientRead(p) {
   const out = store.clone(p);
   if (out.dob) out.age = ageFromDob(out.dob);
-  return out;
+  return { ...out, ...familyBits(p) };
 }
 
 export const reception = {

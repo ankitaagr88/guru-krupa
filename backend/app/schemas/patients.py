@@ -58,6 +58,10 @@ class PatientIn(CamelModel):
     referral_detail: str = ""
     existing_conditions: list[str] = []
     condition_other: str = ""
+    # "Add as a family member": link the new patient to the owner of the shared number (or to the
+    # owner of the family `family_owner_id` belongs to) with their relation (Relation.key; None = not set).
+    family_owner_id: int | None = None
+    relation_key: str | None = None
 
 
 class PatientPatch(CamelModel):
@@ -106,6 +110,15 @@ class PatientOut(CamelModel):
     visit_id: int | None = None
     token: str | None = None
     stage: str | None = None
+    # Family on this mobile number: a member points at the owner with their relation to them
+    # ("Son of Rasila Patel"); the owner has neither. familySize counts the owner too (1 = no family).
+    family_owner_id: int | None = None
+    relation_key: str | None = None
+    relation_label: str | None = None
+    family_owner_name: str | None = None
+    family_size: int = 1
+    # PATCH only: how many family members' phones followed the owner's new number.
+    family_phone_updated: int = 0
 
 
 class VisitHistoryItem(CamelModel):

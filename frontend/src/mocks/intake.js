@@ -48,7 +48,9 @@ export const intake = {
       notes.push(SELF_FILLED_NOTE);
       if (key.length >= 10 && S.patients.some((p) => phoneKey(p.phone) === key)) notes.push(SAME_PHONE_NOTE);
     }
-    const { website: _honeypot, ...fields } = body;
+    const { website: _honeypot, familyOwnerId, relationKey, ...fields } = body;
+    // Staff only: "Add as a family member". The public page never links anyone.
+    if (staff && familyOwnerId != null) Object.assign(fields, { familyOwnerId, relationKey: relationKey ?? null });
     const p = await patients.create({ ...fields, name, note: notes.join(' '), visitRegistered: true });
     return staff ? { token: p.token, patientId: p.id, visitId: p.id } : { token: p.token };
   },
