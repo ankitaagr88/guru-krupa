@@ -83,6 +83,12 @@ export const intake = {
   submit: (body) => data(client.post('/intake', body)),
 };
 
+/* Families on one mobile number + admin relations list (lane E1 owns this block). */
+export const family = {};
+
+/* Visit kinds, fee rules and the suggested fee for a visit (lane E2 owns this block). */
+export const fees = {};
+
 /* Doctor's panel — diagnosis on the visit, follow-up date (lane C owns this block).
    Each returns the updated visit (VisitOut: …, diagnosisId, diagnosisName, followUpDate,
    followUpNote, followUpAppointmentId). */

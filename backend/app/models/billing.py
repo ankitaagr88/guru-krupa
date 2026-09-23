@@ -16,7 +16,11 @@ class StandardCharge(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     label: Mapped[str] = mapped_column(String(120), unique=True)
-    amount: Mapped[int] = mapped_column(Integer, default=0)  # whole rupees
+    amount: Mapped[int] = mapped_column(Integer, default=0)  # whole rupees (one eye, for eye-wise tests)
+    # Tests priced per eye: the both-eyes price (None = one price whatever the eyes).
+    amount_both_eyes: Mapped[int | None] = mapped_column(Integer)
+    # Heading the chip sits under on the bill ("Visit fees", "Tests", "Packages") — free text, admin-set.
+    group_label: Mapped[str] = mapped_column(String(40), default="")
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
 
@@ -45,6 +49,7 @@ class BillItem(Base):
     amount: Mapped[int] = mapped_column(Integer)  # line total, whole rupees
     kind: Mapped[str] = mapped_column(String(20), default="other")  # BILL_ITEM_KINDS
     qty: Mapped[int] = mapped_column(Integer, default=1)
+    eyes: Mapped[str | None] = mapped_column(String(10))  # "one" | "both" for eye-wise tests
     standard_charge_id: Mapped[int | None] = mapped_column(ForeignKey("standard_charges.id"))
     prescription_line_id: Mapped[int | None] = mapped_column(ForeignKey("prescription_lines.id"))
 

@@ -9,6 +9,8 @@ import { TreatmentsSection } from './TreatmentsAdmin';
 import { OtSlotsSection, OtProceduresSection } from './OtAdmin';
 import { ImportSection } from './ImportAdmin';
 import { ChargesSection } from './ChargesAdmin';
+import { VisitFeesSection } from './VisitFeesAdmin';
+import { RelationsSection } from './FamilyAdmin';
 import { IntakeSection } from './IntakeAdmin';
 import { EditableText, ReorderBtns } from './pieces';
 import './admin.css';
@@ -435,6 +437,9 @@ export default function Admin() {
       {/* ---------------- standard charges (lane B) ---------------- */}
       <ChargesSection run={run} />
 
+      {/* ---------------- visit types & fee rules (lane E2) ---------------- */}
+      <VisitFeesSection run={run} />
+
       {/* ---------------- diagnoses & treatment standards (B15/F17) ---------------- */}
       <TreatmentsSection run={run} />
 
@@ -443,6 +448,9 @@ export default function Admin() {
 
       {/* ---------------- new patient form: link + QR poster (lane D) ---------------- */}
       <IntakeSection />
+
+      {/* ---------------- family relations (lane E1) ---------------- */}
+      <RelationsSection run={run} />
 
       {/* ---------------- staff ---------------- */}
       <section className="admin-block" aria-labelledby="h-staff">
@@ -702,9 +710,11 @@ const ADMIN_SECTIONS = [
   ['h-otprocs', 'OT procedures'],
   ['h-medicines', 'Medicines'],
   ['h-charges', 'Standard charges'],
+  ['h-visitfees', 'Visit types & fees'],
   ['h-treatments', 'Treatment standards'],
   ['h-import', 'Import from KiviHealth'],
   ['h-intake', 'New patient form'],
+  ['h-relations', 'Family relations'],
   ['h-staff', 'Staff & roles'],
 ];
 

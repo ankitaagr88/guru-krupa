@@ -20,6 +20,8 @@ import { ageFromDob, dobProblem, parseDobCell } from '../lib/format';
 export { billing, reports } from './billing';
 export { reception } from './reception';
 export { doctor } from './doctor';
+export { family } from './family';
+export { fees } from './fees';
 export { intake } from './intake';
 import { doctor as doctorMock, doctorVisitOut } from './doctor';
 

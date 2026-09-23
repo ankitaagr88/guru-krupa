@@ -35,9 +35,14 @@ class Patient(Base):
     referral_detail: Mapped[str] = mapped_column(String(255), default="")
     existing_conditions: Mapped[list] = mapped_column(default=list)
     condition_other: Mapped[str] = mapped_column(String(255), default="")
+    # Families on one mobile number: every member is a full patient; a member points at the number's
+    # owner (e.g. the parent) with its relation to them (Relation.key). The owner has neither.
+    family_owner_id: Mapped[int | None] = mapped_column(ForeignKey("patients.id"), index=True)
+    relation_key: Mapped[str | None] = mapped_column(String(30))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     referral_source = relationship("ReferralSource")
+    family_owner: Mapped["Patient | None"] = relationship(remote_side="Patient.id", foreign_keys=[family_owner_id])
     visits: Mapped[list["Visit"]] = relationship(back_populates="patient", order_by="Visit.date")
 
     @property
@@ -81,6 +86,10 @@ class Visit(Base):
     diagnosis_id: Mapped[int | None] = mapped_column(ForeignKey("diagnoses.id"), index=True)
     # "Come back on…" — the matching appointment carries source_visit_id = this visit.
     follow_up_date: Mapped[date | None] = mapped_column(Date, nullable=True)  # `date` is shadowed above
+    # What kind of visit this is (VisitKind.key: new patient, follow-up, new case, after surgery...) —
+    # suggested at registration from the clinic's fee rules, changeable by reception; drives the fee.
+    visit_kind_key: Mapped[str | None] = mapped_column(String(30))
+    emergency: Mapped[bool] = mapped_column(Boolean, default=False)  # night / Sunday emergency fee applies
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
