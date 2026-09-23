@@ -1,7 +1,7 @@
 # Task List — Gurukrupa Eye Hospital Core Tool
 
 **Live status board.** Updated at the end of every working session together with `handoff.md`.
-Last updated: **2026-09-23 (session 3)**
+Last updated: **2026-09-23 (end of session 3)**
 
 Status key: ✅ Done · 🔄 In progress · ⏳ Not started · ⛔ Blocked/waiting on someone · 🧪 Done, needs real-world check · ⏸ Parked at your request
 
@@ -106,8 +106,8 @@ Built on 2026-09-23 by three helpers working side by side (A = reception, B = bi
 | # | Task | Status | Notes |
 |---|---|---|---|
 | G1 | Local database on your PC created, tables + starting data loaded | ✅ | Admin login: `admin` / `admin123` — change before go-live |
-| G2 | Code saved in git (63 commits) | ✅ | |
-| G3 | Push to GitHub `ankitaagr88/guru-krupa` | ✅ | Pushed 2026-09-23 (63 commits, `5363da0`); push after each session |
+| G2 | Code saved in git (67 commits) | ✅ | |
+| G3 | Push to GitHub `ankitaagr88/guru-krupa` | ✅ | Pushed at the end of session 3 (67 commits); push after each session |
 | G4 | Confirm roles & who sees which screens with Dr Anu | ⛔ | Waiting on Dr Anu |
 | G5 | More real printout photos: YPC-100K (none yet), extra HNT-1P/HRK slips, phone photos at an angle | ⏳ | Improves reading accuracy |
 | G6 | Set up the server, domain, SSL — **a small rented server (VPS) in an Indian data centre (DPDP Act)**, e.g. DigitalOcean Bangalore / Linode Mumbai / E2E Networks | ⏳ | Decided 2026-09-20. Scripts ready (B11). Start small; migrate to AWS Mumbai later if the business grows (restore backup + copy photos + re-point domain — no provider-specific code)  **Recommended buy (2026-09-23):** DigitalOcean Bangalore — Basic Droplet 2 GB / 1 CPU / 50 GB ($12) + Daily backups ($3.60) + Spaces ($5) ≈ $20.60/month + GST |

@@ -4,92 +4,87 @@ Updated at the end of every working session, together with `task-list-backend-fr
 
 ---
 
-## Session 3 — 2026-09-23 (updated every hour while work runs)
+## Session 3 — 2026-09-23 (final update at session end)
 
-### The plan for this session
-The six review items from the end of session 2, plus the logo, split across three helpers working at the same time. Each helper only edits its own files, so nobody overwrites anyone else.
-- **Step 1 — groundwork (me, alone):** one database change covering everyone's needs, empty slots for the new pages and Admin sections, a separate file of demo data and server links per helper.
-- **Step 2 — three helpers at once:**
-  - **A — Reception & patient record:** duplicate-patient check on the phone number; date of birth instead of age (age worked out); import keeps working with Age; edit patient details on the patient page.
-  - **B — Billing & money:** Admin list of standard charges (one tap onto the bill); a price on each medicine so "Bought here" adds a bill line; printable receipt; daily collection by payment mode; the new "Today" summary page (patients seen, time per stage, money, medicines sold).
-  - **C — Doctor's panel & app frame:** Diagnosis on the doctor's panel (fills the prescription); follow-up date that books the appointment; clearer Saved / Unsaved on the prescription; visible search box; hide the demo button outside demo mode; the new logo (full logo on login and prescription, just the "GK" symbol in small places).
-- **Step 3 — join and check (me, alone):** bring the three together one at a time, run every check, click through on the real database, screenshots, save to GitHub, update this file.
+### Where things stand (plain language)
+**The app is built.** Every feature on the list works and has been clicked through on the real database on your PC, on desktop and phone. All checks pass: server 215, screens 133. The code is on GitHub (`ankitaagr88/guru-krupa`, latest `989e901`). The overall task list is at 86%. What's left is putting it online (server + backups) and a few answers from the clinic. Nothing is running now: the app, the helpers and the hourly handoff timer are all stopped.
 
-### Progress so far
-- Logo: `GK LOGO NEW.png` is the same design as the logo already in the app, but a cleaner copy — helper C will use it.
-- **Step 1 (groundwork) — done.** One database change adds date of birth (age is now worked out from it, or from the told age growing with the calendar), a diagnosis and follow-up date on each visit, a price on medicines, the standard-charges list, receipt numbers and links on bill lines, and a "booked as follow-up of" link on appointments — applied and tested on your PC's database. Billing now has its own files; the bill panel and the registration box were separated from the patient drawer so the helpers don't collide; an empty "Today" page is in the menu and an empty "Standard charges" section in Admin. Server checks 136, screen checks 80 — all pass. Commits `e050163`, `26a248f` (not yet pushed).
-- **Step 2 — the three helpers (A, B, C) are working**, each in its own copy of the code.
-- **Helper A (reception) — finished and joined in** (commit `fd01e4f`):
-  - **Duplicate check:** typing a 10-digit phone in "New patient" lists anyone already on that number, with "Use this patient" (puts them in today's queue, no second record) or "No — new patient".
-  - **Date of birth:** in the new-patient form, the registration drawer and the patient page; the age works itself out.
-  - **KiviHealth import:** reads a birth-date column and falls back to Age as before.
-  - **Patient page:** now has "Edit details".
-  - All 140 server checks pass. The screen checks time out at random while the other two helpers run their checks on the same computer; to be re-run when the machine is quiet.
-  - Question for Dr Anu: if only the age is corrected while a birth date is on file, should the birth date be dropped (current behaviour) or kept?
-- **Helper C (doctor's panel & app frame) — finished and joined in**:
-  - **Diagnosis on the doctor's panel:** picking it fills the prescription with the usual medicines, asking first if some are already written.
-  - **Follow-up:** buttons for 1 week / 2 weeks / 1 month / 3 months, a date box and a note book the appointment. It is tagged "Follow-up" on the Appointments screen and printed as "Next visit" on the prescription; "No follow-up" removes it.
-  - **Prescription Save:** the button now reads Save / Saving… / "Saved at 10:42 am", with an "Unsaved changes" warning.
-  - **Search:** a search box sits in the top bar ("/" or Ctrl+K jumps to it).
-  - **Demo buttons:** hidden outside demo mode.
-  - **New logo:** the full logo on login and prescriptions; just the GK symbol in the side menu, browser tab and phone icon.
-  - All 144 server checks pass with A + C together, and the app builds.
-  - Questions for Dr Anu: are 1 week / 2 weeks / 1 month / 3 months the right quick choices (or should Admin be able to change them)? Should the follow-up note also print on the prescription?
-- **Helper B (billing & Today page) — finished and joined in**:
-  - **Admin → Standard charges:** one-tap charges on the bill.
-  - **Medicine prices:** a price per medicine, so "Bought here" adds "name × qty" to the bill.
-  - **Receipts:** numbered GK-2026-00001, printable on A5.
-  - **"Today's summary" page:** patients seen, time per stage, money by payment mode, unpaid bills, medicines sold, receipts with reprint.
-- **Found and fixed while joining:**
-  - **The printed prescription came out blank** (an old print rule from the first build); confirmed fixed with a real print.
-  - A test-only mix-up in the "Today" report checks.
-- **Step 3 — click-through on the real database (done):**
-  - I registered two family members on one number (duplicate prompt worked), took Rasila to the doctor, picked "Dry eye" (tear drops filled in), booked a 2-week follow-up, printed the prescription, billed Consultation + tear drops (₹620, cash), printed receipt GK-2026-00001, and checked the "Today" page, Appointments and search on desktop and phone.
-  - Fixed along the way:
-    - phone search now ignores spaces (it missed family members typed without the space);
-    - search opens the patient record for someone not in today's queue (it went to a broken page);
-    - Appointments has an "Another day" picker so follow-ups weeks ahead can be seen;
-    - **"Other" as sex crashed registration on the real database** — fixed.
-  - Test data removed, and test prices / standard reset afterwards.
-- **New-patient form patients fill themselves (helper D) — finished, joined in and checked on the real database:**
-  - Patients scan a QR code and fill in the form on their phone (Gujarati / Hindi / English).
-  - They land in today's queue with a token and a note for reception.
-  - Staff open the same form with the "New patient form" button; the QR poster is in Admin.
-  - Gujarati / Hindi wording should be checked by someone who reads them.
-- **Pushed to GitHub** (59 commits, `ba3112b`).
-- **Your fee sheets (Fees.pdf, Eye_Procedure_Charges.pdf) received.** Rules confirmed:
-  - free follow-up within 6 days; ₹350 up to 6 months;
-  - new case ₹500 after 6 months or for a different problem;
-  - emergency ₹1000 suggested automatically from 8 pm to 8 am and on Sundays.
-  - **Still to confirm: the after-surgery follow-up rule** (you said "something else").
-- **Now building (two helpers):**
-  - **E1 — families on one mobile number:** owner + members with relations, editable relations list, "Add as a family member", a family card on the patient page, and grouping of existing patients who share a number.
-  - **E2 — visit type & fees:** the app suggests new patient / free follow-up / follow-up / new case / after surgery / emergency, and puts the right fee on the bill. Tests have one-eye / both-eyes prices; the rules are editable in Admin.
-  - The database change for both is applied (`be2f3a4b5c6d`).
-- **E1 (families) — finished and joined in** (`f54f590`); all 190 server checks pass:
-  - **When the number is already on file**, "New patient" offers "Use this patient" / **"Add as a family member"** (pick the relation) / "No — separate patient".
-  - **Patient page:** a "Son of Rasila Patel" line and a **"Family on this number"** card with change relation / make owner / remove / add family member.
-  - **Registration drawer:** a "Part of the Patel family?" prompt.
-  - **Search and queue:** they show the relation.
-  - **Admin → Family relations:** the list is editable, and "Group patients who share a number" is ready for after the KiviHealth import.
-  - **Public QR form:** never shows or links anyone.
-  - Question: "Add family member" from the patient page saves the person **without** putting them in today's queue — is that right?
-- **E2 (visit types & fees) — finished, joined in and clicked through on the real database:**
-  - **Dr Anu's fee list is loaded and editable in Admin:**
-    - Consultation / new file ₹700, Follow-up ₹350, New case ₹500, OT follow-up ₹350, Emergency ₹1000;
-    - tests and packages with one-eye / both-eyes prices.
-  - **Every registration gets a visit type automatically**, tested with real patients: first visit → New patient; back after 3 days → Follow-up · free; after 40 days → Follow-up ₹350; after 200 days → New case ₹500.
-  - **Reception can change the type** or press "Different problem — charge as New case".
-  - **The bill starts with the suggested fee:** e.g. Follow-up ₹350 + Perimetry both eyes ₹4,000 = ₹4,350.
-  - **Admin → Visit types & fees:** which charge each type uses, plus the day limits and emergency hours; everything can be changed at any time (your instruction).
-  - **The "Today" page** counts visits by type.
-  - **Questions for Dr Anu:**
-    - the after-surgery rule (built as free for 30 days, flagged in Admin);
-    - is "6 months" = 182 days right?
-    - should the switched-off "Pre-test" and "Dilation" charges be deleted?
-- **Families also checked on the real database:** "Add as a family member → Son" worked; Rasila's page shows "Owns this number · family of 2" and the family card.
-- **All checks pass:** server 215, screens 133 (screen checks now allow 15 s each, as the long Admin checks ran past 5 s on a busy PC). Test data removed; fee list and relations stay in the real database. **Pushed to GitHub** (63 commits, `5363da0`).
-- **DigitalOcean (your question):** Basic Droplet 2 GB / 1 CPU / 50 GB in **Bangalore** ($12) + **Daily** backups ($3.60) + Spaces for the off-site nightly copies ($5) ≈ $20.60 / month plus GST. Managed PostgreSQL and Volumes are not needed yet.
+### Done this session
+1. **Front desk**
+   - **Number already on file:** as soon as 10 digits are typed, the form shows "This number belongs to the family of …" with who is on it. It then asks the new patient's **relation** (required before saving). "Use this patient" is there for the same person, and "Not related — separate patient" for someone unrelated.
+   - **Phone boxes everywhere** show a fixed **+91** and take only the 10 digits.
+   - **Date of birth** instead of a fixed age; the age works itself out. The KiviHealth import reads a DOB column and falls back to Age.
+   - **Edit details** on the patient page.
+   - **Phone search** ignores spaces and dashes. Picking someone not in today's queue opens their record.
+2. **Families on one mobile number**
+   - Owner + members, each a full patient with a relation. The relations list is **in Hindi with English**: पति (Husband), पत्नी (Wife), बेटा (Son), बेटी (Daughter)… It can be edited in Admin → Family relations.
+   - The patient page has a "Family on this number" card (change relation / make owner / remove / add member) and a "बेटा (Son) of Rasila Patel" line.
+   - Admin → "Group patients who share a number" is for after the KiviHealth import.
+3. **New-patient form patients fill in themselves (QR code)**
+   - The QR poster is in Admin → New patient form, in English / Gujarati / Hindi.
+   - Patients fill the form on their phone, get a token and land in today's queue with a note for reception. Staff use the same form ("New patient form" button).
+   - The public form never shows or links anyone. It works on phones once the app is on the rented server.
+4. **Doctor's panel**
+   - The **Diagnosis** picker fills the prescription with the usual medicines.
+   - **Follow-up** (1 week / 2 weeks / 1 month / 3 months / date + note) books the appointment. It's tagged "Follow-up" on Appointments and printed as "Next visit".
+   - Appointments has an **"Another day"** picker to reach follow-ups weeks ahead.
+   - The prescription button now says **Save / Saving… / Saved at 10:42 am**.
+5. **Billing like a till**
+   - **Dr Anu's fee list** is loaded (Consultation / new file ₹700, Follow-up ₹350, New case ₹500, OT follow-up ₹350, Emergency ₹1000; tests and packages with one-eye / both-eyes prices).
+   - **The visit type is picked automatically:** new patient / free within 6 days / follow-up up to 182 days / new case after that or for a different problem / after surgery; emergency suggested 8 pm–8 am and Sundays.
+   - The bill starts with the suggested fee. Charges are one tap each, a medicine price is added on "Bought here", and receipts are numbered **GK-2026-00001** and print on A5.
+   - **All prices and rules can be changed in Admin at any time:** Standard charges, Visit types & fees, Medicines.
+6. **"Today's summary" page:** patients seen, time per stage, visits by type, money by payment mode, unpaid bills, medicines sold, receipts with reprint.
+7. **New logo:** the full logo on login and prescriptions; the "GK" symbol in the menu, browser tab and phone icon.
+8. **Bugs found and fixed**
+   - **The printed prescription came out blank**, from an old print rule. Checked with a real print.
+   - **Registering someone as "Other" crashed** on the real database.
+9. **For the client: the server purchase guide**
+   - `Guru-Krupa-Server-Purchase-Guide.pdf` in the project folder, plus an online copy (https://claude.ai/artifact/2ifgGaazhMKTNkcVb5XaW1 — share it before sending).
+   - What to buy: DigitalOcean **Bangalore**, Basic Droplet 2 GB ($12) + **Daily backups** ($3.60) + Spaces ($5) ≈ **$20.60/month + GST**.
+   - It includes your SSH key and the invite address `ankita.gyl15@gmail.com`.
+   - **Your SSH key:** the private file is `C:\Users\ankitaa\.ssh\gurukrupa_do`. **Back it up and never send it to anyone.** It has no password yet; to add one run `ssh-keygen -p -f ~/.ssh/gurukrupa_do`.
+
+### Questions waiting on you / Dr Anu
+1. **After-surgery follow-up rule.** It's set as "free for 30 days" for now; change it in Admin → Visit types & fees.
+2. Is "6 months" = **182 days**?
+3. Delete the switched-off **Pre-test** and **Dilation** charges (they're not on her fee sheet)?
+4. "Add family member" from the patient page saves **without** putting the person in today's queue. OK?
+5. If only the age is corrected while a date of birth is on file, the DOB is dropped. OK, or keep the DOB?
+6. Are the follow-up quick buttons (1 week / 2 weeks / 1 month / 3 months) right? Should the follow-up note print on the prescription?
+7. Someone who reads **Gujarati / Hindi** should check the QR form's wording (`frontend/src/screens/Register/strings.js`).
+
+### Next session — do in this order
+1. **Before the server arrives:** finish the backup plan (task G6a). What exists today is only a nightly database dump that stays on the server. Still to build:
+   - the nightly off-site copy to **Spaces**, including photos;
+   - the clinic laptop pulling a copy at start-up and mid-day;
+   - a missed-backup alert.
+2. **When the client has bought the server (guide above):**
+   - adapt the setup scripts (written for Hostinger, never run on a real server) to DigitalOcean;
+   - install the app, connect the domain, turn on https;
+   - create the real database and load the fee list + relations;
+   - **run a full practice restore** before go-live.
+3. **Security:** change `admin / admin123` and create the real staff logins (once Dr Anu confirms the roles, G4).
+4. **KiviHealth import** when the export files arrive (G7), then "Group patients who share a number".
+5. Apply Dr Anu's answers to the questions above. Decide photo retention (B14). Print the QR poster once the real address works.
+6. Small: a stray space in "Age 62  y" under the date of birth.
+
+### Waiting on you / the clinic
+- The client buying the server + domain (send them the guide PDF and share the online copy).
+- KiviHealth export files.
+- Dr Anu: the questions above, staff roles (G4), photo retention (B14).
+- A Gujarati / Hindi reader for the QR form.
+- More printout photos (YPC-100K none yet); WhatsApp Business number (W4) — optional.
+
+### How to run it on your PC
+1. Server: PowerShell in `gurukrupa-system\backend` → `.venv\Scripts\uvicorn app.main:app` → http://localhost:8000/docs
+2. Screens: PowerShell in `gurukrupa-system\frontend` → `npm run dev` → http://localhost:5173 (demo data; `admin / admin`). For the real database set `VITE_USE_MOCKS=0` in `frontend\.env.development` (real login `admin / admin123`).
+3. Patient QR form: http://localhost:5173/register. QR poster: Admin → New patient form.
+
+### How the work was done (for next time)
+- Big pieces were split between helpers working at the same time, each in its own copy of the code and each only editing its own files. I prepared the shared parts first (database change, empty slots), then joined their work in one at a time.
+- All test data I created was removed from the real database afterwards. The fee list and the relations list stay in the real database on purpose.
+- Screen checks now allow 15 seconds each (the long Admin checks ran past 5 seconds on a busy PC).
 
 ---
 
