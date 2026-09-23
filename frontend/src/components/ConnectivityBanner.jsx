@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useOffline } from '../offline/OfflineContext';
+import { USE_MOCKS } from '../api';
 
 /* Mockup `renderConnectivityBanner` — shows when offline (real or simulated),
    plus a brief "back online" flash. `pendingCount` is set by the Machines
@@ -31,7 +32,9 @@ export default function ConnectivityBanner() {
           online
           {pendingCount > 0 ? ` · ${pendingCount} waiting` : ''}
         </span>
-        {simulateOffline && <button onClick={() => setSimulateOffline(false)}>End offline demo</button>}
+        {USE_MOCKS && simulateOffline && (
+          <button onClick={() => setSimulateOffline(false)}>End offline demo</button>
+        )}
       </div>
     );
   }

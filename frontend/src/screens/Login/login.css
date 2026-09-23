@@ -18,18 +18,26 @@
 }
 .login-hero {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 16px;
+  text-align: center;
+  gap: 14px;
   color: var(--nav-ink);
 }
+/* The full logo (symbol + lettering) on a white tile, shown whole. */
 .login-logo {
-  width: 68px;
-  height: 68px;
-  border-radius: 16px;
-  object-fit: cover;
+  width: 188px;
+  padding: 14px 16px;
+  border-radius: 18px;
   flex-shrink: 0;
-  background: var(--surface);
+  background: #fff;
   box-shadow: var(--shadow-md);
+}
+.login-logo img {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
 }
 .login-hero-text h1 {
   font-family: var(--font-serif);

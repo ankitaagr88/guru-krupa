@@ -9,7 +9,7 @@ import {
   errorMessage,
 } from '../../api';
 import { useAuth } from '../../auth/AuthContext';
-import { treatments as treatmentsApi } from '../../api';
+import { treatments as treatmentsApi, doctor as doctorApi } from '../../api';
 import MedicinePicker from '../../components/MedicinePicker';
 import MedicineForm from '../Admin/MedicineForm';
 import { HOSPITAL_NAME, DOCTOR_NAME } from '../../nav';
@@ -25,8 +25,12 @@ import './prescription.css';
      visit    — { id, token?, patient?:{name,age,sex} } (real /visits/today row)
                 or the mock's flat patient row { id, name, age, sex, token }.
      open     — optional; defaults to !!visit
-     onClose  — called on Close / Esc / backdrop
+     onClose  — called on Close / Esc / backdrop (asks first when there are unsaved changes)
      onSaved  — optional (prescriptionOut) after a successful save
+     onVisitChange — optional (visitOut) after the diagnosis was changed here (it is saved on
+                the visit straight away, like on the doctor's panel)
+   The visit's `diagnosisId` preselects the diagnosis; its `followUpDate` prints as
+   "Next visit" on the sheet.
 
    Each line = { name, medicineId, matched, dosage, qtyGiven, form?, formLabel? }:
      dosage   → the treatment plan printed for the patient
@@ -72,8 +76,9 @@ const lineFromApi = (l) => ({
 });
 
 const norm = (v) => (v || '').trim().toLowerCase();
+const clockTime = (d) => d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
-export default function PrescriptionModal({ visit, open, onClose, onSaved }) {
+export default function PrescriptionModal({ visit, open, onClose, onSaved, onVisitChange }) {
   const isOpen = open ?? !!visit;
   const info = useMemo(() => visitInfo(visit), [visit]);
   const toast = useToast();
@@ -88,6 +93,8 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved }) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [savedAt, setSavedAt] = useState(null); // Date of the last save from this pop-up
+  const [hasRx, setHasRx] = useState(false); // a prescription already exists for the visit
   const [printPayload, setPrintPayload] = useState(null);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photos, setPhotos] = useState(0);
@@ -100,6 +107,8 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved }) {
   const [fillBusy, setFillBusy] = useState(false);
   const fileRef = useRef(null);
   const printPending = useRef(false);
+  const visitDiagnosisRef = useRef(null);
+  visitDiagnosisRef.current = visit?.diagnosisId ?? null;
 
   const loadStock = useCallback(async () => {
     try {
@@ -121,6 +130,7 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved }) {
     let cancelled = false;
     setLoading(true);
     setDirty(false);
+    setSavedAt(null);
     setPrintPayload(null);
     setPhotos(0);
     (async () => {
@@ -135,9 +145,11 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved }) {
       setMeds(normMeds);
       const existing = Array.isArray(rx) ? rx : rx?.lines || [];
       setLines(existing.map(lineFromApi));
+      setHasRx(!!rx && existing.length > 0);
       setLang(rx?.printLanguage || 'english');
       setDiagnoses(Array.isArray(dxList) ? dxList : []);
-      setDiagnosisId(rx?.diagnosisId ?? null);
+      // The doctor's panel may have picked the diagnosis before any prescription was saved.
+      setDiagnosisId(rx?.diagnosisId ?? visitDiagnosisRef.current ?? null);
       setFillNote(null);
       setAddingFor(null);
       setSearch('');
@@ -249,6 +261,12 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved }) {
     setDiagnosisId(id);
     setDirty(true);
     setFillNote(null);
+    // The diagnosis lives on the visit too (the doctor's panel shows it): save it there now.
+    if (typeof doctorApi?.setDiagnosis === 'function')
+      doctorApi
+        .setDiagnosis(info.id, id)
+        .then((v) => onVisitChange?.(v))
+        .catch((err) => toast.error('Could not save the diagnosis on the visit', errorMessage(err)));
     if (!id) return;
     setFillBusy(true);
     try {
@@ -288,6 +306,8 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved }) {
       }));
       const res = await prescriptions.save(info.id, body, lang, diagnosisId);
       setDirty(false);
+      setSavedAt(new Date());
+      setHasRx(true);
       if (Array.isArray(res?.lines)) setLines(res.lines.map(lineFromApi));
       toast.success(
         'Prescription saved',
@@ -351,9 +371,21 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved }) {
   const today = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
   const close = () => {
+    if (dirty && !window.confirm('This prescription has unsaved changes. Close without saving them?')) return;
     setPrintPayload(null);
     onClose?.();
   };
+
+  // Save button: "Save" with changes, "Saving…", then "Saved at 10:42 am"; nothing to save → disabled.
+  const saveLabel = saving
+    ? 'Saving…'
+    : dirty
+      ? 'Save'
+      : savedAt
+        ? `Saved at ${clockTime(savedAt)}`
+        : hasRx
+          ? 'Saved'
+          : 'Save';
 
   return (
     <>
@@ -364,11 +396,21 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved }) {
         id="prescriptionModalOverlay"
         actions={
           <>
+            {dirty && !saving && (
+              <span className="rx-unsaved" role="status" data-testid="rx-unsaved">
+                Unsaved changes
+              </span>
+            )}
             <button className="btn-ghost" onClick={close} type="button">
               Close
             </button>
-            <button className="btn-primary full" onClick={save} disabled={saving || loading} type="button">
-              {saving ? 'Saving…' : dirty ? 'Save' : 'Saved'}
+            <button
+              className={`btn-primary full rx-save-btn${!dirty && !saving && (savedAt || hasRx) ? ' saved' : ''}`}
+              onClick={save}
+              disabled={saving || loading || !dirty}
+              type="button"
+            >
+              {saveLabel}
             </button>
             <button
               className="btn-primary full rx-print-btn"
@@ -382,7 +424,7 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved }) {
         }
       >
         <div className="rx-head">
-          <img src="/logo.jpg" alt="" className="rx-head-logo" />
+          <img src="/logo.png" alt="Guru Krupa Eye Hospital & Laser Center" className="rx-head-logo" />
           <h3>{HOSPITAL_NAME}</h3>
           <p>{DOCTOR_NAME}, M.S. Ophthalmology</p>
         </div>
@@ -620,7 +662,7 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved }) {
           </>
         )}
       </Modal>
-      {isOpen && <PrescriptionPrint payload={printPayload} />}
+      {isOpen && <PrescriptionPrint payload={printPayload} followUpDate={visit?.followUpDate} />}
     </>
   );
 }

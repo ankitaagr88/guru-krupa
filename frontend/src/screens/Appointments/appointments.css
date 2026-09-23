@@ -37,6 +37,13 @@
 .appt-table .appt-checkin:disabled {
   cursor: default;
 }
+.appt-table .appt-note {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
 .appt-table .td-time {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;

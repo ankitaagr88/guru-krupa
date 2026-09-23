@@ -96,6 +96,12 @@ MRs hidden from optometrist/OT staff; OT hidden from optometrist — adjust in `
 ## PWA
 
 `vite-plugin-pwa` (autoUpdate). Manifest: "Gurukrupa Eye Hospital" / "Gurukrupa", theme `#1E3A8A`,
-standalone. Icons in `public/icons/` were generated from `../../logo.jpg` (192/512 + maskable variants).
+standalone. Logo files, all made with Pillow from the clinic's `GK LOGO NEW.png` (white background):
+`public/logo.png` is the full logo (symbol + "GURU KRUPA / EYE HOSPITAL & LASER CENTER", trimmed,
+600px wide) for the login page and the prescription pop-up / printed sheet; `public/logo-mark.png`
+is the symbol alone (G + K + gem + arrow, cropped at the white gap above the lettering) on a square
+white canvas for the side menu. `public/icons/` (favicon, apple-touch-icon, 192/512 and maskable
+192/512 with the symbol kept inside the 80% safe zone) come from the same symbol crop. Show logos
+with `object-fit: contain` — never cropped into circles.
 Runtime caching: `/api/*` NetworkFirst (8s timeout, 24h), Google Fonts StaleWhileRevalidate.
 The service worker is disabled in `npm run dev`; test it with `npm run build && npm run preview`.

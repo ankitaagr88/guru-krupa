@@ -92,4 +92,16 @@ describe('Appointments', () => {
     expect(a.checkedIn).toBe(true);
     expect(a.patientId).toBe(p.id);
   });
+
+  it('an appointment booked by the doctor’s follow-up is tagged "Follow-up" with its note', async () => {
+    const { doctor } = await import('../../api');
+    const v = await doctor.setFollowUp(5, dateStr(3), 'IOP check'); // Bharat Oza, at the doctor
+    renderAppts();
+    await waitFor(() => expect(list()).toHaveTextContent('Priya Mehta'));
+    await userEvent.click(document.querySelector(`.date-pill[data-date="${dateStr(3)}"]`));
+    const row = await screen.findByTestId(`appt-row-${v.followUpAppointmentId}`);
+    expect(within(row).getByText('Follow-up')).toHaveClass('channel-tag', 'followup');
+    expect(row).toHaveTextContent('Bharat Oza');
+    expect(row).toHaveTextContent('IOP check');
+  });
 });

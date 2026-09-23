@@ -6,11 +6,14 @@ import { HOSPITAL_PRINT } from './hospital';
    payload of GET /visits/{id}/prescription/print:
      { hospital:{name,address,phone,doctor}, patient:{name,age,sex,token,date},
        language, lines:[{name,dosage,dosageLocal,qtyGiven}] }
-   Each line prints the medicine name in bold and the dosage — nothing else. */
-export default function PrescriptionPrint({ payload }) {
+   Each line prints the medicine name in bold and the dosage — nothing else.
+   `followUpDate` ('YYYY-MM-DD', from the visit; or payload.patient.followUpDate) prints as
+   "Next visit: 7 Oct 2026" under the medicines. */
+export default function PrescriptionPrint({ payload, followUpDate }) {
   if (!payload || typeof document === 'undefined') return null;
   const h = { ...HOSPITAL_PRINT, ...(payload.hospital || {}) };
   const p = payload.patient || {};
+  const nextVisit = followUpDate || p.followUpDate || null;
   const lang = payload.language || 'english';
   const date = p.date ? fmtDate(p.date) : fmtDate(new Date().toISOString().slice(0, 10));
   const ageSex = [p.age ? `${p.age} yrs` : null, p.sex || null].filter(Boolean).join(' · ');
@@ -77,6 +80,11 @@ export default function PrescriptionPrint({ payload }) {
           })}
         </tbody>
       </table>
+      {nextVisit && (
+        <div className="rx-print-next" data-testid="rx-print-next">
+          Next visit: <b>{fmtDate(String(nextVisit).slice(0, 10))}</b>
+        </div>
+      )}
       <div className="rx-print-foot">
         <div className="rx-print-sign">
           <div className="rx-print-sign-line" />

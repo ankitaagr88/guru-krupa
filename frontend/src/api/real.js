@@ -34,7 +34,7 @@ export const visits = {
   // B3: register today's visit for an existing patient (409 if one is already active today)
   create: (body) => data(client.post('/visits', body)),
   get: (id) => data(client.get(`/visits/${id}`)),
-  // B3: PATCH /visits/{id} {note?, doctorNotes?, elsewhere?, elsewhereNote?}
+  // B3: PATCH /visits/{id} {note?, doctorNotes?, elsewhere?, elsewhereNote?, diagnosisId?}
   update: (id, patch) => data(client.patch(`/visits/${id}`, patch)),
   move: (id, stage) => data(client.post(`/visits/${id}/move`, { stage })),
   setVA: (id, va) => data(client.patch(`/visits/${id}/va`, va)),
@@ -60,14 +60,25 @@ export const reports = {};
 /* Reception additions — duplicate-patient check etc. (lane A owns this block). */
 export const reception = {};
 
-/* Doctor's panel — diagnosis on the visit, follow-up date (lane C owns this block). */
-export const doctor = {};
+/* Doctor's panel — diagnosis on the visit, follow-up date (lane C owns this block).
+   Each returns the updated visit (VisitOut: …, diagnosisId, diagnosisName, followUpDate,
+   followUpNote, followUpAppointmentId). */
+export const doctor = {
+  // null clears; the prescription's diagnosis follows server-side
+  setDiagnosis: (visitId, diagnosisId) => data(client.patch(`/visits/${visitId}`, { diagnosisId })),
+  // books (or moves) the patient's appointment on `date` ('YYYY-MM-DD'), tagged with this visit
+  setFollowUp: (visitId, date, note = '') => data(client.put(`/visits/${visitId}/follow-up`, { date, note })),
+  // "No follow-up": the booked appointment is removed unless already checked in
+  clearFollowUp: (visitId) => data(client.delete(`/visits/${visitId}/follow-up`)),
+};
 
 // GET /config → { stages, protocolSteps, referralSources, lensTiers, conditions, medicineForms:[{key,label}] }
 export const config = {
   get: () => data(client.get('/config')),
 };
 
+// Rows: {id, name, phone, date, channel, checkedIn, patientId, visitId, createdAt, note,
+//        sourceVisitId} — sourceVisitId set = booked by a doctor's follow-up date.
 export const appointments = {
   list: ({ date } = {}) => data(client.get('/appointments', { params: { date } })),
   counts: ({ from, to } = {}) => data(client.get('/appointments/counts', { params: { from, to } })),

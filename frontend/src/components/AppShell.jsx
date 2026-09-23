@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useAuth, ROLE_LABELS } from '../auth/AuthContext';
 import { useDeviceMode } from '../hooks/useDeviceMode';
@@ -17,7 +17,7 @@ import {
 } from '../nav';
 import { IconMenu, IconSearch, IconLogout, IconMore, IconChevronLeft } from './Icons';
 import ConnectivityBanner from './ConnectivityBanner';
-import SearchModal from './SearchModal';
+import SearchModal, { TopbarSearch } from './SearchModal';
 
 /* ------------------------------------------------------------------ */
 /* Shell context: what screens need from the chrome                     */
@@ -63,7 +63,7 @@ function Brand({ collapsed }) {
   return (
     <div className="sidenav-brand">
       <div className="sidenav-mark">
-        <img src="/logo.jpg" alt="" />
+        <img src="/logo-mark.png" alt="" />
       </div>
       {!collapsed && (
         <div className="sidenav-wordmark">
@@ -331,22 +331,27 @@ export default function AppShell() {
     setMobileNavOpen(false);
   }, [location.pathname]);
 
-  // Keyboard: Ctrl/Cmd+K or "/" opens search
+  // Keyboard: Ctrl/Cmd+K or "/" focuses the top-bar search box (on a phone: opens the search modal)
+  const searchBoxRef = useRef(null);
   useEffect(() => {
+    const openSearch = () => {
+      if (!isMobile && searchBoxRef.current) searchBoxRef.current.focus();
+      else setSearchOpen(true);
+    };
     const onKey = (e) => {
       const tag = (e.target?.tagName || '').toLowerCase();
       const typing = tag === 'input' || tag === 'textarea' || tag === 'select' || e.target?.isContentEditable;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        setSearchOpen(true);
+        openSearch();
       } else if (e.key === '/' && !typing && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
-        setSearchOpen(true);
+        openSearch();
       }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, []);
+  }, [isMobile]);
 
   const handleLogout = () => {
     logout();
@@ -411,14 +416,18 @@ export default function AppShell() {
               </div>
             </div>
             <div className="topbar-right">
-              <button
-                className="icon-btn"
-                onClick={() => setSearchOpen(true)}
-                title="Search patients (Ctrl+K)"
-                aria-label="Search patients"
-              >
-                <IconSearch />
-              </button>
+              {isMobile ? (
+                <button
+                  className="icon-btn"
+                  onClick={() => setSearchOpen(true)}
+                  title="Search patients"
+                  aria-label="Search patients"
+                >
+                  <IconSearch />
+                </button>
+              ) : (
+                <TopbarSearch ref={searchBoxRef} stages={stages} />
+              )}
               {!isMobile && <Clock />}
               {topbar.actions}
             </div>

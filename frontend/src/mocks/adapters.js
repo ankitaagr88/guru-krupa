@@ -18,6 +18,7 @@ import { billOut } from './billing';
 export { billing, reports } from './billing';
 export { reception } from './reception';
 export { doctor } from './doctor';
+import { doctor as doctorMock, doctorVisitOut } from './doctor';
 
 const S = store.state;
 const c = store.clone;
@@ -189,7 +190,7 @@ export const visits = {
   async today({ stage } = {}) {
     await latency(60);
     const rows = stage ? S.patients.filter((p) => p.stage === stage) : S.patients;
-    return c(rows);
+    return rows.map(doctorVisitOut);
   },
   async counts() {
     await latency(20);
@@ -240,18 +241,19 @@ export const visits = {
   async get(id) {
     const p = S.patients.find((x) => x.id === Number(id));
     if (!p) throw httpError(404, 'Visit not found');
-    return c(p);
+    return doctorVisitOut(p);
   },
-  // PATCH /visits/{id} {note?, doctorNotes?, elsewhere?, elsewhereNote?}
+  // PATCH /visits/{id} {note?, doctorNotes?, elsewhere?, elsewhereNote?, diagnosisId?}
   async update(id, patch) {
     await latency(30);
     const p = S.patients.find((x) => x.id === Number(id));
     if (!p) throw httpError(404, 'Visit not found');
+    if (patch.diagnosisId !== undefined) await doctorMock.setDiagnosis(id, patch.diagnosisId);
     ['note', 'doctorNotes', 'elsewhere', 'elsewhereNote'].forEach((k) => {
       if (patch[k] !== undefined) p[k] = patch[k];
     });
     store.notify();
-    return c(p);
+    return doctorVisitOut(p);
   },
   // Dilation (B5)
   async dilation(id) {
@@ -402,6 +404,8 @@ export const appointments = {
       checkedIn: false,
       channel: 'whatsapp',
       date: dateStr(0),
+      note: '',
+      sourceVisitId: null,
       ...data,
     };
     S.appointments.push(a);
@@ -412,12 +416,20 @@ export const appointments = {
     const a = S.appointments.find((x) => x.id === Number(id));
     if (!a) throw httpError(404, 'Appointment not found');
     Object.assign(a, patch);
+    // A follow-up moved on the appointment book moves the visit's "come back on" too.
+    const source = a.sourceVisitId ? S.patients.find((p) => p.id === a.sourceVisitId) : null;
+    if (source && patch.date && !a.checkedIn) source.followUpDate = patch.date;
     store.notify();
     return c(a);
   },
   async remove(id) {
     const i = S.appointments.findIndex((x) => x.id === Number(id));
-    if (i >= 0) S.appointments.splice(i, 1);
+    if (i >= 0) {
+      const a = S.appointments[i];
+      const source = a.sourceVisitId ? S.patients.find((p) => p.id === a.sourceVisitId) : null;
+      if (source && source.followUpDate === a.date) source.followUpDate = null;
+      S.appointments.splice(i, 1);
+    }
     store.notify();
     return { ok: true };
   },
@@ -431,7 +443,9 @@ export const appointments = {
     const p = await patients.create({
       name: a.name,
       phone: a.phone,
-      note: 'Appointment booked via ' + via,
+      note: a.sourceVisitId
+        ? 'Follow-up visit' + (a.note ? ' — ' + a.note : '')
+        : 'Appointment booked via ' + via,
     });
     p.visitRegistered = true;
     const stored = S.patients.find((x) => x.id === p.id);
