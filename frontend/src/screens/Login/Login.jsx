@@ -47,7 +47,9 @@ export default function Login() {
     <div className="login-page gk-on-navy">
       <div className="login-wrap">
         <div className="login-hero">
-          <img src="/logo.jpg" alt="" className="login-logo" />
+          <div className="login-logo">
+            <img src="/logo.png" alt="Guru Krupa Eye Hospital & Laser Center" />
+          </div>
           <div className="login-hero-text">
             <span className="login-eyebrow">Clinic app</span>
             <h1>{HOSPITAL_NAME}</h1>

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import utcnow
+from app.models.appointments import Appointment
 from app.models.audit import AuditLog
 from app.models.config import Stage
 from app.models.patients import Patient, Visit
@@ -126,7 +127,16 @@ def _aware(dt: datetime) -> datetime:
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)  # SQLite drops tzinfo
 
 
-def visit_out(visit: Visit, *, last_visit: date | None = None, now: datetime | None = None) -> VisitOut:
+def follow_up_appointments(db: Session, visit_ids: list[int]) -> dict[int, Appointment]:
+    """visit id -> the latest appointment its follow-up date booked (see app.services.doctor)."""
+    if not visit_ids:
+        return {}
+    rows = db.scalars(select(Appointment).where(Appointment.source_visit_id.in_(visit_ids)).order_by(Appointment.id))
+    return {a.source_visit_id: a for a in rows}
+
+
+def visit_out(visit: Visit, *, last_visit: date | None = None, now: datetime | None = None,
+              follow_up: Appointment | None = None) -> VisitOut:
     now = now or utcnow()
     run = visit.dilation_run
     return VisitOut(
@@ -140,7 +150,11 @@ def visit_out(visit: Visit, *, last_visit: date | None = None, now: datetime | N
         patient=patient_out(visit.patient, last_visit, visit if visit.status == "active" else None),
         dilation=DilationOut.model_validate(run) if run else None,
         has_bill=visit.bill is not None, has_prescription=bool(visit.prescriptions),
-        readings_count=len(visit.readings))
+        readings_count=len(visit.readings),
+        diagnosis_id=visit.diagnosis_id, diagnosis_name=visit.diagnosis.name if visit.diagnosis else None,
+        follow_up_date=visit.follow_up_date,
+        follow_up_note=(follow_up.note or "") if follow_up and visit.follow_up_date else "",
+        follow_up_appointment_id=follow_up.id if follow_up and visit.follow_up_date else None)
 
 
 def visits_out(db: Session, visits: list[Visit]) -> list[VisitOut]:
@@ -153,4 +167,5 @@ def visits_out(db: Session, visits: list[Visit]) -> list[VisitOut]:
         ids = [pid for pid, vs in by_patient.items() if any(x.date == on for x in vs)]
         last.update(last_visit_dates(db, ids, before=on))
     now = utcnow()
-    return [visit_out(v, last_visit=last.get(v.patient_id), now=now) for v in visits]
+    follow = follow_up_appointments(db, [v.id for v in visits if v.follow_up_date])
+    return [visit_out(v, last_visit=last.get(v.patient_id), now=now, follow_up=follow.get(v.id)) for v in visits]

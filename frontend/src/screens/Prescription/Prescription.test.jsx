@@ -203,7 +203,8 @@ describe('Diagnosis auto-fill (B15/F17)', () => {
     expect(screen.getByLabelText('Dosage for Timolol 0.5% eye drops')).toHaveValue('1 drop both eyes, twice daily');
 
     await userEvent.click(screen.getByRole('button', { name: /^Save/ }));
-    await waitFor(async () => expect((await prescriptions.get(7)).diagnosisId).toBe(glaucoma.id));
+    await screen.findByRole('button', { name: /^Saved at / });
+    expect((await prescriptions.get(7)).diagnosisId).toBe(glaucoma.id);
     // now the history counts 2 prescriptions for Glaucoma
     expect((await treatments.standard(glaucoma.id)).historyCount).toBe(2);
   });

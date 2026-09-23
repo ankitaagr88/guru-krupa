@@ -8,7 +8,7 @@ export const HOSPITAL_PRINT = {
   phone: '9328621216, 7574998502',
   doctor: 'Dr. Anu Juneja Pathak, M.S. Ophthalmology',
   timings: '9:00 AM – 7:00 PM · Monday to Saturday',
-  logo: '/logo.jpg',
+  logo: '/logo.png', // the full logo (symbol + lettering); /logo-mark.png is the symbol alone
 };
 
 export const RX_LANGUAGES = [

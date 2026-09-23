@@ -55,9 +55,38 @@ describe('AppShell', () => {
     await waitFor(() => expect(document.querySelector('#mobileNavStageList')).toHaveTextContent('2'));
   });
 
-  it('opens the search modal with Ctrl+K and finds a patient', async () => {
+  it('desktop: the top-bar search box is always there; "/" focuses it and typing lists matches', async () => {
+    renderShell({ user: ADMIN, route: '/inventory' });
+    const box = screen.getByPlaceholderText('Search patients by name, phone or token');
+    expect(screen.queryByRole('button', { name: 'Search patients' })).toBeNull(); // no magnifier button
+    await userEvent.keyboard('/');
+    expect(box).toHaveFocus();
+    await userEvent.type(box, 'oza');
+    await waitFor(() => expect(screen.getByText('Bharat Oza')).toBeInTheDocument());
+    expect(screen.queryByText('Find a patient')).toBeNull(); // no modal on desktop
+    await userEvent.click(screen.getByText('Bharat Oza'));
+    await waitFor(() => expect(screen.queryByText('Bharat Oza')).toBeNull()); // list closes after the jump
+    expect(box).toHaveValue('');
+  });
+
+  it('desktop: Ctrl+K focuses the box too; Escape clears it', async () => {
     renderShell({ user: ADMIN });
     await userEvent.keyboard('{Control>}k{/Control}');
+    const box = screen.getByRole('searchbox', { name: 'Search patients' });
+    expect(box).toHaveFocus();
+    await userEvent.type(box, 'patel');
+    await waitFor(() => expect(screen.getByText('Rasilaben Patel')).toBeInTheDocument());
+    await userEvent.keyboard('{Escape}');
+    expect(box).toHaveValue('');
+    expect(screen.queryByText('Rasilaben Patel')).toBeNull();
+  });
+
+  it('phone: a compact magnifier opens the search modal', async () => {
+    sessionStorage.setItem('gk_device', 'mobile');
+    renderShell({ user: ADMIN });
+    await waitFor(() => expect(document.body).toHaveClass('mobile-mode'));
+    expect(screen.queryByPlaceholderText('Search patients by name, phone or token')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Search patients' }));
     expect(screen.getByText('Find a patient')).toBeInTheDocument();
     await userEvent.type(screen.getByRole('textbox'), 'oza');
     await waitFor(() => expect(screen.getByText('Bharat Oza')).toBeInTheDocument());

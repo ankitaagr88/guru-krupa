@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useShell, useTopbar } from '../../components/AppShell';
 import { useOffline } from '../../offline/OfflineContext';
-import { readings as readingsApi, visits as visitsApi, onDataChange, errorMessage } from '../../api';
+import { readings as readingsApi, visits as visitsApi, onDataChange, errorMessage, USE_MOCKS } from '../../api';
 import InstallPrompt from './InstallPrompt';
 import ReadingCard from './ReadingCard';
 import ManualEntryForm from './ManualEntryForm';
@@ -435,9 +435,11 @@ export default function Machines() {
             {pendingCount > 0 ? ` · ${pendingCount} waiting` : ''}
           </div>
         )}
-        <button type="button" className="btn-ghost machine-demo-btn" onClick={toggleSimulateOffline} data-testid="offline-toggle">
-          {simulateOffline ? 'Demo: back online' : 'Demo: no connection'}
-        </button>
+        {USE_MOCKS && (
+          <button type="button" className="btn-ghost machine-demo-btn" onClick={toggleSimulateOffline} data-testid="offline-toggle">
+            {simulateOffline ? 'Demo: back online' : 'Demo: no connection'}
+          </button>
+        )}
       </div>
 
       {!current ? (

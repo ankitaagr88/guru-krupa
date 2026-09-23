@@ -7,7 +7,8 @@ from app.db import get_db
 from app.models.patients import Patient, Visit
 from app.models.staff import Staff
 from app.routes import register
-from app.schemas.visits import StageMove, VaIn, VisitCreate, VisitOut, VisitPatch
+from app.schemas.visits import FollowUpIn, StageMove, VaIn, VisitCreate, VisitOut, VisitPatch
+from app.services import doctor
 from app.services import queue as svc
 
 router = register(APIRouter(prefix="/visits", tags=["visits"], dependencies=[Depends(get_current_user)]))
@@ -82,7 +83,31 @@ def set_va(visit_id: int, data: VaIn, db: Session = Depends(get_db)):
 @router.patch("/{visit_id}", response_model=VisitOut)
 def patch_visit(visit_id: int, data: VisitPatch, db: Session = Depends(get_db)):
     visit = _get(db, visit_id)
-    for k, v in data.model_dump(exclude_unset=True, exclude_none=True).items():
-        setattr(visit, k, v)
+    values = data.model_dump(exclude_unset=True)
+    if "diagnosis_id" in values:  # null clears it; the prescription's diagnosis follows
+        try:
+            doctor.set_diagnosis(db, visit, values.pop("diagnosis_id"))
+        except doctor.UnknownDiagnosis:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Unknown diagnosis")
+    for k, v in values.items():
+        if v is not None:
+            setattr(visit, k, v)
     db.commit()
     return _out(db, visit)
+
+
+@router.put("/{visit_id}/follow-up", response_model=VisitOut)
+def set_follow_up(visit_id: int, data: FollowUpIn, db: Session = Depends(get_db),
+                  _user: Staff = Depends(require_role(*ANY_STAFF))):
+    """"Come back on…": stores the date and books (or moves) the patient's appointment for it."""
+    try:
+        return _out(db, doctor.set_follow_up(db, _get(db, visit_id), data.date, data.note))
+    except doctor.BadFollowUp as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))
+
+
+@router.delete("/{visit_id}/follow-up", response_model=VisitOut)
+def clear_follow_up(visit_id: int, db: Session = Depends(get_db),
+                    _user: Staff = Depends(require_role(*ANY_STAFF))):
+    """"No follow-up": removes the booked appointment unless the patient already checked in on it."""
+    return _out(db, doctor.clear_follow_up(db, _get(db, visit_id)))

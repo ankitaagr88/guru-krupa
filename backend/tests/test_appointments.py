@@ -54,7 +54,9 @@ def test_crud(client, admin_headers):
     a = _add(client, admin_headers, "Priya Mehta", phone="98250 11223", channel="whatsapp")
     assert a["date"] == _day(0) and a["channel"] == "whatsapp" and a["checkedIn"] is False
     assert a["patientId"] is None and a["visitId"] is None and a["createdAt"]
-    assert set(a) == {"id", "name", "phone", "date", "channel", "checkedIn", "patientId", "visitId", "createdAt"}
+    assert set(a) == {"id", "name", "phone", "date", "channel", "checkedIn", "patientId", "visitId", "createdAt",
+                      "note", "sourceVisitId"}
+    assert a["note"] == "" and a["sourceVisitId"] is None
 
     b = _add(client, admin_headers, "Kishor Panchal", phone="98980 33221", date=_day(1), channel="call")
     assert b["date"] == _day(1)

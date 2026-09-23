@@ -5,14 +5,35 @@
   max-height: 92vh;
   overflow-y: auto;
 }
+/* The full logo (symbol + lettering), shown whole — never cropped. */
 .rx-head-logo {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  object-fit: cover;
+  width: auto;
+  height: 96px;
+  max-width: 100%;
+  object-fit: contain;
   margin: 0 auto 8px;
   display: block;
-  border: 2px solid var(--sapphire-wash);
+}
+/* Save state: "Unsaved changes" hint beside the buttons; "Saved at …" reads as done. */
+.rx-modal .modal-actions {
+  flex-wrap: wrap;
+  align-items: center;
+}
+.rx-unsaved {
+  flex-basis: 100%;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--alert-ink, var(--alert));
+  margin-bottom: -4px;
+}
+.rx-save-btn.saved:disabled {
+  background: var(--surface);
+  color: var(--done-ink, var(--done));
+  border: 1px solid var(--line);
+  opacity: 1;
+  font-family: var(--font-mono);
+  font-size: 13px;
 }
 .rx-patient b {
   font-family: var(--font-serif);
@@ -233,17 +254,26 @@
 }
 .rx-print-head {
   display: grid;
-  grid-template-columns: 64px 1fr auto;
+  grid-template-columns: 84px 1fr auto;
   gap: 14px;
   align-items: center;
   border-bottom: 2px solid var(--sapphire-ink);
   padding-bottom: 10px;
 }
 .rx-print-logo {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  object-fit: cover;
+  width: 84px;
+  height: 88px;
+  object-fit: contain;
+}
+.rx-print-next {
+  margin-top: 14px;
+  font-size: 13px;
+  color: #333;
+}
+.rx-print-next b {
+  font-family: var(--font-mono), monospace;
+  font-weight: 600;
+  color: var(--sapphire-ink);
 }
 .rx-print-hosp h1 {
   font-family: var(--font-serif), Georgia, serif;

@@ -110,7 +110,7 @@ export default function Appointments() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [date]
   );
-  useTopbar({ sub: 'Appointments · booked via WhatsApp, call, or walk-in', actions });
+  useTopbar({ sub: 'Appointments · booked via WhatsApp, call, walk-in, or the doctor’s follow-up', actions });
 
   return (
     <div className="appt-wrap">
@@ -143,10 +143,17 @@ export default function Appointments() {
               <tr key={a.id} data-testid={`appt-row-${a.id}`} style={{ cursor: 'default' }}>
                 <td className="td-name">
                   <PatientLink id={a.patientId} name={a.name} />
+                  {a.note && <div className="appt-note">{a.note}</div>}
                 </td>
                 <td data-label="Phone">{a.phone || '—'}</td>
                 <td data-label="Channel">
-                  <span className={`channel-tag ${a.channel}`}>{CHANNEL_LABEL[a.channel] || a.channel}</span>
+                  {a.sourceVisitId ? (
+                    <span className="channel-tag followup" title="Booked by the doctor at the last visit">
+                      Follow-up
+                    </span>
+                  ) : (
+                    <span className={`channel-tag ${a.channel}`}>{CHANNEL_LABEL[a.channel] || a.channel}</span>
+                  )}
                 </td>
                 <td className="no-label appt-actions">
                   <button

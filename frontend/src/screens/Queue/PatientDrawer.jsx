@@ -14,6 +14,7 @@ import DilationChecklist from './DilationChecklist';
 import BillingPanel from './BillingPanel';
 import RegistrationDetails from './RegistrationDetails';
 import DispensePanel from './DispensePanel';
+import { DiagnosisPicker, FollowUpPicker, fmtFollowUp } from './DoctorPanel';
 import {
   dilationComplete,
   normalizeExamPhoto,
@@ -57,6 +58,14 @@ function pickDraft(row) {
   return d;
 }
 
+// The doctor's-panel fields of a visit (VisitOut or the normalised row).
+const pickDoc = (v) => ({
+  diagnosisId: v?.diagnosisId ?? null,
+  diagnosisName: v?.diagnosisName ?? null,
+  followUpDate: v?.followUpDate ?? null,
+  followUpNote: v?.followUpNote ?? '',
+});
+
 const hintStyle = { fontSize: 11, color: 'var(--ink-faint)', margin: '-4px 0 10px' };
 
 /* Patient drawer (mockup `openDrawer`): summary + the stage-specific section +
@@ -94,6 +103,12 @@ export default function PatientDrawer({
   const [paymentMode, setPaymentMode] = useState(null); // reported by BillingPanel
   const [rxLines, setRxLines] = useState(null); // null = not loaded → fall back to row.medicines
   const [rxOpen, setRxOpen] = useState(false);
+  // Diagnosis + follow-up as last saved from this drawer (or the modal); the row otherwise.
+  const [docState, setDocState] = useState({ id: null, d: null });
+  const doc = docState.id === row?.id ? docState.d : pickDoc(row);
+  const applyVisit = useCallback((v) => {
+    if (v && v.id != null) setDocState({ id: v.id, d: pickDoc(v) });
+  }, []);
   const pending = useRef({ row: null, patch: {} });
   const timer = useRef(null);
   const vaTimer = useRef(null);
@@ -202,6 +217,8 @@ export default function PatientDrawer({
     const own = (rowPhotos || []).map(normalizeExamPhoto);
     return own.length ? own : photos;
   }, [rowPhotos, photos]);
+  // What the prescription pop-up / print sees: the row with this drawer's latest diagnosis + follow-up.
+  const rxVisit = useMemo(() => (row ? { ...row, ...doc } : null), [row, doc]);
 
   if (!row || !draft) {
     return <Drawer open={false} onClose={onClose} />;
@@ -220,7 +237,7 @@ export default function PatientDrawer({
       onClose={onClose}
       foot="Everything here saves on its own — nothing to submit."
     >
-      <PatientSummary row={row} draft={draft} readings={allReadings} config={config} />
+      <PatientSummary row={row} draft={draft} readings={allReadings} config={config} doc={doc} />
 
       {stageKey === 'reg' && (
         <RegistrationDetails
@@ -269,12 +286,22 @@ export default function PatientDrawer({
 
       {stageKey === 'doctor' && (
         <div id="medsSection">
+          <DiagnosisPicker
+            visitId={row.id}
+            diagnosisId={doc.diagnosisId}
+            lines={rxLines ?? row.medicines}
+            onVisit={applyVisit}
+            onRx={(res) => {
+              if (Array.isArray(res?.lines)) setRxLines(res.lines);
+            }}
+            disabled={busy}
+          />
           <div className="field-label">Doctor&apos;s notes</div>
           <textarea
             className="fake-input"
             id="doctorNotesField"
             rows={2}
-            placeholder="Diagnosis, findings, follow-up plan…"
+            placeholder="Findings, advice…"
             value={draft.doctorNotes || ''}
             onChange={(e) => setField('doctorNotes', e.target.value)}
           />
@@ -285,6 +312,13 @@ export default function PatientDrawer({
           </p>
           <ExamPhotoList photos={allPhotos} />
           <RxSection lines={rxLines ?? row.medicines} onOpen={() => setRxOpen(true)} />
+          <FollowUpPicker
+            visitId={row.id}
+            followUpDate={doc.followUpDate}
+            followUpNote={doc.followUpNote}
+            onVisit={applyVisit}
+            disabled={busy}
+          />
         </div>
       )}
 
@@ -324,11 +358,12 @@ export default function PatientDrawer({
 
       {RX_STAGES.includes(stageKey) && rxOpen && (
         <PrescriptionModal
-          visit={row}
+          visit={rxVisit}
           onClose={() => setRxOpen(false)}
           onSaved={(res) => {
             if (Array.isArray(res?.lines)) setRxLines(res.lines);
           }}
+          onVisitChange={applyVisit}
         />
       )}
 
@@ -426,7 +461,7 @@ function RxSection({ lines, onOpen }) {
 }
 
 /* mockup renderPatientSummary */
-function PatientSummary({ row, draft, readings, config }) {
+function PatientSummary({ row, draft, readings, config, doc }) {
   const stage = row.stage;
   const cards = [];
   const p = { ...row, ...draft };
@@ -517,6 +552,27 @@ function PatientSummary({ row, draft, readings, config }) {
             {m.dosage ? ' — ' + m.dosage : ''}
           </div>
         ))}
+      </div>
+    );
+
+  // The doctor's plan: diagnosis once past the doctor, the booked follow-up from the doctor on.
+  const showDx = afterDoctor && doc?.diagnosisName;
+  const showFu = stage !== 'reg' && stage !== 'pretest' && doc?.followUpDate;
+  if (showDx || showFu)
+    cards.push(
+      <div className="summary-card" key="plan" id="doctorPlanCard">
+        <div className="summary-card-title">Doctor&apos;s plan</div>
+        {showDx && (
+          <div className="summary-line">
+            <b>Diagnosis:</b> {doc.diagnosisName}
+          </div>
+        )}
+        {showFu && (
+          <div className="summary-line" data-testid="summary-follow-up">
+            <b>Follow-up:</b> <span className="mono">{fmtFollowUp(doc.followUpDate)}</span>
+            {doc.followUpNote ? ` · ${doc.followUpNote}` : ''}
+          </div>
+        )}
       </div>
     );
 
