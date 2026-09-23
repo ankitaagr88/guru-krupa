@@ -7,14 +7,14 @@ import { patients as patientsApi } from '../api';
 /* Global patient search (mockup `openSearchModal` / `renderSearchResults` /
    `jumpToPatient`). Desktop/tablet: the always-visible box in the top bar
    (`TopbarSearch`, focused with "/" or Ctrl+K) drops the results under it.
-   Phone: the magnifier opens this modal. Picking a result navigates to
-   /queue/:stage?patient=:id — the Queue screen reads `?patient=` and opens
-   the drawer for that patient. */
+   Phone: the magnifier opens this modal. Picking someone in today's queue
+   navigates to /queue/:stage?patient=:id (the Queue screen reads `?patient=`
+   and opens their drawer); anyone else opens their record, /patients/:id. */
 
 export const SEARCH_PLACEHOLDER = 'Search patients by name, phone or token';
 
 export function jumpToPatientPath(p) {
-  return `/queue/${p.stage}?patient=${p.id}`;
+  return p.stage ? `/queue/${p.stage}?patient=${p.id}` : `/patients/${p.id}`;
 }
 
 /** Debounced patient search: results for `q` (first 10) while `enabled`. */
@@ -83,11 +83,16 @@ function SearchResults({ query, results, focus, setFocus, onPick, stages, id }) 
           <div>
             <div className="sr-name">{p.name}</div>
             <div className="sr-meta">
-              {p.token}
-              {p.phone ? ' · ' + p.phone : ''}
+              {[p.token, p.age != null ? `${p.age} y${p.sex ? ' · ' + p.sex : ''}` : p.sex, p.phone]
+                .filter(Boolean)
+                .join(' · ')}
             </div>
           </div>
-          <span className={`status-pill stage-${p.stage}`}>{stageLabel(p.stage)}</span>
+          {p.stage ? (
+            <span className={`status-pill stage-${p.stage}`}>{stageLabel(p.stage)}</span>
+          ) : (
+            <span className="sr-record">Patient record</span>
+          )}
         </div>
       ))}
     </div>

@@ -195,3 +195,14 @@ def test_dob_sets_age_and_is_validated(client, admin_headers):
     assert r.json()["dob"] is None and r.json()["age"] == 51
     # without a DOB the told age is kept as before
     assert client.post("/api/patients", json={"name": "Age Only", "age": 70}, headers=admin_headers).json()["age"] == 70
+
+
+def test_search_matches_phone_digits_whatever_the_spacing(client, admin_headers):
+    """A family typed once as "98250 22222" and once as "9825022222" both turn up for either spelling."""
+    for name, phone in (("Spacing Mother", "98250 22222"), ("Spacing Son", "9825022222"), ("Spacing Aunt", "+91-98250-22222")):
+        assert client.post("/api/patients", json={"name": name, "phone": phone}, headers=admin_headers).status_code == 201
+    for q in ("98250 222", "9825022", "98250-22222"):
+        names = {p["name"] for p in client.get("/api/patients", params={"q": q}, headers=admin_headers).json()}
+        assert {"Spacing Mother", "Spacing Son", "Spacing Aunt"} <= names, (q, names)
+    # a name search is unaffected by the digit rule
+    assert [p["name"] for p in client.get("/api/patients", params={"q": "Spacing Son"}, headers=admin_headers).json()] == ["Spacing Son"]

@@ -60,3 +60,18 @@ body.mobile-mode .appt-icon-btn {
 .modal input[type='date'].fake-input {
   margin-bottom: 12px;
 }
+
+/* "Another day" picker beside the heading (follow-ups land weeks ahead). */
+.appt-pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.appt-pick .fake-input {
+  width: auto;
+  margin: 0;
+  font-family: var(--font-mono);
+}

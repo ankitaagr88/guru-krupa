@@ -116,6 +116,16 @@ export default function Appointments() {
     <div className="appt-wrap">
       <div className="appt-head">
         <h2 id="apptHeading">{fmtDateLabel(date, true)}</h2>
+        {/* Follow-ups are booked weeks ahead; the strip only covers the next few days. */}
+        <label className="appt-pick">
+          Another day
+          <input
+            type="date"
+            className="fake-input"
+            value={date}
+            onChange={(e) => e.target.value && setDate(e.target.value)}
+          />
+        </label>
       </div>
       <p className="hint" style={{ margin: '-10px 0 16px' }}>
         No fixed time slots — this is just who&apos;s told us they&apos;re coming on a given day. Patients are

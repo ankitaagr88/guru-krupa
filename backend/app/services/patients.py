@@ -63,9 +63,13 @@ def search_patients(db: Session, q: str, limit: int = 20) -> list[Patient]:
     if not q:
         return []
     like = f"%{q.lower()}%"
-    stmt = (select(Patient)
-            .where(or_(func.lower(Patient.name).like(like), func.lower(Patient.phone).like(like)))
-            .order_by(Patient.name).limit(limit))
+    conds = [func.lower(Patient.name).like(like), func.lower(Patient.phone).like(like)]
+    # "98250 111" must also find "9825011111": compare phones on their digits alone.
+    digits = re.sub(r"\D", "", q)
+    if len(digits) >= 3:
+        bare = func.replace(func.replace(func.replace(Patient.phone, " ", ""), "-", ""), "+", "")
+        conds.append(bare.like(f"%{digits}%"))
+    stmt = select(Patient).where(or_(*conds)).order_by(Patient.name).limit(limit)
     return list(db.scalars(stmt))
 
 
