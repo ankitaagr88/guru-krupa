@@ -20,6 +20,7 @@ class MedicineOut(CamelModel):
     manufacturer: str | None
     display_name: str  # "Aquaray Gel (Carboxymethylcellulose sodium eye drops IP)"
     active: bool = True
+    price: int | None = None  # whole rupees per pack; None = not priced yet
 
 
 # --------------------------------------------------------------------------- prescriptions
@@ -49,6 +50,7 @@ class PrescriptionLineOut(CamelModel):
     dispensed_at: datetime | None = None
     dispensed_by: str | None = None
     in_stock: int | None = None  # current clinic stock of this medicine, None when not stocked
+    price: int | None = None  # the matched medicine's price per pack (what "Bought here" bills)
     form: str | None = None  # from the matched medicine; None for free-text lines
     form_label: str | None = None
 

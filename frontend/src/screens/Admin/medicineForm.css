@@ -21,3 +21,18 @@
   font-size: 13px;
   line-height: 18px;
 }
+/* Admin only: price per pack (whole rupees). */
+.med-form-price {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.med-form-price .fake-input {
+  font-family: var(--font-mono);
+  max-width: 180px;
+}

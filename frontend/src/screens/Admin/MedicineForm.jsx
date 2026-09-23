@@ -4,10 +4,11 @@ import './medicineForm.css';
 /* "Add a medicine" — one field, the medicine name, exactly as KiviHealth keeps
    it. Posted as `composition` (the server's required field; the display name
    defaults to it). Used inline in the prescription modal ("Add to medicine
-   list") and inside the Admin add-medicine modal. */
+   list") and inside the Admin add-medicine modal, where `withPrice` adds the optional
+   price per pack (whole rupees) that "Bought here" puts on the bill. */
 
 export function emptyMedicine(seed = {}) {
-  return { name: '', ...seed };
+  return { name: '', price: '', ...seed };
 }
 
 export default function MedicineForm({
@@ -17,6 +18,7 @@ export default function MedicineForm({
   busy = false,
   submitLabel = 'Add to list',
   idPrefix = 'medForm',
+  withPrice = false,
 }) {
   const [f, setF] = useState(() => emptyMedicine(initial));
   const [err, setErr] = useState('');
@@ -32,8 +34,13 @@ export default function MedicineForm({
       setErr('Type the medicine name.');
       return;
     }
+    const price = String(f.price ?? '').trim();
+    if (withPrice && price && !/^\d+$/.test(price)) {
+      setErr('Price is whole rupees, e.g. 120 — or leave it empty.');
+      return;
+    }
     setErr('');
-    onSubmit({ composition: name });
+    onSubmit(withPrice && price ? { composition: name, price: Number(price) } : { composition: name });
   };
 
   return (
@@ -49,6 +56,21 @@ export default function MedicineForm({
           autoFocus
         />
       </div>
+      {withPrice && (
+        <div className="med-form-row">
+          <label className="med-form-price" htmlFor={`${idPrefix}Price`}>
+            Price per pack (₹)
+            <input
+              className="fake-input"
+              id={`${idPrefix}Price`}
+              inputMode="numeric"
+              placeholder="Optional — e.g. 120"
+              value={f.price}
+              onChange={(e) => setF({ ...f, price: e.target.value })}
+            />
+          </label>
+        </div>
+      )}
       {err && (
         <p className="med-form-err" role="alert">
           {err}

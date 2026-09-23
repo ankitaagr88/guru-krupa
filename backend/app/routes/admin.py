@@ -322,7 +322,7 @@ def create_medicine(data: MedicineIn, db: Session = Depends(get_db), user: Staff
     try:
         med = svc.create_medicine(db, name=data.name, brand=data.brand, composition=data.composition, form=data.form,
                                   strength=data.strength, pack_size=data.pack_size, manufacturer=data.manufacturer,
-                                  by=user)
+                                  by=user, price=data.price)
     except svc.AdminError as exc:
         raise _http(exc)
     return _med_out(db, med)

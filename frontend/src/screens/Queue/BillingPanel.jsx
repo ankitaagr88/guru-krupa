@@ -1,19 +1,51 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useToast } from '../../components/Toast';
 import { billing as billingApi, errorMessage } from '../../api';
 import { PAYMENT_MODES, normalizeBill } from './queueModel';
+import ReceiptPrint from '../Billing/Receipt';
+import { BILL_CHANGED } from '../Billing/billEvents';
+import '../Billing/billing.css';
 
 /* Bill panel for the billing stage (mockup `renderBilling` / `addBillItem` /
    `removeBillItem` / `selectPaymentMode`). Self-contained (lane B owns it): loads and
    saves the visit's bill itself. The drawer only passes the visit and hears back which
    payment mode was picked (`onPaymentMode`) for its "Mark visit complete" button.
    `fallbackBill` is the bill embedded in the queue row, shown until the fetch lands;
-   `refreshKey` bumps after every board reload. */
+   `refreshKey` bumps after every board reload.
+
+   Works like a till: one tap adds a standard charge (Admin › Standard charges); "Bought
+   here" in the medicines panel above puts the medicine on the bill on the server and
+   announces it with a `gk:bill-changed` window event, so the panel reloads. Every amount
+   can be changed (a discount, or a medicine that has no price yet). Paying gives the bill
+   a receipt number and a "Print receipt" button. */
+
+const itemBody = (it) => ({
+  label: it.label,
+  amount: Math.max(0, Math.round(Number(it.amount) || 0)),
+  kind: it.kind || 'other',
+  qty: Math.max(1, Number(it.qty) || 1),
+  standardChargeId: it.standardChargeId ?? null,
+  prescriptionLineId: it.prescriptionLineId ?? null,
+});
+
 export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaymentMode, busy = false }) {
   const toast = useToast();
   const [bill, setBill] = useState(() => normalizeBill(fallbackBill));
+  const [charges, setCharges] = useState([]);
+  const [printing, setPrinting] = useState(null);
   const report = useRef(onPaymentMode);
   report.current = onPaymentMode;
+
+  const load = useCallback(
+    () =>
+      billingApi
+        .get(visitId)
+        .then((b) => setBill(normalizeBill(b)))
+        .catch((err) => {
+          if (err?.response?.status === 404) setBill((b) => b || normalizeBill(null));
+        }),
+    [visitId]
+  );
 
   useEffect(() => {
     let alive = true;
@@ -28,6 +60,24 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
   }, [visitId, refreshKey]);
 
   useEffect(() => {
+    const onChanged = (e) => {
+      if (Number(e.detail?.visitId) === Number(visitId)) load();
+    };
+    window.addEventListener(BILL_CHANGED, onChanged);
+    return () => window.removeEventListener(BILL_CHANGED, onChanged);
+  }, [visitId, load]);
+
+  useEffect(() => {
+    let alive = true;
+    (billingApi.charges ? billingApi.charges() : Promise.resolve([]))
+      .then((rows) => alive && setCharges(rows || []))
+      .catch(() => alive && setCharges([]));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
     report.current?.(bill?.paymentMode || null);
   }, [bill?.paymentMode]);
 
@@ -35,9 +85,7 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
     const prev = bill;
     setBill(next);
     try {
-      const body = {
-        items: next.items.map((it) => ({ label: it.label, amount: Math.round(Number(it.amount) || 0) })),
-      };
+      const body = { items: next.items.map(itemBody) };
       if (next.paymentMode) body.paymentMode = next.paymentMode;
       let saved = await billingApi.save(visitId, body);
       if (pay && next.paymentMode) saved = await billingApi.pay(visitId, next.paymentMode);
@@ -55,6 +103,9 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
   const [error, setError] = useState('');
   const items = bill?.items || [];
   const total = items.reduce((s, it) => s + Number(it.amount || 0), 0);
+  const unpriced = items.filter(
+    (it) => it.priceMissing ?? (it.kind === 'medicine' && Number(it.amount) === 0)
+  );
 
   const add = () => {
     const l = label.trim();
@@ -64,61 +115,117 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
       return;
     }
     setError('');
-    onItems([...items, { label: l, amount: Math.round(a) }]);
+    onItems([...items, { label: l, amount: Math.round(a), kind: 'other', qty: 1 }]);
     setLabel('');
     setAmount('');
   };
+  const addCharge = (ch) =>
+    onItems([
+      ...items,
+      { label: ch.label, amount: ch.amount, kind: 'charge', qty: 1, standardChargeId: ch.id },
+    ]);
   const remove = (i) => onItems(items.filter((_, j) => j !== i));
+  const reprice = (i, value) => {
+    const n = Math.round(Number(value));
+    if (Number.isNaN(n) || n < 0 || n === Number(items[i].amount)) return;
+    onItems(items.map((it, j) => (j === i ? { ...it, amount: n, priceMissing: false } : it)));
+  };
+
+  const onBill = new Set(items.map((it) => it.standardChargeId).filter((x) => x != null));
+  const modeLabel = PAYMENT_MODES.find((m) => m.key === bill?.paymentMode)?.label || bill?.paymentMode;
 
   return (
     <div id="billingSection">
       <div className="field-label">Bill</div>
+      {charges.length > 0 ? (
+        <div className="bill-charges" role="group" aria-label="Add a standard charge">
+          {charges.map((ch) => (
+            <button
+              key={ch.id}
+              type="button"
+              className="charge-chip"
+              data-testid={`charge-chip-${ch.id}`}
+              onClick={() => addCharge(ch)}
+              disabled={busy || onBill.has(ch.id)}
+              title={onBill.has(ch.id) ? 'Already on the bill' : `Add ${ch.label} to the bill`}
+            >
+              {ch.label} <span className="mono">₹{ch.amount}</span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p className="charge-chip-empty">
+          No standard charges yet — Admin › Standard charges adds them here.
+        </p>
+      )}
       {items.length > 0 && (
-        <table className="data-table" id="billTable" style={{ marginBottom: 8 }}>
+        <table className="bill-lines" id="billTable" style={{ marginBottom: 8 }}>
           <tbody id="billItems">
-            {items.map((it, i) => (
-              <tr key={i} style={{ cursor: 'default' }}>
-                <td>{it.label}</td>
-                <td
-                  data-label="Amount"
-                  style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 500 }}
+            {items.map((it, i) => {
+              const needsPrice = unpriced.includes(it);
+              return (
+                <tr
+                  key={it.id ?? `${it.label}-${i}`}
+                  className={`bill-line${needsPrice ? ' needs-price' : ''}`}
+                  style={{ cursor: 'default' }}
+                  data-testid="bill-line"
                 >
-                  ₹{it.amount}
-                </td>
-                <td className="no-label" style={{ width: '1%' }}>
-                  <button
-                    type="button"
-                    onClick={() => remove(i)}
-                    aria-label={`Remove ${it.label}`}
-                    disabled={busy}
-                    style={{ background: 'none', border: 'none', color: 'var(--ink-faint)', cursor: 'pointer' }}
-                  >
-                    ✕
-                  </button>
-                </td>
-              </tr>
-            ))}
+                  <td className="bill-line-label">
+                    {it.label}
+                    {needsPrice && <small>Price not set — type the amount</small>}
+                  </td>
+                  <td data-label="Amount" style={{ textAlign: 'right' }}>
+                    <AmountInput
+                      value={it.amount}
+                      onCommit={(v) => reprice(i, v)}
+                      label={it.label}
+                      disabled={busy}
+                    />
+                  </td>
+                  <td className="no-label" style={{ width: '1%' }}>
+                    <button
+                      type="button"
+                      className="bill-del"
+                      onClick={() => remove(i)}
+                      aria-label={`Remove ${it.label}`}
+                      disabled={busy}
+                    >
+                      ✕
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}
+      {unpriced.length > 0 && (
+        <p className="bill-price-note" data-testid="price-not-set">
+          {unpriced.length === 1 ? 'One medicine has' : `${unpriced.length} medicines have`} no price yet —
+          type the amount on the bill. To fill it in automatically next time, set a price per pack in Admin ›
+          Medicines.
+        </p>
+      )}
       <div className="bill-total" id="billTotal">
         <span>Total</span>
-        <span>₹{total}</span>
+        <span className="mono">₹{total}</span>
       </div>
       <div className="bill-add-row">
         <input
           className="fake-input"
           id="billItemLabel"
-          placeholder="Item — e.g. Consultation fee"
+          placeholder="Item — e.g. Eye patch"
+          aria-label="Other item"
           value={label}
           onChange={(e) => setLabel(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && add()}
           style={{ marginBottom: 0 }}
         />
         <input
-          className="fake-input"
+          className="fake-input mono"
           id="billItemAmount"
           placeholder="₹"
+          aria-label="Other item amount"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && add()}
@@ -151,6 +258,53 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
           </button>
         ))}
       </div>
+      {bill?.paid && (
+        <div className="bill-paid" data-testid="bill-paid">
+          <span>
+            Paid · {modeLabel}
+            {bill.receiptNo && (
+              <>
+                {' '}
+                · Receipt <span className="mono">{bill.receiptNo}</span>
+              </>
+            )}
+          </span>
+          <button
+            type="button"
+            className="btn-primary sm"
+            onClick={() => setPrinting({ ...bill, items, total })}
+            disabled={!!printing}
+          >
+            Print receipt
+          </button>
+        </div>
+      )}
+      {printing && <ReceiptPrint bill={printing} onDone={() => setPrinting(null)} />}
     </div>
+  );
+}
+
+/** An amount on the bill that reception can change (discount, unpriced medicine). Commits on
+    blur / Enter; Escape puts the old amount back. */
+function AmountInput({ value, onCommit, label, disabled }) {
+  const [draft, setDraft] = useState(String(value ?? 0));
+  useEffect(() => setDraft(String(value ?? 0)), [value]);
+  return (
+    <span className="bill-amount">
+      ₹
+      <input
+        type="text"
+        inputMode="numeric"
+        aria-label={`Amount for ${label}`}
+        value={draft}
+        disabled={disabled}
+        onChange={(e) => setDraft(e.target.value.replace(/[^\d]/g, ''))}
+        onBlur={() => draft !== String(value ?? 0) && draft !== '' && onCommit(draft)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur();
+          else if (e.key === 'Escape') setDraft(String(value ?? 0));
+        }}
+      />
+    </span>
   );
 }
