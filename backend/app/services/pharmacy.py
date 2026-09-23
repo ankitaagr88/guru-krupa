@@ -19,6 +19,7 @@ from app.models.pharmacy import (INVENTORY_UNITS, STOCK_REASONS, Diagnosis, Inve
 from app.models.staff import Staff
 from app.schemas.pharmacy import (InventoryItemOut, MedicineOut, MovementOut,
                                   PrescriptionLineIn, PrescriptionLineOut, PrescriptionOut, PrintLine, PrintPayload)
+from app.services import billing as billing_svc
 
 HOSPITAL = {
     "name": "Guru Krupa Eye Hospital & Laser Center",
@@ -190,7 +191,8 @@ def medicine_out(m: Medicine, labels: dict[str, str] | None = None) -> MedicineO
     labels = labels or {}
     return MedicineOut(id=m.id, name=m.name, brand=m.brand, composition=m.composition, form=m.form,
                        form_label=labels.get(m.form, m.form), strength=m.strength, pack_size=m.pack_size,
-                       manufacturer=m.manufacturer, display_name=m.display_name, active=m.active)
+                       manufacturer=m.manufacturer, display_name=m.display_name, active=m.active,
+                       price=m.price)
 
 
 def find_medicine(db: Session, text: str) -> Medicine | None:
@@ -269,6 +271,8 @@ def save_prescription(db: Session, visit: Visit, lines: list[PrescriptionLineIn]
         for key, old in confirmed.items():
             if key not in new_names:
                 _undo_dispense_stock(db, rx, old, staff_id)
+        # Bill lines from "Bought here" follow their medicine onto the new lines (or leave the bill).
+        billed = billing_svc.detach_medicine_lines(db, visit, list(rx.lines))
         for old in list(rx.lines):
             db.delete(old)
         db.flush()
@@ -282,6 +286,8 @@ def save_prescription(db: Session, visit: Visit, lines: list[PrescriptionLineIn]
                                              dispensed_qty=keep.dispensed_qty if keep else 0,
                                              dispensed_at=keep.dispensed_at if keep else None,
                                              dispensed_by_id=keep.dispensed_by_id if keep else None))
+        db.flush()
+        billing_svc.reattach_medicine_lines(db, visit, billed, rx.lines[len(rx.lines) - len(lines):])
         db.add(AuditLog(staff_id=staff_id, action="prescription.save", entity="prescription", entity_id=rx.id,
                         detail={"visitId": visit.id, "lines": len(lines)}))
         db.commit()
@@ -320,6 +326,7 @@ def dispense_line(db: Session, rx: Prescription, line: PrescriptionLine, qty: in
     line.dispensed_qty = qty
     line.dispensed_at = utcnow()
     line.dispensed_by_id = staff_id
+    billing_svc.sync_medicine_line(db, rx.visit, line)  # onto the bill: qty × price (0 = price not set)
     db.add(AuditLog(staff_id=staff_id, action="prescription.dispense", entity="prescription_line", entity_id=line.id,
                     detail={"qty": qty, "item": item.name, "stock": item.stock}))
     db.commit()
@@ -339,6 +346,7 @@ def undo_dispense(db: Session, rx: Prescription, line: PrescriptionLine, by: Sta
     line.dispensed_qty = 0
     line.dispensed_at = None
     line.dispensed_by_id = None
+    billing_svc.drop_medicine_line(db, rx.visit, line.id)
     db.commit()
     return line
 
@@ -360,7 +368,8 @@ def prescription_out(db: Session, rx: Prescription, low: list[InventoryItem] | N
                                          dosage=ln.dosage, qty_given=ln.qty_given, form=form, form_label=form_label,
                                          dispensed_qty=ln.dispensed_qty, dispensed_at=ln.dispensed_at,
                                          dispensed_by=ln.dispensed_by.name if ln.dispensed_by else None,
-                                         in_stock=item.stock if item is not None else None))
+                                         in_stock=item.stock if item is not None else None,
+                                         price=ln.medicine.price if ln.medicine is not None else None))
     return PrescriptionOut(id=rx.id, visit_id=rx.visit_id, print_language=rx.print_language, created_at=rx.created_at,
                            diagnosis_id=rx.diagnosis_id, diagnosis_name=rx.diagnosis.name if rx.diagnosis else None,
                            lines=lines, low_stock=[it.name for it in (low or [])])

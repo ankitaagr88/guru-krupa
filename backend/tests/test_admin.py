@@ -206,7 +206,7 @@ def test_staff_create_duplicate_last_admin(client, admin_headers, admin_user, db
 
 
 MED_KEYS = {"id", "name", "brand", "composition", "form", "formLabel", "strength", "packSize", "manufacturer", "active",
-            "displayName"}
+            "displayName", "price"}
 
 
 def test_medicine_forms_crud(client, admin_headers, db):
@@ -265,7 +265,7 @@ def test_medicines_crud_soft_delete(client, admin_headers, db):
     assert m == {"id": mid, "name": "Testbrand Eye Drops", "brand": "Testbrand Eye Drops",
                  "composition": "Ketorolac tromethamine 0.5%", "form": "drops", "formLabel": "Drops",
                  "strength": "0.5%", "packSize": "5 ml", "manufacturer": "Sun Pharma",
-                 "displayName": "Testbrand Eye Drops (Ketorolac tromethamine 0.5%)", "active": True}
+                 "displayName": "Testbrand Eye Drops (Ketorolac tromethamine 0.5%)", "active": True, "price": None}
     # duplicate name (case-insensitive) -> 409; unknown form -> 422; composition required -> 422
     assert client.post("/api/admin/medicines", json={"brand": "testbrand eye drops", "composition": "x"},
                        headers=admin_headers).status_code == 409
@@ -290,6 +290,11 @@ def test_medicines_crud_soft_delete(client, admin_headers, db):
     assert client.patch(f"/api/admin/medicines/{mid}", json={"name": "aquaray gel"}, headers=admin_headers).status_code == 409
     assert client.patch("/api/admin/medicines/999999", json={"name": "x"}, headers=admin_headers).status_code == 404
     assert client.get(f"/api/admin/medicines/{mid}", headers=admin_headers).json()["packSize"] == "10 ml"
+    # price per pack: set, left alone by other patches, cleared with null, never negative
+    assert client.patch(f"/api/admin/medicines/{mid}", json={"price": 120}, headers=admin_headers).json()["price"] == 120
+    assert client.patch(f"/api/admin/medicines/{mid}", json={"packSize": "10 ml"}, headers=admin_headers).json()["price"] == 120
+    assert client.patch(f"/api/admin/medicines/{mid}", json={"price": None}, headers=admin_headers).json()["price"] is None
+    assert client.patch(f"/api/admin/medicines/{mid}", json={"price": -5}, headers=admin_headers).status_code == 422
 
     # soft delete: gone from the picker and the default admin list, still present with includeInactive
     assert client.delete(f"/api/admin/medicines/{gid}", headers=admin_headers).status_code == 204

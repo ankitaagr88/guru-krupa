@@ -147,6 +147,7 @@ class MedicineIn(CamelModel):
     strength: str | None = Field(default=None, max_length=40)
     pack_size: str | None = Field(default=None, max_length=30)
     manufacturer: str | None = Field(default=None, max_length=120)
+    price: int | None = Field(default=None, ge=0)  # whole rupees per pack; "Bought here" bills it
 
 
 class MedicinePatch(CamelModel):
@@ -158,6 +159,7 @@ class MedicinePatch(CamelModel):
     pack_size: str | None = Field(default=None, max_length=30)
     manufacturer: str | None = Field(default=None, max_length=120)
     active: bool | None = None
+    price: int | None = Field(default=None, ge=0)  # null clears it (not priced)
 
 
 # --------------------------------------------------------------------------- /config

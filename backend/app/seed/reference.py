@@ -2,6 +2,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.billing import StandardCharge
 from app.models.config import LensTier, ProtocolStep, ReferralSource, Stage
 from app.models.ot import OtProcedure, OtSlot
 from app.models.pharmacy import Diagnosis, InventoryItem, Medicine, MedicineForm, guess_medicine_form
@@ -128,6 +129,10 @@ OT_PROCEDURES = [
 ]
 
 
+# Starter one-tap bill charges. Amounts start at 0 — Dr Anu sets the real fees in Admin.
+STANDARD_CHARGES = ["Consultation", "Follow-up consultation", "Pre-test", "Dilation"]
+
+
 def _upsert(db: Session, model, lookup: dict, **values):
     row = db.scalar(select(model).filter_by(**lookup))
     if row is None:
@@ -164,6 +169,10 @@ def seed_reference(db: Session) -> None:
     if db.scalar(select(OtProcedure)) is None:
         for i, name in enumerate(OT_PROCEDURES):
             db.add(OtProcedure(name=name, active=True, sort_order=i))
+    # Standard charges: seeded once; afterwards Admin owns them.
+    if db.scalar(select(StandardCharge)) is None:
+        for i, label in enumerate(STANDARD_CHARGES):
+            db.add(StandardCharge(label=label, amount=0, active=True, sort_order=i))
     medicines = {}
     for row in medicine_rows():
         name = row.pop("name")

@@ -409,7 +409,8 @@ def _medicine_name_taken(db: Session, name: str, exclude_id: int | None = None) 
 
 
 def create_medicine(db: Session, *, name: str | None, brand: str | None, composition: str, form: str,
-                    strength: str | None, pack_size: str | None, manufacturer: str | None, by) -> Medicine:
+                    strength: str | None, pack_size: str | None, manufacturer: str | None, by,
+                    price: int | None = None) -> Medicine:
     """A pack as an MR brings it. `name` (unique display name) defaults to brand, else composition."""
     brand = (brand or "").strip() or None
     composition = composition.strip()
@@ -419,7 +420,7 @@ def create_medicine(db: Session, *, name: str | None, brand: str | None, composi
         raise Conflict(f"Medicine '{name}' already exists")
     med = Medicine(name=name, brand=brand, composition=composition, form=form,
                    strength=(strength or "").strip() or None, pack_size=(pack_size or "").strip() or None,
-                   manufacturer=(manufacturer or "").strip() or None, active=True)
+                   manufacturer=(manufacturer or "").strip() or None, price=price, active=True)
     db.add(med)
     db.flush()
     _audit(db, by, "medicine.create", "medicine", med.id, name=name, brand=brand, composition=composition, form=form)
@@ -429,6 +430,11 @@ def create_medicine(db: Session, *, name: str | None, brand: str | None, composi
 
 def update_medicine(db: Session, med: Medicine, values: dict, by) -> Medicine:
     values = dict(values)
+    changed = {}
+    if "price" in values:  # null is meaningful here: it clears the price
+        price = values.pop("price")
+        if price != med.price:
+            med.price = changed["price"] = price
     for k in ("name", "brand", "composition", "strength", "pack_size", "manufacturer"):
         if isinstance(values.get(k), str):
             values[k] = values[k].strip()
@@ -440,7 +446,6 @@ def update_medicine(db: Session, med: Medicine, values: dict, by) -> Medicine:
         del values["name"]
     if values.get("composition") == "":
         del values["composition"]
-    changed = {}
     for k, v in values.items():
         if v is None:
             continue
