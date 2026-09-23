@@ -66,5 +66,7 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./src/test/setup.js'],
     css: false,
+    // The long screen click-throughs (Admin, import) run past 5 s on a busy PC.
+    testTimeout: 15000,
   },
 });
