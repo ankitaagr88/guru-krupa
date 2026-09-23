@@ -1,14 +1,17 @@
 import ConditionGrid, { PillToggle, ElsewhereToggle } from './ConditionGrid';
 import { LANGUAGES, SEXES, numOrNull, referralNeedsDetail } from './queueModel';
 import DobAgeFields from '../Patient/DobAgeFields';
+import RegistrationFamily from '../Patient/RegistrationFamily';
 import { ageFromDob, dobProblem } from '../../lib/format';
 
 const hintStyle = { fontSize: 11, color: 'var(--ink-faint)', margin: '-4px 0 10px' };
 
 /* Registration-stage "Patient details" block of the queue drawer (lane A owns this file).
    Everything autosaves through the drawer: `setField(key, value, {immediate})` for one field,
-   `setDraft` + `queueSave(patch, {immediate})` when two fields change together. */
-export default function RegistrationDetails({ draft, config, setField, setDraft, queueSave }) {
+   `setDraft` + `queueSave(patch, {immediate})` when two fields change together.
+   Under the phone: the family on that number (`patientId` = the visit's patient) — the relation
+   to the number's owner, or "Part of the ... family?" when others already use the number. */
+export default function RegistrationDetails({ draft, config, setField, setDraft, queueSave, patientId = null }) {
   const needsDetail = referralNeedsDetail(config.referralSources, draft.referralSource);
   return (
     <div id="elsewhereSection">
@@ -28,6 +31,7 @@ export default function RegistrationDetails({ draft, config, setField, setDraft,
         onChange={(e) => setField('phone', e.target.value)}
         inputMode="tel"
       />
+      {patientId != null && <RegistrationFamily patientId={patientId} phone={draft.phone} />}
       <DobAgeFields
         dob={draft.dob || ''}
         age={draft.age}

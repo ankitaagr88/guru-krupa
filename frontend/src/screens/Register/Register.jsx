@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { useToast } from '../../components/Toast';
 import { intake as intakeApi, reception as receptionApi, visits as visitsApi, errorMessage } from '../../api';
-import { ageFromDob, ageSexLabel, dobProblem, fmtDob, localIso, MAX_AGE_YEARS, phoneKey } from '../../lib/format';
+import { ageFromDob, dobProblem, localIso, MAX_AGE_YEARS, phoneKey } from '../../lib/format';
+import { SamePhonePrompt, useRelations } from '../Patient/familyParts';
 import { HOSPITAL_PRINT } from '../Prescription/hospital';
 import { LANGUAGES, numOrNull, referralNeedsDetail } from '../Queue/queueModel';
 import { UI_LANGS, listLabel, t as tr } from './strings';
@@ -15,8 +16,9 @@ import './register.css';
      phone, in English / Gujarati / Hindi. On send they are put in today's queue at the first
      stage (the visit note tells reception to check the details) and see their token number.
    - STAFF, signed in: the person at the desk fills the same questions for a patient who can't.
-     The same-phone check (as on "New patient") offers "Use this patient"; after sending, the form
-     is empty again for the next person.
+     The same-phone check (as on "New patient") offers "Use this patient" or "Add as a family
+     member" (joins the number's family with their relation); after sending, the form is empty
+     again for the next person. The public page never shows or links anyone.
    The questions are the reception "New patient" form's; the lists come from Admin. Every word is
    in ./strings.js. */
 
@@ -129,6 +131,10 @@ export default function Register() {
     };
   }, [staff, key]);
   const matches = staff && key.length >= 10 && same.key === key && dismissed !== key ? same.rows : [];
+  // Staff "Add as a family member": {key (phone key it was chosen for), ownerId, ownerName, relationKey}
+  const [fam, setFam] = useState(null);
+  const famChoice = staff && fam && fam.key === key ? fam : null;
+  const relations = useRelations(staff);
 
   const set = (k, v) => {
     setD((x) => ({ ...x, [k]: v }));
@@ -143,6 +149,7 @@ export default function Register() {
     setFormError('');
     setSame({ key: '', rows: [] });
     setDismissed('');
+    setFam(null);
     window.scrollTo?.({ top: 0 });
   };
 
@@ -197,6 +204,8 @@ export default function Register() {
         existingConditions: d.existingConditions.slice(),
         conditionOther: d.conditionOther.trim(),
         website: d.website,
+        // Staff only: "Add as a family member" (the public page never shows the prompt).
+        ...(staff && famChoice ? { familyOwnerId: famChoice.ownerId, relationKey: famChoice.relationKey || null } : {}),
       });
       if (staff) {
         toast.success(`${name} added to the queue`, res?.token ? `Token ${res.token}` : undefined);
@@ -336,36 +345,26 @@ export default function Register() {
                 aria-invalid={!!errors.phone}
               />
             </Question>
-            {matches.length > 0 && (
-              <div className="same-phone reg-same-phone" role="region" aria-label="Already registered with this number" data-testid="same-phone">
-                <p className="same-phone-title">Already registered with this number: is it one of these?</p>
-                {matches.map((m) => (
-                  <div key={m.id} className="same-phone-row" data-testid={`same-phone-${m.id}`}>
-                    <div className="same-phone-who">
-                      <span className="same-phone-name">{m.name}</span>
-                      <span className="same-phone-meta">
-                        {ageSexLabel(m)}
-                        {m.visitId
-                          ? ` · in today's queue${m.token ? ` · ${m.token}` : ''}`
-                          : m.lastVisitDate
-                            ? ` · last visit ${fmtDob(String(m.lastVisitDate).slice(0, 10))}`
-                            : ' · no visit yet'}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      className="btn-primary"
-                      onClick={() => registerExisting(m)}
-                      disabled={using != null || busy}
-                    >
-                      {m.visitId ? "Open today's visit" : using === m.id ? 'Adding…' : 'Use this patient'}
-                    </button>
-                  </div>
-                ))}
-                <button type="button" className="link-btn same-phone-no" onClick={() => setDismissed(key)}>
-                  No, a new patient
-                </button>
-              </div>
+            {staff && (
+              <SamePhonePrompt
+                className="reg-same-phone"
+                idPrefix="reg"
+                matches={matches}
+                choice={famChoice}
+                onChoice={(c) => setFam(c ? { ...c, key } : null)}
+                onDismiss={() => setDismissed(key)}
+                relations={relations}
+                renderUse={(m) => (
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => registerExisting(m)}
+                    disabled={using != null || busy}
+                  >
+                    {m.visitId ? "Open today's visit" : using === m.id ? 'Adding…' : 'Use this patient'}
+                  </button>
+                )}
+              />
             )}
 
             <div className="reg-q">

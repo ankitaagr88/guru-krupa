@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Modal from './Modal';
 import { IconSearch } from './Icons';
 import { patients as patientsApi } from '../api';
+import { familyLine } from '../screens/Patient/familyParts';
 
 /* Global patient search (mockup `openSearchModal` / `renderSearchResults` /
    `jumpToPatient`). Desktop/tablet: the always-visible box in the top bar
@@ -87,6 +88,7 @@ function SearchResults({ query, results, focus, setFocus, onPick, stages, id }) 
                 .filter(Boolean)
                 .join(' · ')}
             </div>
+            {p.familyOwnerId && <div className="family-line">{familyLine(p, { short: true })}</div>}
           </div>
           {p.stage ? (
             <span className={`status-pill stage-${p.stage}`}>{stageLabel(p.stage)}</span>

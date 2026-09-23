@@ -246,6 +246,7 @@ export default function PatientDrawer({
           setField={setField}
           setDraft={setDraft}
           queueSave={queueSave}
+          patientId={row.patientId}
         />
       )}
 
