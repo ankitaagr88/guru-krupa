@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { admin as adminApi, fees as feesApi } from '../../api';
 import { EditableText, ReorderBtns } from './pieces';
+import { emergencyWhen } from '../Queue/visitKind';
 import './visitFees.css';
 
 /* Admin › Visit types & fee rules (lane E2 owns this file): new patient / follow-up / new case /
@@ -25,6 +26,7 @@ export function VisitFeesSection({ run }) {
   const [draft, setDraft] = useState(null);
   const [label, setLabel] = useState('');
   const [chargeId, setChargeId] = useState('');
+  const [editing, setEditing] = useState(false); // the rules show as plain sentences until "Change the rules"
 
   const load = async () => {
     if (!feesApi?.admin) return;
@@ -129,9 +131,15 @@ export function VisitFeesSection({ run }) {
     ['freeFollowUpDays', 'newCaseAfterDays', 'postOpDays'].forEach((k) => {
       body[k] = Number(body[k]);
     });
-    doRun(() => feesApi.admin.saveRules(body), 'Fee rules saved');
+    doRun(() => feesApi.admin.saveRules(body), 'Fee rules saved').then((ok) => ok && setEditing(false));
+  };
+  const cancelRules = () => {
+    setDraft(rules ? { ...rules } : null);
+    setEditing(false);
   };
   const activeKinds = kinds.filter((k) => k.active !== false);
+  const kindName = (key) => kinds.find((k) => k.key === key)?.label || key;
+  const months = (d) => Math.round(Number(d) / 30.4);
 
   return (
     <section className="admin-block" aria-labelledby="h-visitfees">
@@ -244,7 +252,45 @@ export function VisitFeesSection({ run }) {
       </form>
 
       <h3 className="fee-subhead">Rules that pick the visit type</h3>
-      {draft ? (
+      {rules && !editing && (
+        <div className="fee-rules" data-testid="fee-rules-summary">
+          <ul className="fee-rule-summary">
+            <li>
+              First visit: <b>{kindName(rules.newPatientKind)}</b>.
+            </li>
+            <li>
+              Back within <span className="mono">{rules.freeFollowUpDays}</span> days of the last visit:{' '}
+              <b>{kindName(rules.freeFollowUpKind)}</b>. Up to{' '}
+              <span className="mono">{rules.newCaseAfterDays}</span> days (about{' '}
+              {months(rules.newCaseAfterDays)} months): <b>{kindName(rules.followUpKind)}</b>. Longer, or a
+              different problem: <b>{kindName(rules.newCaseKind)}</b>.
+            </li>
+            <li className="fee-rule-confirm">
+              After surgery: <b>{kindName(rules.postOpKind)}</b> for{' '}
+              <span className="mono">{rules.postOpDays}</span> days after the surgery date.{' '}
+              <span className="status-pill alert fee-confirm-tag">To confirm with Dr Anu</span>
+            </li>
+            <li>
+              Emergency fee
+              {rules.emergencyChargeId != null ? (
+                <>
+                  {' '}
+                  (<b>{chargeName(rules.emergencyChargeId) || 'charge switched off'}</b>) suggested for{' '}
+                  {emergencyWhen(rules) || 'no hours'}.
+                </>
+              ) : (
+                ': not suggested.'
+              )}
+            </li>
+          </ul>
+          <div className="fee-rule-actions">
+            <button type="button" className="btn-ghost" onClick={() => setEditing(true)}>
+              Change the rules
+            </button>
+          </div>
+        </div>
+      )}
+      {editing && draft && (
         <form className="fee-rules" onSubmit={saveRules} data-testid="fee-rules-form">
           <div className="fee-rule">
             <p className="fee-rule-text">
@@ -255,8 +301,8 @@ export function VisitFeesSection({ run }) {
           <div className="fee-rule">
             <p className="fee-rule-text">
               Back after more than {dayInput('newCaseAfterDays', 'New case after days')} days: <b>new case</b>{' '}
-              <span className="fee-rule-aside">(182 days is about 6 months)</span>. In between:{' '}
-              <b>follow-up</b>.
+              <span className="fee-rule-aside">(about {months(draft.newCaseAfterDays)} months)</span>. In
+              between: <b>follow-up</b>.
             </p>
           </div>
           <div className="fee-rule fee-rule-confirm">
@@ -334,16 +380,13 @@ export function VisitFeesSection({ run }) {
             <button className="btn-primary" type="submit" disabled={!dirty}>
               Save fee rules
             </button>
-            {dirty && (
-              <button type="button" className="btn-ghost" onClick={() => setDraft({ ...rules })}>
-                Undo changes
-              </button>
-            )}
+            <button type="button" className="btn-ghost" onClick={cancelRules}>
+              Cancel
+            </button>
           </div>
         </form>
-      ) : (
-        <p className="hint">Loading the fee rules…</p>
       )}
+      {!rules && <p className="hint">Loading the fee rules…</p>}
     </section>
   );
 }

@@ -134,7 +134,14 @@ describe('Admin › Visit types & fee rules', () => {
     expect(within(section()).getByLabelText('Charge for After surgery')).toHaveDisplayValue(
       'Free — no charge'
     );
-    expect(within(section()).getByText('To confirm with Dr Anu')).toBeInTheDocument();
+    // the rules read as plain sentences, with the surgery rule flagged
+    const summary = within(section()).getByTestId('fee-rules-summary');
+    expect(summary).toHaveTextContent('Back within 6 days of the last visit: Follow-up · free');
+    expect(summary).toHaveTextContent(
+      'Emergency fee (Emergency · ₹1,000) suggested for 8 pm – 8 am and Sundays'
+    );
+    expect(within(summary).getByText('To confirm with Dr Anu')).toBeInTheDocument();
+    await userEvent.click(within(section()).getByRole('button', { name: 'Change the rules' }));
 
     const days = within(section()).getByLabelText('Free follow-up days');
     expect(days).toHaveValue('6');
@@ -146,6 +153,10 @@ describe('Admin › Visit types & fee rules', () => {
     await userEvent.click(within(section()).getByRole('button', { name: 'Save fee rules' }));
     await waitFor(async () => expect((await fees.rules()).freeFollowUpDays).toBe(7));
     expect((await fees.rules()).emergencyFrom).toBe('21:00');
+    await waitFor(() =>
+      expect(within(section()).getByTestId('fee-rules-summary')).toHaveTextContent('Back within 7 days')
+    );
+    await userEvent.click(within(section()).getByRole('button', { name: 'Change the rules' }));
 
     // rules that don't add up are refused with a plain message
     const newCase = within(section()).getByLabelText('New case after days');

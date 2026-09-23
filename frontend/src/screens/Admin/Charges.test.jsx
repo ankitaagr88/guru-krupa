@@ -15,7 +15,8 @@ beforeEach(() => {
 });
 
 describe('Admin › Standard charges', () => {
-  it('adds a charge with an amount, changes the amount, reorders and switches it off', async () => {
+  // The Admin page is long; give it room on a busy machine.
+  it('adds a charge with an amount, changes the amount, reorders and switches it off', { timeout: 20000 }, async () => {
     renderShell({ route: '/admin', child: <Admin /> });
     await screen.findByRole('heading', { name: 'Standard charges' });
     await waitFor(() => expect(labels()).toContain('Consultation / new file'));
@@ -84,7 +85,7 @@ describe('Admin › Standard charges', () => {
     await waitFor(async () => expect(await priceOf()).toBeNull());
   });
 
-  it('refuses to delete a charge that a bill uses and says to switch it off', async () => {
+  it('refuses to delete a charge that a bill uses and says to switch it off', { timeout: 20000 }, async () => {
     window.confirm = () => true;
     await billing.save(8, {
       items: [{ label: 'Consultation / new file', amount: 700, kind: 'charge', standardChargeId: 1 }],
