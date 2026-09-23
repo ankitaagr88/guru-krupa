@@ -47,15 +47,25 @@ export const visits = {
 };
 
 /* Per-visit bill, standard charges and receipts (lane B owns this block).
-   GET 404s until a bill exists; PUT upserts {items:[{label,amount}], paymentMode?}. */
+   GET 404s until a bill exists; PUT upserts {items:[{label, amount, kind?, qty?, standardChargeId?,
+   prescriptionLineId?}], paymentMode?}. BillOut: {id, visitId, items:[…, priceMissing], total, paymentMode,
+   paidAt, paid, receiptNo, patientName, token, visitDate}. Paying gives the bill its receipt number. */
 export const billing = {
   get: (visitId) => data(client.get(`/visits/${visitId}/bill`)),
   save: (visitId, bill) => data(client.put(`/visits/${visitId}/bill`, bill)),
   pay: (visitId, paymentMode) => data(client.post(`/visits/${visitId}/bill/pay`, { paymentMode })),
+  // The active standard charges, in order, for the one-tap chips: [{id, label, amount, active, sortOrder}]
+  charges: () => data(client.get('/standard-charges')),
 };
 
-/* Read-only reports — the "Today" summary page (lane B owns this block). */
-export const reports = {};
+/* Read-only reports — the "Today" summary page (lane B owns this block).
+   today(date?) → {date, patients:{registered, seen, inProgress}, avgVisitMinutes, stages:[{key, label,
+   avgMinutes, visits, waitingNow}], collections:{byMode:[{mode, bills, amount}], total, billsPaid,
+   unpaid:[{visitId, name, token, total}], unpaidTotal}, medicines:[{name, qty, amount}], medicinesQty,
+   medicinesAmount, receipts:[{receiptNo, visitId, name, token, total, paymentMode, paidAt}]} */
+export const reports = {
+  today: (date) => data(client.get('/reports/today', { params: date ? { date } : {} })),
+};
 
 /* Reception additions — duplicate-patient check etc. (lane A owns this block). */
 export const reception = {};
@@ -240,9 +250,9 @@ export const admin = {
     list: ({ includeInactive = false } = {}) =>
       data(client.get('/admin/medicines', includeInactive ? { params: { includeInactive: true } } : undefined)),
     get: (id) => data(client.get(`/admin/medicines/${id}`)),
-    // {name?, brand?, composition (required), form="drops", strength?, packSize?, manufacturer?} — 409 dup, 422 bad form
+    // {name?, brand?, composition (required), form="drops", strength?, packSize?, manufacturer?, price?} — 409 dup, 422 bad form
     create: (body) => data(client.post('/admin/medicines', body)),
-    // any field; "" clears an optional one; {active:true} reactivates
+    // any field; "" clears an optional one; {price:null} clears the price; {active:true} reactivates
     update: (id, patch) => data(client.patch(`/admin/medicines/${id}`, patch)),
     // soft delete → inactive
     remove: (id) => data(client.delete(`/admin/medicines/${id}`)),
@@ -258,6 +268,8 @@ export const admin = {
     // replace with a regular grid: start/end "HH:MM" (24h), every N minutes; booked slots are kept
     generate: (start, end, everyMin) => data(client.post('/admin/ot-slots/generate', { start, end, everyMin })),
   },
+  // Standard charges [{id, label, amount, active, sortOrder}] — one tap onto a bill; DELETE 409s once a bill uses it
+  standardCharges: crud('/admin/standard-charges'),
   // OT procedure list [{id, name, active, sortOrder}]
   otProcedures: {
     ...crud('/admin/ot-procedures'),

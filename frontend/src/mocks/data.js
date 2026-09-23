@@ -392,6 +392,29 @@ export const MEDICINE_BRANDS = [
   ],
 ];
 
+// Demo selling prices per pack (whole rupees). Latanoprost and Acetazolamide are left unpriced so
+// the "price not set" path shows in the demo; the real server starts every medicine unpriced.
+export const MEDICINE_PRICES = {
+  'Moxifloxacin 0.5% eye drops': 85,
+  'Prednisolone acetate 1% eye drops': 60,
+  'Ketorolac 0.5% eye drops': 95,
+  'Carboxymethylcellulose 0.5% (tear drops)': 140,
+  'Timolol 0.5% eye drops': 45,
+  'Homatropine 2% eye drops': 70,
+  'Tobramycin + Dexamethasone eye drops': 110,
+  'Ofloxacin eye ointment': 55,
+  'Aquaray Gel': 185,
+  'MOSI LP': 240,
+};
+
+// One-tap bill charges (Admin › Standard charges). The real server seeds these names at ₹0.
+export const STANDARD_CHARGES = [
+  { id: 1, label: 'Consultation', amount: 500, active: true, sortOrder: 0 },
+  { id: 2, label: 'Follow-up consultation', amount: 300, active: true, sortOrder: 1 },
+  { id: 3, label: 'Pre-test', amount: 250, active: true, sortOrder: 2 },
+  { id: 4, label: 'Dilation', amount: 150, active: true, sortOrder: 3 },
+];
+
 /** Every seeded medicine as a store row (generics first, then brands) — mirrors the backend seed. */
 export function seedMedicines() {
   const rows = MEDICINE_LIST.map((n) => ({
@@ -407,7 +430,7 @@ export function seedMedicines() {
   MEDICINE_BRANDS.forEach(([brand, composition, form, strength, packSize, manufacturer]) => {
     rows.push({ name: brand, brand, composition, form, strength, packSize, manufacturer, active: true });
   });
-  return rows.map((r, i) => ({ id: i + 1, ...r }));
+  return rows.map((r, i) => ({ id: i + 1, ...r, price: MEDICINE_PRICES[r.name] ?? null }));
 }
 
 export const INVENTORY = [

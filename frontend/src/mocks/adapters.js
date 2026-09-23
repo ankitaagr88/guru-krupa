@@ -12,7 +12,7 @@ import {
   emptyOtPostOp,
   emptyOtBilling,
 } from './data';
-import { billOut } from './billing';
+import { billOut, dropMedicineLine, standardChargesAdmin, syncMedicineLine } from './billing';
 
 // Each lane keeps its own demo adapters in its own file (session 3).
 export { billing, reports } from './billing';
@@ -835,7 +835,7 @@ function deepMerge(target, patch) {
 const norm = (v) => (v || '').trim().toLowerCase();
 const formLabelOf = (key) => S.medicineForms.find((f) => f.key === key)?.label || key;
 
-/** MedicineOut: {id, name, brand, composition, form, formLabel, strength, packSize, manufacturer, displayName} */
+/** MedicineOut: {id, name, brand, composition, form, formLabel, strength, packSize, manufacturer, displayName, price} */
 function medOut(m) {
   const brand = m.brand || null;
   const displayName =
@@ -852,9 +852,17 @@ function medOut(m) {
     manufacturer: m.manufacturer ?? null,
     displayName,
     active: m.active !== false,
+    price: m.price ?? null, // whole rupees per pack; null = not priced (Bought here bills ₹0 and flags it)
   };
 }
 const activeMeds = () => S.medicines.filter((m) => m.active !== false);
+/** Medicine price from a form/patch value: whole rupees, or null when blank. */
+function priceOf(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  if (Number.isNaN(n) || n < 0) throw httpError(422, 'Price must be 0 or more');
+  return Math.round(n);
+}
 const medById = (id) => (id == null ? null : S.medicines.find((m) => m.id === Number(id)));
 /** A typed name matches when it equals a medicine's name, brand or composition (case-insensitive). */
 function medByText(text) {
@@ -971,6 +979,7 @@ export const prescriptions = {
     line.dispensedQty = n;
     line.dispensedAt = new Date().toISOString();
     line.dispensedBy = currentUserName();
+    syncMedicineLine(p, line, (medById(line.medicineId) || medByText(line.name))?.price ?? null); // onto the bill
     store.notify();
     const out = p.medicines.map(rxLineOut);
     const lowStock = item.stock <= item.reorder ? [c(item)] : [];
@@ -992,6 +1001,7 @@ export const prescriptions = {
       line.dispensedQty = 0;
       line.dispensedAt = null;
       line.dispensedBy = null;
+      dropMedicineLine(p, line.id); // and off the bill
       store.notify();
     }
     const out = p.medicines.map(rxLineOut);
@@ -1044,6 +1054,7 @@ function rxLineOut(l, i) {
     dispensedAt: l.dispensedAt || null,
     dispensedBy: l.dispensedBy || null,
     inStock: stockItemFor(l)?.stock ?? null,
+    price: med?.price ?? null,
     form: med ? med.form : null,
     formLabel: med ? formLabelOf(med.form) : null,
   };
@@ -1292,6 +1303,8 @@ export const admin = {
   protocolSteps: listOps('protocolSteps', 'protocol'),
   referralSources: listOps('referralSources', 'referral'),
   lensTiers: listOps('lensTiers', 'lens'),
+  // /admin/standard-charges — one-tap bill charges (lane B, src/mocks/billing.js)
+  standardCharges: standardChargesAdmin,
   // GET/POST/PATCH/DELETE /admin/medicines — soft delete, 409 dup name, 422 bad form
   medicines: {
     list: async ({ includeInactive = false } = {}) =>
@@ -1319,6 +1332,7 @@ export const admin = {
         strength: (data.strength || '').trim() || null,
         packSize: (data.packSize || '').trim() || null,
         manufacturer: (data.manufacturer || '').trim() || null,
+        price: priceOf(data.price),
         active: true,
       };
       S.medicines.push(row);
@@ -1345,6 +1359,7 @@ export const admin = {
         if (patch[k] !== undefined) m[k] = (patch[k] || '').trim() || null; // "" clears
       });
       if (patch.form !== undefined) m.form = patch.form;
+      if (patch.price !== undefined) m.price = priceOf(patch.price); // null / "" clears it
       if (patch.active !== undefined) m.active = !!patch.active;
       store.notify();
       return medOut(m);

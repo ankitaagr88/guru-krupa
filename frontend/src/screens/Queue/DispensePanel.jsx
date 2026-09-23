@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import { prescriptions as prescriptionsApi, errorMessage } from '../../api';
 import { useToast } from '../../components/Toast';
+import { announceBillChanged } from '../Billing/billEvents';
 
 /* Billing stage: the doctor's prescription, one row per medicine, with a
    "Bought here" button. Only that button deducts stock — the doctor's
    "to give" quantity is a suggestion, because some patients already have the
    medicine and don't buy it from the clinic. `onChange(rx)` hands the updated
-   prescription back to the drawer. */
+   prescription back to the drawer. "Bought here" also puts the medicine on the bill
+   (qty × the price per pack set in Admin › Medicines) and Undo takes it off; the bill
+   panel hears about it through `announceBillChanged`. */
 export default function DispensePanel({ visitId, lines, onChange, busy = false }) {
   const toast = useToast();
   const [qtys, setQtys] = useState({});
@@ -33,6 +36,7 @@ export default function DispensePanel({ visitId, lines, onChange, busy = false }
     try {
       const rx = await prescriptionsApi.dispense(visitId, l.id, qtyFor(l));
       onChange?.(rx);
+      announceBillChanged(visitId);
       (rx?.lowStock || []).forEach((it) =>
         toast.lowStock(typeof it === 'string' ? { name: it, stock: '?', unit: '', reorder: '?' } : it)
       );
@@ -46,6 +50,7 @@ export default function DispensePanel({ visitId, lines, onChange, busy = false }
     setWorking(l.id);
     try {
       onChange?.(await prescriptionsApi.undispense(visitId, l.id));
+      announceBillChanged(visitId);
     } catch (err) {
       toast.error('Could not undo', errorMessage(err));
     } finally {
@@ -59,8 +64,8 @@ export default function DispensePanel({ visitId, lines, onChange, busy = false }
     <div id="dispenseSection" data-testid="dispense-panel">
       <div className="field-label">Medicines from clinic stock</div>
       <p className="hint" style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--ink-faint)' }}>
-        Confirm each medicine the patient actually buys here — that is what comes off the stock. Skip the ones they
-        already have.
+        Confirm each medicine the patient actually buys here — it comes off the stock and goes on the bill. Skip the
+        ones they already have.
       </p>
       {lines.map((l) => {
         const done = l.dispensedQty > 0;
@@ -73,6 +78,20 @@ export default function DispensePanel({ visitId, lines, onChange, busy = false }
                 {l.dosage || '—'}
                 {stocked ? ` · ${l.inStock} in stock` : ' · not stocked here'}
                 {Number(l.qtyGiven) > 0 ? ` · doctor: give ${l.qtyGiven}` : ''}
+                {stocked && (
+                  <>
+                    {' · '}
+                    {l.price != null ? (
+                      <span className="dispense-price" data-testid={`price-${l.id}`}>
+                        <span style={{ fontFamily: 'var(--font-mono)' }}>₹{l.price}</span> a pack
+                      </span>
+                    ) : (
+                      <span className="dispense-price" style={{ color: 'var(--alert-ink)' }} data-testid={`price-${l.id}`}>
+                        price not set
+                      </span>
+                    )}
+                  </>
+                )}
               </small>
             </div>
             {done ? (
