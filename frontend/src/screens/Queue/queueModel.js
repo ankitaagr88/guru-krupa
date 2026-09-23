@@ -161,4 +161,9 @@ export const LANGUAGES = [
   { key: 'hindi', label: 'हिंदी' },
   { key: 'gujarati', label: 'ગુજરાતી' },
 ];
-export const SEXES = ['F', 'M', 'Other'];
+// Stored as one letter; the button reads "Other".
+export const SEXES = [
+  { key: 'F', label: 'F' },
+  { key: 'M', label: 'M' },
+  { key: 'O', label: 'Other' },
+];

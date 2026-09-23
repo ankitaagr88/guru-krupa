@@ -206,3 +206,13 @@ def test_search_matches_phone_digits_whatever_the_spacing(client, admin_headers)
         assert {"Spacing Mother", "Spacing Son", "Spacing Aunt"} <= names, (q, names)
     # a name search is unaffected by the digit rule
     assert [p["name"] for p in client.get("/api/patients", params={"q": "Spacing Son"}, headers=admin_headers).json()] == ["Spacing Son"]
+
+
+def test_sex_is_stored_as_one_letter(client, admin_headers):
+    """The "Other" button used to send the word, which the one-letter column refused (500 on PostgreSQL)."""
+    r = client.post("/api/patients", json={"name": "Sex Word", "sex": "Other"}, headers=admin_headers)
+    assert r.status_code == 201, r.text
+    assert r.json()["sex"] == "O"
+    pid = r.json()["id"]
+    assert client.patch(f"/api/patients/{pid}", json={"sex": "f"}, headers=admin_headers).json()["sex"] == "F"
+    assert client.patch(f"/api/patients/{pid}", json={"sex": "X"}, headers=admin_headers).status_code == 422

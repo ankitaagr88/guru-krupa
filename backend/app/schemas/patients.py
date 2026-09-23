@@ -1,10 +1,25 @@
 from datetime import date, datetime
+from typing import Annotated
 
-from pydantic import Field
+from pydantic import BeforeValidator, Field
 
 from app.schemas.common import CamelModel
 
 Sex = str | None  # "M" | "F" | "O"
+
+
+def _sex(v):
+    """The column holds one letter: accept "M"/"F"/"O" (any case) or the word "Other"."""
+    if v is None or v == "":
+        return None
+    s = str(v).strip().upper()
+    s = {"OTHER": "O", "MALE": "M", "FEMALE": "F"}.get(s, s)
+    if s not in ("M", "F", "O"):
+        raise ValueError("Sex must be F, M or Other")
+    return s
+
+
+SexIn = Annotated[str | None, BeforeValidator(_sex)]
 MAX_AGE_YEARS = 120
 
 
@@ -30,7 +45,7 @@ class PatientIn(CamelModel):
     name: str = Field(min_length=1, max_length=120)
     dob: date | None = None
     age: int | None = None
-    sex: Sex = None
+    sex: SexIn = None
     phone: str | None = None
     address: str | None = None
     occupation: str | None = None
@@ -51,7 +66,7 @@ class PatientPatch(CamelModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     dob: date | None = None
     age: int | None = None
-    sex: Sex = None
+    sex: SexIn = None
     phone: str | None = None
     address: str | None = None
     occupation: str | None = None
