@@ -173,6 +173,13 @@ def seed_reference(db: Session) -> None:
     if db.scalar(select(StandardCharge)) is None:
         for i, label in enumerate(STANDARD_CHARGES):
             db.add(StandardCharge(label=label, amount=0, active=True, sort_order=i))
+    db.flush()
+    # Families (relations list) and visit fees (fee list, visit kinds, rules) seed themselves.
+    from app.seed.family import seed_family
+    from app.seed.fees import seed_fees
+
+    seed_family(db)
+    seed_fees(db)
     medicines = {}
     for row in medicine_rows():
         name = row.pop("name")
