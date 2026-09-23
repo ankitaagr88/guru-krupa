@@ -57,6 +57,13 @@ def put_bill(visit_id: int, data: BillIn, db: Session = Depends(get_db),
     return svc.bill_out(bill)
 
 
+@router.post("/visits/{visit_id}/bill/start", response_model=BillOut)
+def start_bill(visit_id: int, db: Session = Depends(get_db), user: Staff = Depends(require_role(*ANY_STAFF))):
+    """The billing panel found no bill: create it with the visit's suggested fee lines (its visit
+    kind's charge, and Emergency when flagged). An existing bill comes back unchanged."""
+    return svc.bill_out(svc.start_bill(db, _visit(db, visit_id)))
+
+
 @router.post("/visits/{visit_id}/bill/pay", response_model=BillOut)
 def pay_bill(visit_id: int, data: BillPayIn, db: Session = Depends(get_db),
              user: Staff = Depends(require_role(*ANY_STAFF))):
@@ -84,7 +91,7 @@ def list_standard_charges(db: Session = Depends(get_db), user: Staff = admin_use
 @router.post("/admin/standard-charges", response_model=StandardChargeOut, status_code=status.HTTP_201_CREATED)
 def create_standard_charge(data: StandardChargeIn, db: Session = Depends(get_db), user: Staff = admin_user):
     try:
-        return svc.create_standard_charge(db, data.label, data.amount, user)
+        return svc.create_standard_charge(db, data.label, data.amount, user, data.amount_both_eyes, data.group_label)
     except svc.BillingError as exc:
         raise _http(exc)
 

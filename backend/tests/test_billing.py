@@ -69,7 +69,8 @@ def test_standard_charges_crud_and_roles(client, admin_headers, reception_header
     assert client.get(base, headers=reception_headers).status_code == 403
     assert client.post(base, json={"label": "Nope", "amount": 1}, headers=reception_headers).status_code == 403
     starters = {c["label"] for c in client.get(base, headers=admin_headers).json()}
-    assert {"Consultation", "Follow-up consultation", "Pre-test", "Dilation"} <= starters
+    # The ₹0 starters became Dr Anu's fees (Consultation -> "Consultation / new file"); see test_visit_fees.
+    assert {"Consultation / new file", "Follow-up", "Pre-test", "Dilation", "Perimetry"} <= starters
 
     r = client.post(base, json={"label": "  Charge  Test  ", "amount": 300}, headers=admin_headers)
     assert r.status_code == 201, r.text
@@ -190,6 +191,11 @@ def test_bought_here_adds_priced_bill_line_and_undo_removes_it(client, admin_hea
     assert [i["label"] for i in bill["items"]] == ["Consultation"] and bill["total"] == 300
 
 
+def _meds(bill):
+    """The "Bought here" lines (a bill created by dispensing also starts with the suggested visit fee)."""
+    return [i for i in bill["items"] if i["kind"] == "medicine"]
+
+
 def test_bought_here_without_price_adds_zero_line_flagged(client, admin_headers, reception_headers, doctor_headers,
                                                           priced):
     vid = _visit(client, admin_headers, "Unpriced Patient")  # no bill yet — dispensing creates it
@@ -197,11 +203,14 @@ def test_bought_here_without_price_adds_zero_line_flagged(client, admin_headers,
     client.post(f"/api/visits/{vid}/prescription/lines/{lines[0]['id']}/dispense", json={"qty": 1},
                 headers=reception_headers)
     bill = client.get(f"/api/visits/{vid}/bill", headers=reception_headers).json()
-    assert [(i["kind"], i["amount"], i["priceMissing"]) for i in bill["items"]] == [("medicine", 0, True)]
+    # the new bill starts with the visit's suggested fee (a new patient: Consultation / new file)
+    assert ("charge", 700, False, True) in [(i["kind"], i["amount"], i["priceMissing"], i["suggested"])
+                                            for i in bill["items"]]
+    assert [(i["amount"], i["priceMissing"]) for i in _meds(bill)] == [(0, True)]
     # reception types the price
-    items = [{**bill["items"][0], "amount": 60}]
+    items = [{**i, "amount": 60} if i["kind"] == "medicine" else i for i in bill["items"]]
     bill = client.put(f"/api/visits/{vid}/bill", json={"items": items}, headers=reception_headers).json()
-    assert bill["items"][0]["priceMissing"] is False and bill["total"] == 60
+    assert _meds(bill)[0]["priceMissing"] is False and _meds(bill)[0]["amount"] == 60
 
 
 def test_prescription_change_moves_or_drops_bill_lines(client, admin_headers, reception_headers, doctor_headers,
@@ -211,16 +220,16 @@ def test_prescription_change_moves_or_drops_bill_lines(client, admin_headers, re
     for ln in lines:
         client.post(f"/api/visits/{vid}/prescription/lines/{ln['id']}/dispense", json={"qty": 1},
                     headers=reception_headers)
-    assert len(client.get(f"/api/visits/{vid}/bill", headers=reception_headers).json()["items"]) == 2
+    assert len(_meds(client.get(f"/api/visits/{vid}/bill", headers=reception_headers).json())) == 2
 
     # the doctor drops PRED and keeps MOXI: PRED's bill line goes, MOXI's follows the new line id
     new = _rx(client, vid, doctor_headers, (MOXI, 1))
     bill = client.get(f"/api/visits/{vid}/bill", headers=reception_headers).json()
-    assert [(i["label"], i["prescriptionLineId"], i["amount"]) for i in bill["items"]] == [
+    assert [(i["label"], i["prescriptionLineId"], i["amount"]) for i in _meds(bill)] == [
         (f"{MOXI} × 1", new[0]["id"], 85)]
-    # and undo on the new line still finds it
+    # and undo on the new line still finds it (the suggested visit fee stays)
     client.delete(f"/api/visits/{vid}/prescription/lines/{new[0]['id']}/dispense", headers=reception_headers)
-    assert client.get(f"/api/visits/{vid}/bill", headers=reception_headers).json()["items"] == []
+    assert _meds(client.get(f"/api/visits/{vid}/bill", headers=reception_headers).json()) == []
 
 
 # --------------------------------------------------------------------------- receipts

@@ -10,6 +10,20 @@ class PatientCounts(CamelModel):
     in_progress: int  # still somewhere in the queue
 
 
+class KindCount(CamelModel):
+    key: str
+    label: str
+    count: int
+
+
+class VisitKindCounts(CamelModel):
+    """The day's visits by visit kind (Admin › Visit types & fee rules), in the admin's order."""
+
+    kinds: list[KindCount]  # every active kind (0 included), plus any switched-off kind used that day
+    emergencies: int  # visits with the emergency fee
+    not_set: int = 0  # visits without a kind (e.g. registered before visit kinds existed)
+
+
 class StageTime(CamelModel):
     key: str
     label: str
@@ -60,6 +74,7 @@ class TodayReport(CamelModel):
     patients: PatientCounts
     avg_visit_minutes: float | None  # registration → Done, completed visits only
     stages: list[StageTime]
+    visit_kinds: VisitKindCounts | None = None  # new patients, follow-ups, new cases, emergencies
     collections: Collections
     medicines: list[MedicineSold]
     medicines_qty: int

@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from app.config import settings
 from app.db import utcnow
@@ -19,6 +19,7 @@ from app.models.patients import Visit
 from app.models.pharmacy import PrescriptionLine
 from app.models.staff import Staff
 from app.schemas.billing import BillItemIn, BillItemOut, BillOut
+from app.services import fees
 
 RECEIPT_PREFIX = "GK"
 RECEIPT_RETRIES = 5
@@ -75,13 +76,16 @@ def _charge_label(db: Session, label: str, except_id: int | None = None) -> str:
     return label
 
 
-def create_standard_charge(db: Session, label: str, amount: int, by) -> StandardCharge:
+def create_standard_charge(db: Session, label: str, amount: int, by, amount_both_eyes: int | None = None,
+                           group_label: str = "") -> StandardCharge:
     label = _charge_label(db, label)
     order = (db.scalar(select(func.max(StandardCharge.sort_order))) or 0) + 1
-    row = StandardCharge(label=label, amount=amount, active=True, sort_order=order)
+    row = StandardCharge(label=label, amount=amount, amount_both_eyes=amount_both_eyes,
+                         group_label=" ".join((group_label or "").split()), active=True, sort_order=order)
     db.add(row)
     db.flush()
-    _audit(db, by, "standard_charge.create", "standard_charge", row.id, label=label, amount=amount)
+    _audit(db, by, "standard_charge.create", "standard_charge", row.id, label=label, amount=amount,
+           amount_both_eyes=amount_both_eyes, group_label=row.group_label)
     db.commit()
     return row
 
@@ -96,6 +100,12 @@ def update_standard_charge(db: Session, row: StandardCharge, values: dict, by) -
         if values.get(k) is not None and values[k] != getattr(row, k):
             setattr(row, k, values[k])
             changed[k] = values[k]
+    if "amount_both_eyes" in values and values["amount_both_eyes"] != row.amount_both_eyes:  # null clears
+        row.amount_both_eyes = changed["amount_both_eyes"] = values["amount_both_eyes"]
+    if values.get("group_label") is not None:
+        group = " ".join(values["group_label"].split())
+        if group != (row.group_label or ""):
+            row.group_label = changed["group_label"] = group
     if changed:
         _audit(db, by, "standard_charge.update", "standard_charge", row.id, **changed)
         db.commit()
@@ -123,12 +133,28 @@ def reorder_standard_charges(db: Session, ids: list[int], by) -> list[StandardCh
 
 
 # --------------------------------------------------------------------------- bill
-def _bill_for(db: Session, visit: Visit) -> Bill:
+def _bill_for(db: Session, visit: Visit, suggest: bool = False) -> Bill:
+    """The visit's bill, created if missing. `suggest`: a new bill starts with the visit's fee
+    (from its visit kind) and the emergency fee when flagged — see app.services.fees."""
     bill = visit.bill
     if bill is None:
         bill = Bill(visit_id=visit.id)
         db.add(bill)
         visit.bill = bill
+        if suggest:
+            bill.items.extend(fees.suggested_items(db, visit))
+    return bill
+
+
+def start_bill(db: Session, visit: Visit) -> Bill:
+    """`POST /visits/{id}/bill/start`: the billing panel opens a visit with no bill yet — create it
+    with the suggested fee lines already on it. A bill that exists is returned untouched (reception
+    may have removed the suggestion on purpose)."""
+    if visit.bill is not None:
+        return visit.bill
+    bill = _bill_for(db, visit, suggest=True)
+    db.commit()
+    db.refresh(bill)
     return bill
 
 
@@ -136,7 +162,7 @@ def _item(it: BillItemIn | tuple) -> BillItem:
     if isinstance(it, tuple):  # (label, amount) — older callers
         label, amount = it
         return BillItem(label=label, amount=amount, kind="other", qty=1)
-    return BillItem(label=it.label.strip(), amount=it.amount, kind=it.kind, qty=it.qty,
+    return BillItem(label=it.label.strip(), amount=it.amount, kind=it.kind, qty=it.qty, eyes=it.eyes,
                     standard_charge_id=it.standard_charge_id, prescription_line_id=it.prescription_line_id)
 
 
@@ -199,14 +225,23 @@ def pay_bill(db: Session, bill: Bill, payment_mode: str) -> Bill:
 def bill_out(bill: Bill) -> BillOut:
     visit = bill.visit
     patient = visit.patient if visit is not None else None
+    db = object_session(bill)
+    rules = fees.get_rules(db)
+    kind_ids, emergency_id = fees.fee_charge_ids(db, rules)
+    fee_ids = kind_ids | ({emergency_id} if emergency_id is not None else set())
     items = [BillItemOut(id=i.id, label=i.label, amount=i.amount, kind=i.kind or "other", qty=i.qty or 1,
                          standard_charge_id=i.standard_charge_id, prescription_line_id=i.prescription_line_id,
-                         price_missing=(i.kind == "medicine" and i.amount == 0))
+                         price_missing=(i.kind == "medicine" and i.amount == 0), eyes=i.eyes,
+                         suggested=(i.kind == "charge" and i.standard_charge_id in fee_ids))
              for i in bill.items]
+    kind = fees.visit_kinds_by_key(db).get(visit.visit_kind_key or "") if visit is not None else None
     return BillOut(id=bill.id, visit_id=bill.visit_id, items=items, total=sum(i.amount for i in bill.items),
                    payment_mode=bill.payment_mode, paid_at=bill.paid_at, paid=bill.paid_at is not None,
                    receipt_no=bill.receipt_no, patient_name=patient.name if patient else None,
-                   token=visit.token if visit else None, visit_date=visit.date if visit else None)
+                   token=visit.token if visit else None, visit_date=visit.date if visit else None,
+                   visit_kind_key=visit.visit_kind_key if visit else None,
+                   visit_kind_label=kind.label if kind else None, emergency=bool(visit and visit.emergency),
+                   fee_note=fees.fee_note(db, visit, rules) if visit is not None else "")
 
 
 # --------------------------------------------------------------------------- "Bought here" lines
@@ -218,7 +253,7 @@ def sync_medicine_line(db: Session, visit: Visit, line: PrescriptionLine) -> Bil
     """"Bought here": put the medicine on the visit's bill (or refresh the line already there).
     Amount = qty × the medicine's price; 0 when Admin has not priced it yet, so the panel asks
     reception to type it. Never commits — the caller's transaction does."""
-    bill = _bill_for(db, visit)
+    bill = _bill_for(db, visit, suggest=True)
     price = line.medicine.price if line.medicine is not None else None
     amount = line.dispensed_qty * price if price is not None else 0
     item = next((i for i in bill.items if i.prescription_line_id == line.id), None)
