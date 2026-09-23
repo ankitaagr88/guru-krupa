@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, date as date_type, datetime
 
 from pydantic import Field
 
@@ -27,6 +27,15 @@ class VisitPatch(CamelModel):
     doctor_notes: str | None = None
     elsewhere: bool | None = None
     elsewhere_note: str | None = None
+    # Doctor's panel: an explicit null clears the diagnosis (the prescription's follows it).
+    diagnosis_id: int | None = None
+
+
+class FollowUpIn(CamelModel):
+    """`PUT /visits/{id}/follow-up`: the day to come back; books (or moves) the appointment."""
+
+    date: date_type
+    note: str = Field(default="", max_length=255)
 
 
 class DilationStepOut(CamelModel):
@@ -64,3 +73,8 @@ class VisitOut(CamelModel):
     has_bill: bool
     has_prescription: bool
     readings_count: int
+    diagnosis_id: int | None = None
+    diagnosis_name: str | None = None
+    follow_up_date: date_type | None = None
+    follow_up_note: str = ""
+    follow_up_appointment_id: int | None = None  # the appointment the follow-up booked

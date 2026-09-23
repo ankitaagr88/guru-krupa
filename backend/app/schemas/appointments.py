@@ -17,6 +17,7 @@ class AppointmentIn(CamelModel):
     date: date_type | None = None  # defaults to today (clinic TZ)
     channel: Channel = "whatsapp"
     patient_id: int | None = None  # link to an existing patient (used on check-in)
+    note: str = Field(default="", max_length=255)
 
 
 class AppointmentPatch(CamelModel):
@@ -25,6 +26,7 @@ class AppointmentPatch(CamelModel):
     date: date_type | None = None
     channel: Channel | None = None
     patient_id: int | None = None
+    note: str | None = Field(default=None, max_length=255)
 
 
 class AppointmentOut(CamelModel):
@@ -37,6 +39,9 @@ class AppointmentOut(CamelModel):
     patient_id: int | None
     visit_id: int | None  # the visit created on check-in (same patient + same day), if any
     created_at: datetime
+    note: str = ""
+    # Booked by the doctor's follow-up date on this visit (the screen tags it "Follow-up").
+    source_visit_id: int | None = None
 
 
 class CheckinOut(CamelModel):

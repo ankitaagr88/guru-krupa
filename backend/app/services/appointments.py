@@ -71,16 +71,26 @@ def create_appointment(db: Session, data: AppointmentIn) -> Appointment:
     _check_patient(db, data.patient_id)
     appt = Appointment(name=data.name.strip(), phone=(data.phone or "").strip() or None,
                        date=_check_date(data.date or queue.today()), channel=_check_channel(data.channel),
-                       checked_in=False, patient_id=data.patient_id)
+                       checked_in=False, patient_id=data.patient_id, note=(data.note or "").strip())
     db.add(appt)
     db.commit()
     return appt
+
+
+def _source_visit(db: Session, appt: Appointment) -> Visit | None:
+    return db.get(Visit, appt.source_visit_id) if appt.source_visit_id else None
 
 
 def update_appointment(db: Session, appt: Appointment, data: AppointmentPatch) -> Appointment:
     values = data.model_dump(exclude_unset=True)
     if values.get("date") is not None:
         appt.date = _check_date(values["date"])
+        # A follow-up moved on the appointment book moves the visit's "come back on" too.
+        source = _source_visit(db, appt)
+        if source is not None and not appt.checked_in:
+            source.follow_up_date = appt.date
+    if values.get("note") is not None:
+        appt.note = values["note"].strip()
     if values.get("channel") is not None:
         appt.channel = _check_channel(values["channel"])
     if values.get("name"):
@@ -97,6 +107,9 @@ def update_appointment(db: Session, appt: Appointment, data: AppointmentPatch) -
 def delete_appointment(db: Session, appt: Appointment) -> None:
     if appt.checked_in:
         raise AlreadyCheckedIn(appt.id)
+    source = _source_visit(db, appt)
+    if source is not None and source.follow_up_date == appt.date:
+        source.follow_up_date = None  # the follow-up was cancelled from the appointment book
     db.delete(appt)
     db.commit()
 
@@ -121,8 +134,11 @@ def checkin(db: Session, appt: Appointment) -> tuple[Appointment, Visit]:
         patient = Patient(name=appt.name, phone=appt.phone, referral_source_id=None)
         db.add(patient)
         db.flush()
-    label = CHANNEL_LABEL.get(appt.channel, appt.channel)
-    visit = queue.register_visit(db, patient, note=f"Appointment booked via {label}")
+    if appt.source_visit_id:
+        note = "Follow-up visit" + (f" — {appt.note}" if appt.note else "")
+    else:
+        note = f"Appointment booked via {CHANNEL_LABEL.get(appt.channel, appt.channel)}"
+    visit = queue.register_visit(db, patient, note=note)
     appt.checked_in = True
     appt.visit_id = visit.id
     appt.patient_id = patient.id
@@ -147,7 +163,8 @@ def _visit_ids(db: Session, appts: list[Appointment]) -> dict[int, int]:
 def appointment_out(appt: Appointment, visit_id: int | None = None) -> AppointmentOut:
     return AppointmentOut(id=appt.id, name=appt.name, phone=appt.phone, date=appt.date, channel=appt.channel,
                           checked_in=appt.checked_in, patient_id=appt.patient_id, visit_id=visit_id,
-                          created_at=_aware(appt.created_at))
+                          created_at=_aware(appt.created_at), note=appt.note or "",
+                          source_visit_id=appt.source_visit_id)
 
 
 def appointments_out(db: Session, appts: list[Appointment]) -> list[AppointmentOut]:
