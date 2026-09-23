@@ -111,6 +111,52 @@ def test_patients_preview_then_run(client, admin_headers):
     assert len(client.get("/api/patients", params={"q": "TIWARI"}, headers=admin_headers).json()) == 1
 
 
+def test_dob_parsing():
+    from datetime import date
+
+    from app.services.imports import _dob
+
+    on = date(2026, 9, 23)
+    assert _dob("12/03/1964", on) == date(1964, 3, 12)
+    assert _dob("12-03-1964", on) == date(1964, 3, 12)
+    assert _dob("5/3/64", on) == date(1964, 3, 5)  # two-digit year: last century, not 2064
+    assert _dob("5/3/20", on) == date(2020, 3, 5)
+    assert _dob("1964-03-12", on) == date(1964, 3, 12)
+    assert _dob("23448", on) == date(1964, 3, 12)  # Excel serial number
+    assert _dob("", on) is None and _dob("unknown", on) is None
+    assert _dob("01/01/2030", on) is None  # in the future
+    assert _dob("01/01/1850", on) is None  # more than 120 years ago
+
+
+DOB_CSV = """Name,Contact,Gender,Age(Y),D.O.B,Local Id
+DOB PERSON ONE,9812300001,Female,40,12/03/1964,GKD001
+DOB PERSON TWO,9812300002,Male,55,,GKD002
+DOB PERSON THREE,9812300003,Male,33,not known,GKD003
+"""
+
+
+def test_patients_import_keeps_dob_else_age(client, admin_headers):
+    from datetime import date
+
+    up = _upload(client, admin_headers, "dob.csv", DOB_CSV)
+    m = up["suggested"]["patients"]
+    assert m["dob"] == "D.O.B" and m["age"] == "Age(Y)"
+    r = client.post("/api/admin/import/run", json={"token": up["token"], "target": "patients", "mapping": m},
+                    headers=admin_headers).json()
+    assert r["new"] == 3
+    got = {p["externalId"]: p for p in client.get("/api/patients", params={"q": "DOB PERSON"},
+                                                   headers=admin_headers).json()}
+    today = date.today()
+    assert got["GKD001"]["dob"] == "1964-03-12"
+    assert got["GKD001"]["age"] == today.year - 1964 - ((today.month, today.day) < (3, 12))  # from DOB, not 40
+    assert got["GKD002"]["dob"] is None and got["GKD002"]["age"] == 55  # no DOB: Age(Y) as before
+    assert got["GKD003"]["dob"] is None and got["GKD003"]["age"] == 33
+    # re-run: nothing new
+    r2 = client.post("/api/admin/import/run", json={"token": up["token"], "target": "patients", "mapping": m},
+                     headers=admin_headers).json()
+    assert r2["new"] == 0 and r2["update"] == 0 and r2["skip"] == 3
+
+
 def test_medicines_and_stock(client, admin_headers):
     up = _upload(client, admin_headers, "meds.csv", MEDS_CSV)
     body = {"token": up["token"], "target": "medicines", "mapping": up["suggested"]["medicines"]}

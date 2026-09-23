@@ -37,6 +37,12 @@ def search_patients(q: str = Query("", max_length=120), db: Session = Depends(ge
     return svc.patients_out(db, svc.search_patients(db, q), today())
 
 
+@router.get("/by-phone", response_model=list[PatientOut])
+def patients_by_phone(phone: str = Query("", max_length=30), db: Session = Depends(get_db)):
+    """Already registered with this number? (New-patient duplicate check; compares the last 10 digits.)"""
+    return svc.patients_out(db, svc.patients_by_phone(db, phone), today())
+
+
 @router.get("/{patient_id}", response_model=PatientDetail)
 def get_patient(patient_id: int, db: Session = Depends(get_db)):
     return svc.patient_detail(db, _get(db, patient_id), today())

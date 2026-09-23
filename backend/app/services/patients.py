@@ -1,4 +1,5 @@
 """Patient CRUD + the computed bits the mockup shows next to a patient (token/stage/last visit)."""
+import re
 from datetime import date
 
 from sqlalchemy import func, or_, select
@@ -9,8 +10,13 @@ from app.models.patients import Patient, Visit
 from app.schemas.patients import PatientDetail, PatientIn, PatientOut, PatientPatch, VisitHistoryItem
 
 
-_NULLABLE = {"age", "sex", "phone", "address", "occupation", "screen_hours", "language"}
+_NULLABLE = {"dob", "age", "sex", "phone", "address", "occupation", "screen_hours", "language"}
 _COMPUTED = {"referral_source", "last_visit_date", "visit_id", "token", "stage"}
+
+
+def phone_key(phone: str | None) -> str:
+    """Digits only, last 10 — so "+91 98250 12345", "098250-12345" and "9825012345" all compare equal."""
+    return re.sub(r"\D", "", phone or "")[-10:]
 
 
 class UnknownReferralSource(ValueError):
@@ -28,6 +34,8 @@ def _referral_id(db: Session, key: str | None) -> int | None:
 
 def create_patient(db: Session, data: PatientIn) -> Patient:
     values = data.model_dump(exclude={"referral_source"})
+    if values.get("dob") is not None:
+        values.pop("age", None)  # the DOB wins over a told age
     patient = Patient(**values, referral_source_id=_referral_id(db, data.referral_source))
     db.add(patient)
     db.commit()
@@ -38,6 +46,11 @@ def update_patient(db: Session, patient: Patient, data: PatientPatch) -> Patient
     values = data.model_dump(exclude_unset=True)
     if "referral_source" in values:
         patient.referral_source_id = _referral_id(db, values.pop("referral_source"))
+    if values.get("dob") is not None:
+        values.pop("age", None)  # the DOB wins over a told age
+    elif "age" in values and "dob" not in values and patient.dob is not None and values["age"] != patient.age:
+        # Age corrected on its own while a DOB is on file: the DOB was wrong, so drop it.
+        patient.dob = None
     for k, v in values.items():
         if v is not None or k in _NULLABLE:
             setattr(patient, k, v)
@@ -54,6 +67,20 @@ def search_patients(db: Session, q: str, limit: int = 20) -> list[Patient]:
             .where(or_(func.lower(Patient.name).like(like), func.lower(Patient.phone).like(like)))
             .order_by(Patient.name).limit(limit))
     return list(db.scalars(stmt))
+
+
+def patients_by_phone(db: Session, phone: str, limit: int = 20) -> list[Patient]:
+    """Everyone registered with this number (families often share one), compared on the last 10
+    digits so numbers typed with spaces, dashes or +91 (e.g. KiviHealth imports) still match."""
+    key = phone_key(phone)
+    if len(key) < 10:
+        return []
+    digits_only = Patient.phone
+    for ch in (" ", "-", "+", "(", ")", "."):
+        digits_only = func.replace(digits_only, ch, "")
+    stmt = (select(Patient).where(Patient.phone.is_not(None), digits_only.like(f"%{key}"))
+            .order_by(Patient.name, Patient.id))
+    return [p for p in db.scalars(stmt) if phone_key(p.phone) == key][:limit]
 
 
 def last_visit_dates(db: Session, patient_ids: list[int], before: date | None = None) -> dict[int, date]:

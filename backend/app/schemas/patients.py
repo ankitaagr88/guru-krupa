@@ -1,16 +1,34 @@
 from datetime import date, datetime
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from app.schemas.common import CamelModel
 
 Sex = str | None  # "M" | "F" | "O"
+MAX_AGE_YEARS = 120
+
+
+def check_dob(v: date | None) -> date | None:
+    """A date of birth must be a real past day, and not more than 120 years back."""
+    if v is None:
+        return v
+    today = date.today()
+    if v > today:
+        raise ValueError("Date of birth cannot be in the future")
+    try:
+        oldest = today.replace(year=today.year - MAX_AGE_YEARS)
+    except ValueError:  # 29 Feb
+        oldest = today.replace(year=today.year - MAX_AGE_YEARS, day=28)
+    if v < oldest:
+        raise ValueError(f"Date of birth is more than {MAX_AGE_YEARS} years ago - please check it")
+    return v
 
 
 class PatientIn(CamelModel):
-    """Fields of the mockup's `addNewPatient` form."""
+    """Fields of the mockup's `addNewPatient` form. When both `dob` and `age` are sent, the DOB wins."""
 
     name: str = Field(min_length=1, max_length=120)
+    dob: date | None = None
     age: int | None = None
     sex: Sex = None
     phone: str | None = None
@@ -26,11 +44,14 @@ class PatientIn(CamelModel):
     existing_conditions: list[str] = []
     condition_other: str = ""
 
+    valid_dob = field_validator("dob")(check_dob)
+
 
 class PatientPatch(CamelModel):
     """Partial update (`onDetailInput`, setSex, setLanguage, conditions, referral)."""
 
     name: str | None = Field(default=None, min_length=1, max_length=120)
+    dob: date | None = None
     age: int | None = None
     sex: Sex = None
     phone: str | None = None
@@ -46,12 +67,15 @@ class PatientPatch(CamelModel):
     existing_conditions: list[str] | None = None
     condition_other: str | None = None
 
+    valid_dob = field_validator("dob")(check_dob)
+
 
 class PatientOut(CamelModel):
     id: int
     name: str
     external_id: str | None = None  # id in the previous system (KiviHealth Local Id)
-    age: int | None
+    dob: date | None = None
+    age: int | None  # age today (from the DOB, or the told age grown with the calendar)
     sex: Sex
     phone: str | None
     address: str | None
