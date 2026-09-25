@@ -153,6 +153,167 @@
   font-weight: 500;
 }
 
+/* ---- payments received, balance, "Receive payment" (lane M) ---- */
+.bill-payments {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  font-size: 13px;
+}
+.bill-payments li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 2px;
+  border-bottom: 1px dashed var(--line);
+  color: var(--ink-soft);
+}
+.bill-payments li .mono {
+  color: var(--ink);
+}
+.bill-payments li .grow {
+  flex: 1;
+  min-width: 0;
+}
+.bill-balance {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  margin: 0 0 10px;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 14px;
+  background: var(--alert-wash);
+  color: var(--alert-ink);
+}
+.bill-balance.settled {
+  background: var(--done-wash);
+  color: var(--done-ink);
+}
+.bill-balance .mono {
+  font-weight: 500;
+  font-size: 15px;
+}
+.pay-box {
+  margin: 0 0 6px;
+}
+.pay-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+}
+.pay-amount {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.pay-amount .bill-amount input,
+#billingSection .pay-amount .bill-amount input {
+  width: 96px !important;
+}
+.pay-by {
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+.pay-modes {
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.pay-modes .channel-opt {
+  min-width: 72px;
+  min-height: 40px;
+}
+.pay-error {
+  margin: 0 0 6px;
+  font-size: 12.5px;
+  color: var(--alert-ink);
+}
+.bill-price-ask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  margin: 6px 0 10px;
+  border-radius: 10px;
+  background: var(--gold-wash);
+  border: 1px solid var(--gold-line);
+}
+.bill-price-ask b {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  margin-right: 4px;
+}
+.bill-head-pick,
+#billingSection .bill-head-pick {
+  flex: none !important;
+  width: auto !important;
+  max-width: 120px;
+  margin: 0 !important;
+  font-size: 12.5px;
+  padding: 6px 6px !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 8px !important;
+  background: var(--surface) !important;
+  color: var(--ink-soft);
+}
+.bill-line-head {
+  display: block;
+  font-size: 11px;
+  color: var(--ink-faint);
+  letter-spacing: 0.03em;
+}
+
+/* ---- money still owed from earlier visits (patient page card, billing drawer notice) ---- */
+.owed-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.owed-list li {
+  padding: 6px 0;
+}
+.owed-list li + li {
+  border-top: 1px dashed var(--alert-line);
+}
+.owed-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13.5px;
+}
+.owed-line small {
+  color: var(--ink-faint);
+}
+.owed-line .btn-ghost {
+  flex: none;
+}
+.owed-notice {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--alert-wash);
+  border: 1px solid var(--alert-line);
+  color: var(--alert-ink);
+}
+.owed-card {
+  margin: 0 0 16px;
+  border-color: var(--alert-line);
+}
+.owed-card .section-title .mono {
+  color: var(--alert-ink);
+}
+
 /* ---- the printed receipt: hidden on screen, the only thing on paper while printing ---- */
 .receipt-print {
   display: none;
@@ -260,6 +421,24 @@
 .receipt-mode {
   margin-top: 8px;
   font-size: 12px;
+}
+.receipt-payments {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 11.5px;
+}
+.receipt-payments td {
+  padding: 3px 3px;
+}
+.receipt-payments .num {
+  text-align: right;
+  white-space: nowrap;
+}
+.receipt-payments tr.due td {
+  border-top: 1px solid #000;
+  font-weight: 600;
+  font-size: 12.5px;
 }
 .receipt-thanks {
   margin-top: 10px;

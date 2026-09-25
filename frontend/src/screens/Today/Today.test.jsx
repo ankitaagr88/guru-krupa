@@ -46,6 +46,24 @@ describe('Today summary', () => {
     expect(screen.getByTestId('medicines-sold')).toHaveTextContent('Moxifloxacin 0.5% eye drops');
   });
 
+  it('counts a part payment on the day it came in and lists money still owed with balances', async () => {
+    // Chirag (id 8, ₹750) pays ₹500 in cash now; Bharat Oza still owes ₹60 from yesterday (demo)
+    await billing.receive(8, { amount: 500, mode: 'cash' });
+    renderShell({ route: '/today', child: <Today /> });
+    const tiles = await screen.findByTestId('today-tiles');
+    expect(tiles).toHaveTextContent('₹6,395'); // ₹5,895 earlier + ₹500
+    const owed = screen.getByTestId('unpaid');
+    expect(owed).toHaveTextContent('Money still owed');
+    const chirag = within(owed).getByText('Chirag Mehta').closest('li');
+    expect(chirag).toHaveTextContent('₹250');
+    const bharat = within(owed).getByText('Bharat Oza').closest('li');
+    expect(bharat).toHaveTextContent('₹60');
+    expect(bharat).toHaveTextContent('from');
+    expect(within(bharat).getByRole('link', { name: 'Bharat Oza' })).toHaveAttribute('href', '/patients/5');
+    const receipts = screen.getByTestId('receipts');
+    expect(within(receipts).getByText('Chirag Mehta').closest('tr')).toHaveTextContent('₹250 still owed');
+  });
+
   it('looks at an earlier day from the strip', async () => {
     renderShell({ route: '/today', child: <Today /> });
     await screen.findByTestId('today-tiles');

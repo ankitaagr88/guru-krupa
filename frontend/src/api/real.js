@@ -46,17 +46,31 @@ export const visits = {
   clearDilation: (id) => data(client.delete(`/visits/${id}/dilation`)),
 };
 
-/* Per-visit bill, standard charges and receipts (lane B owns this block).
+/* Per-visit bill, standard charges, part payments and receipts (lane B; payments: lane M).
    GET 404s until a bill exists; start() creates it with the visit's suggested fee lines (visit kind's
    charge + Emergency when flagged). PUT upserts {items:[{label, amount, kind?, qty?, standardChargeId?,
-   prescriptionLineId?, eyes? ('one'|'both')}], paymentMode?}. BillOut: {id, visitId, items:[…, priceMissing,
-   eyes, suggested], total, paymentMode, paidAt, paid, receiptNo, patientName, token, visitDate,
-   visitKindKey, visitKindLabel, emergency, feeNote}. Paying gives the bill its receipt number. */
+   prescriptionLineId?, eyes? ('one'|'both'), accountHeadKey? (day-book column; left out = worked out)}],
+   paymentMode?}. BillOut: {id, visitId, items:[…, priceMissing, eyes, suggested, accountHeadKey], total,
+   paymentMode (mode of the latest payment), paidAt (when the balance reached 0), paid (nothing left to
+   collect), receiptNo, payments:[{id, amount, mode, at, byName, note}], paidAmount, balance (total −
+   paidAmount; < 0 = money to give back), status ('unpaid'|'part_paid'|'paid'|'no_charge'|'overpaid'),
+   patientId, patientName, token, visitDate, visitKindKey, visitKindLabel, emergency, feeNote}.
+   The first payment gives the bill its receipt number. */
 export const billing = {
   get: (visitId) => data(client.get(`/visits/${visitId}/bill`)),
   start: (visitId) => data(client.post(`/visits/${visitId}/bill/start`)),
   save: (visitId, bill) => data(client.put(`/visits/${visitId}/bill`, bill)),
+  // Receive the whole balance in one mode (a ₹0 bill closes as "No charge"). → BillOut
   pay: (visitId, paymentMode) => data(client.post(`/visits/${visitId}/bill/pay`, { paymentMode })),
+  // Receive part (or all) of the balance: {amount, mode, note?}; 422 over the balance, 409 nothing owed. → BillOut
+  receive: (visitId, body) => data(client.post(`/visits/${visitId}/bill/payments`, body)),
+  // Undo a payment entered by mistake. → BillOut
+  undoPayment: (visitId, paymentId) => data(client.delete(`/visits/${visitId}/bill/payments/${paymentId}`)),
+  // Close a ₹0 bill (free follow-up) as "No charge". → BillOut
+  noCharge: (visitId) => data(client.post(`/visits/${visitId}/bill/no-charge`)),
+  // A patient's bills with money still owed, oldest first:
+  // [{visitId, patientId, name, token, visitDate, total, paidAmount, balance}]
+  owing: (patientId) => data(client.get(`/patients/${patientId}/owing`)),
   // The active standard charges, in order, for the one-tap chips:
   // [{id, label, amount, amountBothEyes (null = one price), groupLabel, active, sortOrder}]
   charges: () => data(client.get('/standard-charges')),
@@ -64,9 +78,12 @@ export const billing = {
 
 /* Read-only reports — the "Today" summary page (lane B owns this block).
    today(date?) → {date, patients:{registered, seen, inProgress}, avgVisitMinutes, stages:[{key, label,
-   avgMinutes, visits, waitingNow}], collections:{byMode:[{mode, bills, amount}], total, billsPaid,
-   unpaid:[{visitId, name, token, total}], unpaidTotal}, medicines:[{name, qty, amount}], medicinesQty,
-   medicinesAmount, receipts:[{receiptNo, visitId, name, token, total, paymentMode, paidAt}]} */
+   avgMinutes, visits, waitingNow}], collections:{byMode:[{mode, bills (payments), amount}], total, billsPaid,
+   unpaid:[{visitId, patientId, name, token, visitDate, total, paidAmount, balance}] ("money still owed":
+   every bill still owing from that day or before), unpaidTotal (sum of balances)}, medicines:[{name, qty,
+   amount}], medicinesQty, medicinesAmount, receipts:[{receiptNo, visitId, paymentId, name, token, total
+   (this payment), billTotal, balance, paymentMode, paidAt}]}. Money counts by the day each payment was
+   received. */
 export const reports = {
   today: (date) => data(client.get('/reports/today', { params: date ? { date } : {} })),
 };
@@ -372,8 +389,43 @@ export const mr = {
   remove: (id) => data(client.delete(`/mr-visits/${id}`)),
 };
 
-/* Day book, part payments and the cash drawer (lane M owns this block). Filled in session 4. */
-export const daybook = {};
+/* Day book (the daily cash sheet), its columns and the cash drawer (lane M owns this block).
+   heads({includeInactive}) → [{id, key, label, sortOrder, active, useCount}]; settings() →
+   {medicineHead, otherHead, otHead} (the column medicines / hand-typed lines / OT payments go under).
+   day(date) → {date, heads:[{key, label}], rows:[{kind ('visit'|'old_balance'|'ot'), visitId, otCaseId,
+   patientId, name, phone, ageSex ("20/F"), area, token, visitDate, amounts:{headKey: ₹}, total, received,
+   modes:[mode], left, status, note}], totals:{amounts, total, received, left}, byMode:[{mode, payments,
+   amount}], receivedTotal, cash:{openingCash, openingSource ('set'|'carried'|'none'), openingSetBy,
+   openingSetAt, openingNote, cashReceived, movements:[{id, direction ('out'|'in'), amount, person, reason,
+   at, byName}], cashIn, cashOut, closingCash}}. setOpening / addMovement / removeMovement return the day.
+   download(date) → {blob, filename} (an .xlsx laid out like the paper sheet). */
+const fileName = (res, fallback) =>
+  /filename="?([^";]+)"?/.exec(res.headers?.['content-disposition'] || '')?.[1] || fallback;
+
+export const daybook = {
+  heads: ({ includeInactive = false } = {}) =>
+    data(client.get('/account-heads', { params: includeInactive ? { includeInactive: true } : {} })),
+  settings: () => data(client.get('/daybook-settings')),
+  admin: {
+    create: (label) => data(client.post('/admin/account-heads', { label })),
+    update: (key, patch) => data(client.patch(`/admin/account-heads/${key}`, patch)),
+    remove: (key) => data(client.delete(`/admin/account-heads/${key}`)),
+    reorder: (keys) => data(client.put('/admin/account-heads/order', { keys })),
+    saveSettings: (patch) => data(client.put('/admin/daybook-settings', patch)),
+  },
+  day: (date) => data(client.get(`/daybook/${date}`)),
+  // {openingCash, note?}
+  setOpening: (date, body) => data(client.put(`/daybook/${date}/opening`, body)),
+  // {direction: 'out'|'in', amount, person, reason}
+  addMovement: (date, body) => data(client.post(`/daybook/${date}/movements`, body)),
+  removeMovement: (date, id) => data(client.delete(`/daybook/${date}/movements/${id}`)),
+  // names typed on earlier cash entries, most recent first
+  people: () => data(client.get('/daybook/people')),
+  download: (date) =>
+    client
+      .get(`/daybook/${date}.xlsx`, { responseType: 'blob' })
+      .then((res) => ({ blob: res.data, filename: fileName(res, `day-book-${date}.xlsx`) })),
+};
 
 /* Printed-prescription extras: glasses prescription, exam findings, print settings (lane R owns
    this block). Filled in session 4. */
