@@ -19,14 +19,14 @@ describe('Outside demo mode', () => {
   it('the Machines screen has no "Demo: no connection" button (phone)', async () => {
     sessionStorage.setItem('gk_device', 'mobile');
     renderShell({ route: '/machines', child: <Machines /> });
-    await screen.findByText('Rasilaben Patel');
+    await screen.findByText('Which machine are you using?'); // machines load first
     expect(screen.queryByTestId('offline-toggle')).toBeNull();
     expect(screen.queryByText(/Demo:/)).toBeNull();
   });
 
   it('the top bar does not say "demo data" (desktop)', async () => {
     renderShell({ route: '/machines', child: <Machines /> });
-    await screen.findByText('Kiran Vaghela');
+    await screen.findByText('Which machine are you using?');
     expect(screen.queryByTestId('offline-toggle')).toBeNull();
     expect(document.querySelector('#topSub')).not.toHaveTextContent('demo data');
   });
