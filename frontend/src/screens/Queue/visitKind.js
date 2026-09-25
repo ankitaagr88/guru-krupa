@@ -1,7 +1,16 @@
 /* Visit kinds & fees on the queue (lane E2): the small tag on each queue row and a few formatters
    shared by the drawer's VisitKindPanel and the bill. */
 
-export const rupees = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
+import { fmtRupees } from '../../lib/format';
+
+export const rupees = fmtRupees;
+
+/** What a kind costs, next to its name: "₹350", or "free" — unless the name already says so
+    ("Follow-up · free" is not followed by another "free"). */
+export function kindFeeText(label, charge) {
+  if (charge != null) return fmtRupees(charge);
+  return /free/i.test(label || '') ? '' : 'free';
+}
 
 /** "20:00" -> "8 pm", "08:30" -> "8:30 am". */
 export function fmtClock(hhmm) {

@@ -17,7 +17,7 @@ from app.models.patients import Visit
 from app.models.readings import Reading
 from app.models.staff import Staff
 from app.ocr.templates import MACHINES
-from app.schemas.rx_print import (ExamGlassesOut, ExamRowOut, ExamValue, Glasses, LensValues,
+from app.schemas.rx_print import (ExamGlassesOut, ExamRowOut, ExamValue, Glasses, IopFill, LensValues,
                                   ReadingFill, RxPrintSettings)
 from app.seed.rx import DEFAULT_SETTINGS, SETTINGS_KEY
 from app.services.admin import BadValue, Conflict, NotFound
@@ -33,6 +33,8 @@ MAX_NOTE = 255
 # patient's current glasses, not a refraction). Worked out from the OCR templates, not listed here.
 REFRACTION_MACHINES = tuple(k for k, m in MACHINES.items()
                             if {"SPH (R)", "CYL (R)", "AX (R)", "SPH (L)", "CYL (L)", "AX (L)"} <= set(m.fields))
+# Tonometers: their printout carries IOP (R) / IOP (L). Also worked out from the OCR templates.
+IOP_MACHINES = tuple(k for k, m in MACHINES.items() if {"IOP (R)", "IOP (L)"} & set(m.fields))
 
 
 def _audit(db: Session, by, action: str, entity: str, entity_id: int | None, **detail) -> None:
@@ -222,6 +224,24 @@ def reading_fill(db: Session, visit: Visit) -> ReadingFill | None:
                        captured_at=reading.captured_at, r=eye("R"), l=eye("L"), ipd=safe(fmt_ipd, vals.get("PD")))
 
 
+def iop_fill(db: Session, visit: Visit) -> IopFill | None:
+    """IOP (R) / IOP (L) from the visit's latest approved tonometer reading (any machine whose
+    printout carries them), for the examination's IOP row."""
+    reading = db.scalar(select(Reading).where(Reading.visit_id == visit.id,
+                                              Reading.machine_key.in_(IOP_MACHINES),
+                                              Reading.approved_at.is_not(None))
+                        .order_by(Reading.approved_at.desc(), Reading.id.desc()))
+    if reading is None:
+        return None
+    vals = {v.get("l"): " ".join(str(v.get("v") or "").split()) for v in reading.values or []
+            if isinstance(v, dict)}
+    r, l = vals.get("IOP (R)", "")[:MAX_TEXT], vals.get("IOP (L)", "")[:MAX_TEXT]  # noqa: E741
+    if not (r or l):
+        return None
+    machine = MACHINES.get(reading.machine_key)
+    return IopFill(reading_id=reading.id, machine=machine.label if machine else reading.machine_key, r=r, l=l)
+
+
 def exam_glasses_out(db: Session, visit: Visit) -> ExamGlassesOut:
     glasses = visit.glasses if glasses_filled(visit.glasses) else None
     return ExamGlassesOut(
@@ -229,6 +249,7 @@ def exam_glasses_out(db: Session, visit: Visit) -> ExamGlassesOut:
         exam=[ExamRowOut(**r) for r in exam_rows(db, visit.exam)],
         glasses=Glasses.model_validate(glasses) if glasses else None,
         from_reading=reading_fill(db, visit),
+        iop=iop_fill(db, visit),
         va={"r": visit.va_r or "", "l": visit.va_l or ""})
 
 

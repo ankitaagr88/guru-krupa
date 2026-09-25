@@ -9,6 +9,7 @@ import { appointments, mockStore, prescriptions, rxPrint, treatments, visits } f
 import { PrescriptionModal } from '../Prescription';
 import Queue from './Queue';
 import { fmtFollowUp, followUpPresets } from './DoctorPanel';
+import { hasUnsavedExamGlasses } from './glasses';
 
 function renderQueue(route) {
   return render(
@@ -39,7 +40,7 @@ describe('Doctor panel: diagnosis', () => {
     renderQueue('/queue/doctor?patient=3');
     await waitFor(() => expect(drawer()).toHaveClass('show'));
     const select = await within(drawer()).findByLabelText('Diagnosis');
-    expect(within(drawer()).getByText('Nothing prescribed yet')).toBeInTheDocument();
+    expect(within(drawer()).getByRole('button', { name: 'Write prescription' })).toBeInTheDocument();
     const glaucoma = await diagnosisId('Glaucoma');
     await waitFor(() => expect(within(select).getAllByRole('option').length).toBeGreaterThan(1));
     await userEvent.selectOptions(select, String(glaucoma));
@@ -92,8 +93,9 @@ describe('Doctor panel: follow-up', () => {
     let booked = (await appointments.list({ date: twoWeeks.date })).filter((a) => a.sourceVisitId === 5);
     expect(booked).toHaveLength(1);
     expect(booked[0]).toMatchObject({ name: 'Bharat Oza', patientId: 5, note: 'IOP check', checkedIn: false });
-    // the drawer summary shows it
-    expect(within(drawer()).getByTestId('summary-follow-up')).toHaveTextContent(`Follow-up: ${fmtFollowUp(twoWeeks.date)}`);
+    // "No follow-up" is an ordinary choice: picked while nothing is booked, not once a date is
+    expect(section.getByRole('button', { name: 'No follow-up' })).toHaveAttribute('aria-pressed', 'false');
+    expect(section.getByRole('button', { name: 'No follow-up' })).toBeEnabled();
 
     await userEvent.click(section.getByRole('button', { name: '1 month' }));
     await waitFor(() => expect(section.getByTestId('fu-status')).toHaveTextContent(fmtFollowUp(month.date)));
@@ -104,6 +106,7 @@ describe('Doctor panel: follow-up', () => {
 
     await userEvent.click(section.getByRole('button', { name: 'No follow-up' }));
     await waitFor(() => expect(section.getByTestId('fu-status')).toHaveTextContent('No follow-up booked'));
+    expect(section.getByRole('button', { name: 'No follow-up' })).toHaveAttribute('aria-pressed', 'true');
     expect((await appointments.list()).filter((a) => a.sourceVisitId === 5)).toHaveLength(0);
     expect((await visits.get(5)).followUpDate).toBeNull();
   });
@@ -182,80 +185,135 @@ describe('Prescription pop-up: save state and next visit', () => {
 });
 
 describe('Doctor panel: examination and glasses (printed on the prescription)', () => {
-  const panel = () => within(drawer().querySelector('#examGlassesSection'));
-  const saveBtn = () => panel().getByRole('button', { name: /^(Save exam|Saving…|Saved)/ });
+  const exam = () => within(drawer().querySelector('#examSection'));
+  const glasses = () => within(drawer().querySelector('#glassesSection'));
+  const SAVED = { timeout: 4000 };
 
-  it('"Normal for all", typed powers tidied, lens type + IPD, then Save → Saved at hh:mm', async () => {
-    renderQueue('/queue/doctor?patient=5'); // Bharat Oza
+  it('saves on its own: IOP pre-filled from the tonometer, "Normal for all", tidied powers; a bad value stays red and is not sent', async () => {
+    renderQueue('/queue/doctor?patient=5'); // Bharat Oza: tonometer IOP 24 / 26
     await waitFor(() => expect(drawer()).toHaveClass('show'));
-    await waitFor(() => expect(panel().getByLabelText('Fundus R')).toBeEnabled());
-    expect(saveBtn()).toBeDisabled(); // nothing to save yet
+    await waitFor(() => expect(exam().getByLabelText('Fundus R')).toBeEnabled());
+    // no save button any more — it saves like the rest of the drawer
+    expect(within(drawer()).queryByRole('button', { name: /Save exam/ })).toBeNull();
+    // IOP comes from the approved tonometer reading and is saved straight away
+    expect(exam().getByLabelText('IOP (mmHg) R')).toHaveValue('24');
+    expect(exam().getByLabelText('IOP (mmHg) L')).toHaveValue('26');
+    expect(exam().getByTestId('eg-prefilled')).toHaveTextContent('IOP from HNT-1P');
+    await waitFor(async () => expect((await rxPrint.get(5)).exam.find((r) => r.key === 'iop')).toMatchObject({ r: '24', l: '26' }), SAVED);
 
-    await userEvent.click(panel().getByRole('button', { name: 'Normal for all' }));
-    expect(panel().getByLabelText('Fundus R')).toHaveValue('Normal');
-    expect(panel().getByLabelText('Lens L')).toHaveValue('Clear');
-    expect(panel().getByLabelText('IOP (mmHg) R')).toHaveValue(''); // no default: left for the doctor
-    await userEvent.type(panel().getByLabelText('IOP (mmHg) R'), '24');
-    // one row's own button
-    await userEvent.clear(panel().getByLabelText('Pupil L'));
-    await userEvent.click(panel().getByRole('button', { name: 'Pupil: Normal both eyes' }));
-    expect(panel().getByLabelText('Pupil L')).toHaveValue('Normal');
+    await userEvent.click(exam().getByRole('button', { name: 'Normal for all' }));
+    expect(exam().getByLabelText('Fundus R')).toHaveValue('Normal');
+    expect(exam().getByLabelText('Lens L')).toHaveValue('Clear');
+    await userEvent.clear(exam().getByLabelText('Pupil L'));
+    await userEvent.click(exam().getByRole('button', { name: 'Pupil: Normal both eyes' }));
+    expect(exam().getByLabelText('Pupil L')).toHaveValue('Normal');
 
-    const sph = panel().getByLabelText('R Dist Sph');
+    const sph = glasses().getByLabelText('R Dist Sph');
     await userEvent.type(sph, '-2.5');
     fireEvent.blur(sph);
     expect(sph).toHaveValue('-2.50');
-    const cyl = panel().getByLabelText('L Dist Cyl');
+    const cyl = glasses().getByLabelText('L Dist Cyl');
     await userEvent.type(cyl, '-0.3');
     fireEvent.blur(cyl);
     expect(cyl).toHaveAttribute('aria-invalid', 'true');
-    expect(panel().getByRole('alert')).toHaveTextContent('not a quarter step');
+    expect(glasses().getByRole('alert')).toHaveTextContent('not a quarter step');
+    await userEvent.type(glasses().getByLabelText('R Near VA'), 'N6');
+    await userEvent.click(glasses().getByRole('button', { name: 'ARC' }));
+    expect(glasses().getByRole('button', { name: 'ARC' })).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.type(glasses().getByLabelText('IPD (mm)'), '66');
+
+    // everything else is saved; the red cylinder is held back and the status says why
+    await waitFor(async () => expect((await rxPrint.get(5)).glasses?.ipd).toBe('66'), SAVED);
+    let saved = await rxPrint.get(5);
+    expect(saved.glasses.r.dist.sph).toBe('-2.50');
+    expect(saved.glasses.l.dist.cyl).toBe('');
+    expect(saved.glasses.lensTypes).toEqual(['arc']);
+    await waitFor(() => expect(glasses().getByTestId('eg-status-glasses')).toHaveTextContent('Fix the red box to save it'));
+
     await userEvent.clear(cyl);
     await userEvent.type(cyl, '-.5');
     fireEvent.blur(cyl);
     expect(cyl).toHaveValue('-0.50');
-    await userEvent.type(panel().getByLabelText('L Dist Axis'), '90');
-    await userEvent.type(panel().getByLabelText('R Near VA'), 'N6');
-    await userEvent.click(panel().getByRole('button', { name: 'ARC' }));
-    expect(panel().getByRole('button', { name: 'ARC' })).toHaveAttribute('aria-pressed', 'true');
-    await userEvent.type(panel().getByLabelText('IPD (mm)'), '66');
-    expect(panel().getByTestId('eg-unsaved')).toBeInTheDocument();
-
-    await userEvent.click(saveBtn());
-    await waitFor(() => expect(saveBtn()).toHaveTextContent(/^Saved at \d{1,2}:\d{2}/));
-    expect(panel().queryByTestId('eg-unsaved')).toBeNull();
-    const saved = await rxPrint.get(5);
+    await userEvent.type(glasses().getByLabelText('L Dist Axis'), '90');
+    fireEvent.blur(glasses().getByLabelText('L Dist Axis'));
+    await waitFor(() => expect(glasses().getByTestId('eg-status-glasses')).toHaveTextContent(/^Saved at \d{1,2}:\d{2}/), SAVED);
+    saved = await rxPrint.get(5);
     expect(saved.exam.map((r) => r.key)).toEqual(['lids', 'anterior', 'pupil', 'lens', 'iop', 'fundus']);
-    expect(saved.exam.find((r) => r.key === 'iop')).toMatchObject({ r: '24', l: '' });
-    expect(saved.glasses.r.dist.sph).toBe('-2.50');
     expect(saved.glasses.l.dist).toMatchObject({ cyl: '-0.50', axis: '90' });
-    expect(saved.glasses).toMatchObject({ lensTypes: ['arc'], ipd: '66' });
+    expect(saved.glasses.r.near.va).toBe('N6');
   });
 
-  it('"Fill from machine reading" copies the refraction Sph / Cyl / Axis, PD and the chart VA', async () => {
+  it('Print warns while a change is pending; closing the drawer sends it', async () => {
+    renderQueue('/queue/doctor?patient=5');
+    await waitFor(() => expect(drawer()).toHaveClass('show'));
+    await waitFor(() => expect(exam().getByLabelText('Fundus R')).toBeEnabled());
+    await waitFor(() => expect(hasUnsavedExamGlasses(5)).toBe(false), SAVED); // the IOP pre-fill went out
+    await userEvent.clear(exam().getByLabelText('Fundus R'));
+    await userEvent.type(exam().getByLabelText('Fundus R'), 'Cup 0.6');
+    expect(hasUnsavedExamGlasses(5)).toBe(true);
+    await userEvent.click(within(drawer()).getByRole('button', { name: 'Close' }));
+    await waitFor(async () => expect((await rxPrint.get(5)).exam.find((r) => r.key === 'fundus')?.r).toBe('Cup 0.6'), SAVED);
+    expect(hasUnsavedExamGlasses(5)).toBe(false);
+  });
+
+  it('"Fill from machine reading" copies the refraction Sph / Cyl / Axis, PD and the chart VA, then saves', async () => {
     await visits.move(4, 'doctor'); // Falguni Shah: HRK-8000A refraction on file, VA 6/9 · 6/6
     renderQueue('/queue/doctor?patient=4');
     await waitFor(() => expect(drawer()).toHaveClass('show'));
-    const fill = await panel().findByRole('button', { name: 'Fill from machine reading' });
+    const fill = await glasses().findByRole('button', { name: 'Fill from machine reading' });
     await waitFor(() => expect(fill).toBeEnabled());
     await userEvent.click(fill);
-    expect(panel().getByLabelText('R Dist Sph')).toHaveValue('-1.00');
-    expect(panel().getByLabelText('R Dist Cyl')).toHaveValue('-0.50');
-    expect(panel().getByLabelText('R Dist Axis')).toHaveValue('90');
-    expect(panel().getByLabelText('L Dist Sph')).toHaveValue('-0.75');
-    expect(panel().getByLabelText('L Dist Axis')).toHaveValue('85');
-    expect(panel().getByLabelText('R Dist VA')).toHaveValue('6/9');
-    expect(panel().getByLabelText('L Dist VA')).toHaveValue('6/6');
-    expect(panel().getByLabelText('IPD (mm)')).toHaveValue('64');
+    expect(glasses().getByLabelText('R Dist Sph')).toHaveValue('-1.00');
+    expect(glasses().getByLabelText('R Dist Cyl')).toHaveValue('-0.50');
+    expect(glasses().getByLabelText('R Dist Axis')).toHaveValue('90');
+    expect(glasses().getByLabelText('L Dist Sph')).toHaveValue('-0.75');
+    expect(glasses().getByLabelText('L Dist Axis')).toHaveValue('85');
+    expect(glasses().getByLabelText('R Dist VA')).toHaveValue('6/9');
+    expect(glasses().getByLabelText('L Dist VA')).toHaveValue('6/6');
+    expect(glasses().getByLabelText('IPD (mm)')).toHaveValue('64');
     expect(drawer()).toHaveTextContent('Filled from HRK-8000A — Refraction (REF)');
-    await userEvent.click(saveBtn());
-    await waitFor(async () => expect((await rxPrint.get(4)).glasses?.r.dist.sph).toBe('-1.00'));
+    await waitFor(async () => expect((await rxPrint.get(4)).glasses?.r.dist.sph).toBe('-1.00'), SAVED);
+  });
+
+  it('works for the demo glaucoma patient too (Bharat Oza has a refraction reading)', async () => {
+    renderQueue('/queue/doctor?patient=5');
+    await waitFor(() => expect(drawer()).toHaveClass('show'));
+    const fill = await glasses().findByRole('button', { name: 'Fill from machine reading' });
+    await waitFor(() => expect(fill).toBeEnabled());
+    await userEvent.click(fill);
+    expect(glasses().getByLabelText('R Dist Sph')).toHaveValue('+1.50');
+    expect(glasses().getByLabelText('L Dist Axis')).toHaveValue('80');
+    expect(glasses().getByLabelText('IPD (mm)')).toHaveValue('63');
   });
 
   it('with no approved refraction reading the fill button is off and says why', async () => {
-    renderQueue('/queue/doctor?patient=5'); // Bharat Oza: only a tonometer reading
+    await visits.move(3, 'doctor'); // Mahesh Desai: no readings
+    renderQueue('/queue/doctor?patient=3');
     await waitFor(() => expect(drawer()).toHaveClass('show'));
-    expect(await panel().findByText(/No approved refraction reading on this visit yet/)).toBeInTheDocument();
-    expect(panel().getByRole('button', { name: 'Fill from machine reading' })).toBeDisabled();
+    expect(await glasses().findByText('No refraction reading yet')).toBeInTheDocument();
+    expect(glasses().getByRole('button', { name: 'Fill from machine reading' })).toBeDisabled();
+    expect(exam().getByLabelText('IOP (mmHg) R')).toHaveValue(''); // nothing to pre-fill
+  });
+});
+
+describe('Doctor stage layout', () => {
+  it('readings first, exam photos only when there are some, and the stage buttons in the footer', async () => {
+    renderQueue('/queue/doctor?patient=5');
+    await waitFor(() => expect(drawer()).toHaveClass('show'));
+    const order = [...drawer().querySelectorAll('.doc-grid section')].map((s) => s.className);
+    expect(order[0]).toBe('doc-o1');
+    expect(within(drawer().querySelector('#doctorReadings')).getByText(/HNT-1P/)).toBeInTheDocument();
+    expect(within(drawer()).queryByText('Exam photos')).toBeNull();
+    expect(within(drawer()).getByTestId('add-exam-photo')).toHaveAttribute('href', '/machines?visit=5');
+    // no visit-type chips with the doctor — only the small "Different problem" link
+    expect(within(drawer()).queryByTestId('visit-kind-panel')).toBeNull();
+    const foot = drawer().querySelector('.drawer-foot');
+    expect(within(foot).getByRole('button', { name: 'Send to billing' })).toBeInTheDocument();
+    expect(within(foot).getByRole('button', { name: 'Start dilation drops' })).toBeInTheDocument();
+    // the patient's name is plain text; the record is a separate link in the header
+    expect(within(drawer().querySelector('.drawer-head')).getByTestId('drawer-record-link')).toHaveAttribute(
+      'href',
+      '/patients/5'
+    );
   });
 });

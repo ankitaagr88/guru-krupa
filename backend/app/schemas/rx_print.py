@@ -70,11 +70,22 @@ class ReadingFill(CamelModel):
     ipd: str = ""
 
 
+class IopFill(CamelModel):
+    """IOP per eye from the visit's latest approved tonometer reading — the doctor's panel fills an
+    empty IOP row of the examination with it."""
+
+    reading_id: int
+    machine: str
+    r: str = ""
+    l: str = ""  # noqa: E741
+
+
 class ExamGlassesOut(CamelModel):
     visit_id: int
     exam: list[ExamRowOut]  # saved rows only, in the admin order
     glasses: Glasses | None
     from_reading: ReadingFill | None = None
+    iop: IopFill | None = None
     va: dict[str, str] = {}  # the visit's Snellen VA {"r": "6/9", "l": "6/6"} (fills Dist VA)
 
 

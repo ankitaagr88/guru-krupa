@@ -84,6 +84,7 @@ export function money() {
     if (ch.accountHeadKey === undefined)
       ch.accountHeadKey = GROUP_HEADS[(ch.groupLabel || '').trim().toLowerCase()] || 'other';
   });
+  tidySeededBills();
   if (!S.standardCharges.some((ch) => ch.label.toLowerCase() === 'glasses')) {
     S.standardCharges.push({
       id: store.nextId('standardCharge'),
@@ -97,6 +98,44 @@ export function money() {
     });
   }
   return slot;
+}
+
+/* The demo seed (mocks/data.js) gives one billing-stage patient a hand-written bill:
+   "Consultation fee" + "Pre-test charges", with no kind, charge or day-book column — so the fee
+   disagreed with the visit type and landed under OTHER. Tidy it the way the app builds bills: the
+   consultation becomes the visit type's fee line (it follows the visit type from then on; the
+   seeded amount stays, as if reception had given a discount) and any other seeded line is a typed
+   line with its column. */
+const SEED_LINE_HEADS = { 'pre-test charges': 'test' };
+function tidySeededBills() {
+  S.patients.forEach((p) => {
+    const items = p.bill?.items || [];
+    if (!items.some((it) => !it.kind)) return;
+    const isFee = (it) => !it.kind && /consultation/i.test(it.label || '');
+    const typed = items
+      .filter((it) => !isFee(it))
+      .map((it) =>
+        it.kind
+          ? it
+          : {
+              ...it,
+              id: it.id ?? store.nextId('billItem'),
+              kind: 'other',
+              qty: 1,
+              accountHeadKey: SEED_LINE_HEADS[String(it.label).toLowerCase()] || 'other',
+            }
+      );
+    const fee = items.find(isFee);
+    const feeLines = fee
+      ? suggestedItems(p).map((it, i) =>
+          i === 0 && it.standardChargeId !== S.feeRules.emergencyChargeId
+            ? { ...it, amount: Number(fee.amount) || it.amount }
+            : it
+        )
+      : [];
+    p.bill.items = [...feeLines, ...typed];
+    p.bill.started = true;
+  });
 }
 
 /** The day-book column a line goes under (mirrors the server's `line_head`). */
@@ -188,7 +227,10 @@ function moneyFields(b) {
 
 /* A bill exists once it was started (the billing panel opened it, "Bought here", a save) — or
    the demo seeded it with lines. Until then GET 404s, like the server. */
-const started = (p) => !!(p.bill && (p.bill.started || p.bill.paidAt || (p.bill.items || []).length));
+const started = (p) => {
+  money();
+  return !!(p.bill && (p.bill.started || p.bill.paidAt || (p.bill.items || []).length));
+};
 
 /** A new bill starts with the visit's suggested fee lines (visit kind + Emergency when flagged). */
 function startBill(p) {
@@ -197,6 +239,7 @@ function startBill(p) {
 }
 
 export function billOut(p) {
+  money();
   reconcile(p);
   const b = p.bill || { items: [], paymentMode: null };
   const { kindIds, emergency } = feeChargeIds();

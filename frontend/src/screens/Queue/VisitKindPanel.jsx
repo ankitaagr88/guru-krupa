@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useToast } from '../../components/Toast';
 import { billing as billingApi, fees as feesApi, errorMessage } from '../../api';
 import { announceBillChanged } from '../Billing/billEvents';
-import { emergencyWhen, kindTagText, rupees } from './visitKind';
+import { emergencyWhen, kindFeeText, kindTagText, rupees } from './visitKind';
 import './visitKind.css';
 
 /* Visit type & fee in the patient drawer (lane E2). The kind (new patient, follow-up, new case,
@@ -10,7 +10,10 @@ import './visitKind.css';
    sees why ("Last visit 12 days ago") and can change it — including "Different problem → New
    case" — and switch the emergency fee on or off. The bill's suggested fee line follows on the
    server; this panel announces it so an open bill reloads.
-   `mode="doctor"`: only the kind and the "Different problem" button. `onChanged(visitOut)` lets
+   This is the one control for the visit fee: the bill's fee line follows it (the bill does not
+   offer the visit-kind or emergency charges as separate chips).
+   `mode="doctor"`: only the kind and the "Different problem" button; `mode="link"`: just a small
+   "Different problem — charge as New case" link (the doctor's stage). `onChanged(visitOut)` lets
    the queue reload. */
 export default function VisitKindPanel({ row, mode = 'full', busy = false, onChanged }) {
   const toast = useToast();
@@ -75,14 +78,30 @@ export default function VisitKindPanel({ row, mode = 'full', busy = false, onCha
   const different = () =>
     change({ visitKindKey: newCase.key }, `Different problem — charged as ${newCase.label}`);
 
-  const feeText = charge == null ? 'no charge' : rupees(charge);
+  const feeText = charge == null ? (/free/i.test(label || '') ? '' : 'no charge') : rupees(charge);
+  const newCaseFee = newCase ? kindFeeText(newCase.label, newCase.chargeAmount) : '';
+
+  if (mode === 'link')
+    return showDifferent ? (
+      <button
+        type="button"
+        className="link-btn visit-kind-link"
+        onClick={different}
+        disabled={disabled}
+        data-testid="different-problem"
+        title={`Came back for something new — charge the ${newCase.label} fee`}
+      >
+        Different problem — charge as {newCase.label}
+        {newCaseFee && <span className="mono"> · {newCaseFee}</span>}
+      </button>
+    ) : null;
 
   return (
     <div className="visit-kind" data-testid="visit-kind-panel">
       <div className="field-label">Visit type &amp; fee</div>
       <div className="visit-kind-now" data-testid="visit-kind-now">
         <span className="visit-kind-name">{label || 'Not set yet'}</span>
-        {label && <span className="mono visit-kind-fee">{feeText}</span>}
+        {label && feeText && <span className="mono visit-kind-fee">{feeText}</span>}
         {v.emergency && <span className="status-pill alert">Emergency</span>}
         {v.feeReason && <small className="visit-kind-why">{v.feeReason}</small>}
       </div>
@@ -100,7 +119,9 @@ export default function VisitKindPanel({ row, mode = 'full', busy = false, onCha
               disabled={disabled}
             >
               {k.label}{' '}
-              <span className="mono">{k.chargeAmount == null ? 'free' : rupees(k.chargeAmount)}</span>
+              {kindFeeText(k.label, k.chargeAmount) && (
+                <span className="mono">{kindFeeText(k.label, k.chargeAmount)}</span>
+              )}
             </button>
           ))}
         </div>
@@ -116,10 +137,7 @@ export default function VisitKindPanel({ row, mode = 'full', busy = false, onCha
         >
           Different problem — charge as {newCase.label}{' '}
           <small>
-            came back for something new ·{' '}
-            <span className="mono">
-              {newCase.chargeAmount == null ? 'free' : rupees(newCase.chargeAmount)}
-            </span>
+            <span className="mono">{newCaseFee || 'free'}</span>
           </small>
         </button>
       )}
@@ -139,7 +157,7 @@ export default function VisitKindPanel({ row, mode = 'full', busy = false, onCha
           />
           <span>
             Emergency fee <span className="mono">{rupees(emergencyCharge.amount)}</span>
-            <small>suggested automatically {emergencyWhen(rules) ? `for ${emergencyWhen(rules)}` : ''}</small>
+            {emergencyWhen(rules) && <small>{emergencyWhen(rules)}</small>}
           </span>
         </label>
       )}

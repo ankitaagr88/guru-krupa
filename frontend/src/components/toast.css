@@ -1,0 +1,34 @@
+/* Toast placement (overrides the base look in styles/global.css): bottom right on a desk screen,
+   bottom centre above the tab bar on a phone. While a drawer is open, Drawer.jsx sets
+   --drawer-clear (px from the bottom of the window to just above the drawer's footer), so a toast
+   never covers the drawer's action buttons, its ✕ or the top bar. */
+html body .toast-stack {
+  top: auto;
+  left: auto;
+  right: 20px;
+  bottom: var(--drawer-clear, 20px);
+  width: 340px;
+  max-width: calc(100vw - 32px);
+}
+html body .toast { width: 100%; }
+html body.mobile-mode .toast-stack {
+  top: auto;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  width: calc(100vw - 24px);
+  max-width: 420px;
+  bottom: var(--drawer-clear, calc(var(--mobile-nav-h) + 12px + env(safe-area-inset-bottom, 0px)));
+}
+
+html body.mobile-mode .toast { padding: 12px 14px; }
+html body.mobile-mode .toast .t-title { font-size: 15px; }
+.toast .t-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 11px; }
+html body .toast .t-dismiss { margin-top: 0; }
+.toast .t-action {
+  background: var(--surface); border: 1px solid var(--line); color: var(--ink); font-family: var(--font-ui);
+  font-weight: 600; font-size: 13px; padding: 7px 14px; border-radius: 8px; cursor: pointer;
+}
+.toast .t-action:hover { border-color: var(--sapphire); color: var(--sapphire-deep); }
+.toast .t-action.primary { background: var(--sapphire); border-color: var(--sapphire); color: var(--on-sapphire); }
+.toast .t-action.primary:hover { background: var(--sapphire-deep); color: var(--on-sapphire); }

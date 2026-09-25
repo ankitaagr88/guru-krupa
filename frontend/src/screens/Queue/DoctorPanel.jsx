@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useToast } from '../../components/Toast';
 import {
   doctor as doctorApi,
@@ -16,8 +17,14 @@ import {
                        appointment for that day; "No follow-up" removes it.
    Both report the updated visit (VisitOut) through `onVisit`.
      ExamGlassesPanel — the Examination and Glasses blocks printed on the prescription
-                        (lane R, ./ExamGlassesPanel.jsx); saves on its own button. */
-export { default as ExamGlassesPanel } from './ExamGlassesPanel';
+                        (lane R, ./ExamGlassesPanel.jsx); saves on its own. The drawer uses
+                        its parts (useExamGlasses + ExamSection / GlassesSection) to place them. */
+export {
+  default as ExamGlassesPanel,
+  ExamSection,
+  GlassesSection,
+  useExamGlasses,
+} from './ExamGlassesPanel';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -213,6 +220,16 @@ export function FollowUpPicker({ visitId, followUpDate, followUpNote, onVisit, d
             {p.label}
           </button>
         ))}
+        <button
+          type="button"
+          className={followUpDate ? '' : 'active'}
+          aria-pressed={!followUpDate}
+          onClick={() => followUpDate && clear()}
+          disabled={busy || disabled}
+          data-testid="fu-none"
+        >
+          No follow-up
+        </button>
       </div>
       <div className="fu-row">
         <input
@@ -226,7 +243,7 @@ export function FollowUpPicker({ visitId, followUpDate, followUpNote, onVisit, d
         />
         <input
           className="fake-input fu-note"
-          placeholder="Note for the appointment (optional)"
+          placeholder="Appointment note"
           aria-label="Follow-up note"
           maxLength={255}
           value={note}
@@ -239,16 +256,16 @@ export function FollowUpPicker({ visitId, followUpDate, followUpNote, onVisit, d
       <div className="fu-status">
         {followUpDate ? (
           <span data-testid="fu-status">
-            Appointment booked for <b>{fmtFollowUp(followUpDate)}</b>
+            Appointment booked for{' '}
+            <Link to={`/appointments?date=${followUpDate}`} className="fu-appt-link" title="Open the appointments for that day">
+              <b>{fmtFollowUp(followUpDate)}</b>
+            </Link>
           </span>
         ) : (
           <span className="faint" data-testid="fu-status">
             No follow-up booked
           </span>
         )}
-        <button type="button" className="fu-clear" onClick={clear} disabled={!followUpDate || busy || disabled}>
-          No follow-up
-        </button>
       </div>
     </div>
   );

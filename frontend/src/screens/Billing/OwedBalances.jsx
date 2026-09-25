@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { billing as billingApi, errorMessage } from '../../api';
 import { useToast } from '../../components/Toast';
 import ReceivePayment from './ReceivePayment';
@@ -8,10 +8,16 @@ import './billing.css';
 /* Money a patient still owes from earlier visits (lane M) — "₹60 still owed from 24 Sep" with a
    "Receive payment" action that opens the amount + mode box. Shown on the patient page (`variant`
    "card") and in the queue billing drawer ("notice", leaving out the visit being billed there:
-   `excludeVisitId`). Renders nothing while nothing is owed. `onPaid` runs after a payment. */
-export default function OwedBalances({ patientId, excludeVisitId = null, variant = 'card', refreshKey, onPaid }) {
+   `excludeVisitId`). Renders nothing while nothing is owed. `onPaid` runs after a payment;
+   `onRows(rows)` hears the list (the bill offers "Also collect old balance"). */
+export default function OwedBalances({ patientId, excludeVisitId = null, variant = 'card', refreshKey, onPaid, onRows }) {
   const toast = useToast();
   const [rows, setRows] = useState([]);
+  const tell = useRef(onRows);
+  tell.current = onRows;
+  useEffect(() => {
+    tell.current?.(rows);
+  }, [rows]);
   const [open, setOpen] = useState(null); // visitId whose "Receive payment" box is open
   const [busy, setBusy] = useState(false);
 

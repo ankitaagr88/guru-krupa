@@ -15,15 +15,7 @@ export default function DispensePanel({ visitId, lines, onChange, busy = false }
   const [qtys, setQtys] = useState({});
   const [working, setWorking] = useState(null);
 
-  if (!lines || lines.length === 0)
-    return (
-      <div id="dispenseSection" data-testid="dispense-panel">
-        <div className="field-label">Medicines from clinic stock</div>
-        <p className="small-note" style={{ margin: '0 0 12px' }}>
-          No medicines were prescribed for this visit.
-        </p>
-      </div>
-    );
+  if (!lines || lines.length === 0) return null; // nothing prescribed: nothing to confirm
 
   const qtyFor = (l) => {
     const v = qtys[l.id];
@@ -63,10 +55,6 @@ export default function DispensePanel({ visitId, lines, onChange, busy = false }
   return (
     <div id="dispenseSection" data-testid="dispense-panel">
       <div className="field-label">Medicines from clinic stock</div>
-      <p className="hint" style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--ink-faint)' }}>
-        Confirm each medicine the patient actually buys here — it comes off the stock and goes on the bill. Skip the
-        ones they already have.
-      </p>
       {lines.map((l) => {
         const done = l.dispensedQty > 0;
         const stocked = l.inStock != null;
@@ -139,7 +127,7 @@ export default function DispensePanel({ visitId, lines, onChange, busy = false }
         );
       })}
       <p className="small-note" style={{ margin: '6px 0 12px' }}>
-        {bought} of {lines.length} bought from the clinic
+        {bought} of {lines.length} bought here
       </p>
     </div>
   );

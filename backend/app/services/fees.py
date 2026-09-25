@@ -318,13 +318,21 @@ def fee_charge_ids(db: Session, rules: FeeRules | None = None) -> tuple[set[int]
     return kind_ids, emergency
 
 
-def _line(charge: StandardCharge) -> BillItem:
-    return BillItem(label=charge.label, amount=charge.amount, kind="charge", qty=1, standard_charge_id=charge.id)
+def _line(charge: StandardCharge, label: str | None = None) -> BillItem:
+    return BillItem(label=label or charge.label, amount=charge.amount, kind="charge", qty=1,
+                    standard_charge_id=charge.id)
 
 
 def kind_charge(db: Session, visit: Visit) -> StandardCharge | None:
     kind = _kind(db, visit.visit_kind_key)
     return db.get(StandardCharge, kind.standard_charge_id) if kind and kind.standard_charge_id else None
+
+
+def fee_label(db: Session, visit: Visit, charge: StandardCharge) -> str:
+    """The visit-fee line reads like the visit type everywhere (queue tag, drawer, bill, receipt):
+    "New patient", "Follow-up" — not the charge's own name."""
+    kind = _kind(db, visit.visit_kind_key)
+    return kind.label if kind is not None else charge.label
 
 
 def emergency_charge(db: Session, visit: Visit, rules: FeeRules | None = None) -> StandardCharge | None:
@@ -335,8 +343,16 @@ def emergency_charge(db: Session, visit: Visit, rules: FeeRules | None = None) -
 
 
 def suggested_items(db: Session, visit: Visit) -> list[BillItem]:
-    """The lines a brand-new bill starts with: the kind's fee, then Emergency when flagged."""
-    return [_line(c) for c in (kind_charge(db, visit), emergency_charge(db, visit)) if c is not None]
+    """The lines a brand-new bill starts with: the kind's fee (named like the kind), then Emergency
+    when flagged."""
+    lines = []
+    charge = kind_charge(db, visit)
+    if charge is not None:
+        lines.append(_line(charge, fee_label(db, visit, charge)))
+    em = emergency_charge(db, visit)
+    if em is not None:
+        lines.append(_line(em))
+    return lines
 
 
 def fee_note(db: Session, visit: Visit, rules: FeeRules | None = None) -> str:
@@ -364,12 +380,13 @@ def sync_bill(db: Session, visit: Visit) -> None:
     fee_lines = [i for i in bill.items if i.kind == "charge" and i.standard_charge_id in kind_ids]
     charge = kind_charge(db, visit)
     if charge is not None:
+        label = fee_label(db, visit, charge)
         keep = fee_lines.pop(0) if fee_lines else None
         if keep is None:
-            bill.items.append(_line(charge))
+            bill.items.append(_line(charge, label))
         else:
             keep.label, keep.amount, keep.standard_charge_id, keep.qty, keep.eyes = (
-                charge.label, charge.amount, charge.id, 1, None)
+                label, charge.amount, charge.id, 1, None)
     for item in fee_lines:
         bill.items.remove(item)
         db.delete(item)
@@ -434,8 +451,8 @@ def visit_fee(db: Session, visit: Visit) -> dict:
     rules = get_rules(db)
     h = history(db, visit.patient_id, visit.date, visit.id)
     kind = _kind(db, visit.visit_kind_key)
-    lines = [{"label": c.label, "amount": c.amount, "standard_charge_id": c.id}
-             for c in (kind_charge(db, visit), emergency_charge(db, visit, rules)) if c is not None]
+    lines = [{"label": i.label, "amount": i.amount, "standard_charge_id": i.standard_charge_id}
+             for i in suggested_items(db, visit)]
     return {"visit_id": visit.id, "visit_kind_key": visit.visit_kind_key,
             "visit_kind_label": kind.label if kind else None,
             "suggested_kind_key": suggest_kind(rules, h, visit.date), "emergency": bool(visit.emergency),

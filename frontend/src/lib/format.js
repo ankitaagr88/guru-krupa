@@ -159,3 +159,8 @@ export function computeRowStatus(p, stageKey, now = Date.now()) {
   const waitCls = waitMin >= WAIT_CORAL_MIN ? 'coral' : waitMin >= WAIT_AMBER_MIN ? 'amber' : '';
   return { status, note, tags, wait: { text: fmtElapsed(waitMs), cls: waitCls } };
 }
+
+/** Money as staff read it: 5850 → "₹5,850" (Indian digit grouping); empty → "₹0". */
+export function fmtRupees(n) {
+  return `₹${Math.round(Number(n) || 0).toLocaleString('en-IN')}`;
+}

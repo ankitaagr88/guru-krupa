@@ -1,0 +1,25 @@
+/* Drawer additions on top of the base look in styles/global.css. */
+
+/* "Patient record" next to the token / age / stage line */
+.drawer-head .meta { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 14px; }
+.drawer-record-link {
+  display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-ui); font-size: 12.5px;
+  font-weight: 600; color: var(--sapphire); text-decoration: none; border-radius: 6px; padding: 2px 4px; margin-left: -4px;
+}
+.drawer-record-link svg { width: 15px; height: 15px; }
+.drawer-record-link:hover { background: var(--sapphire-wash); color: var(--sapphire-deep); }
+
+/* Footer that holds the drawer's actions (move the patient, receive payment): always in view. */
+.drawer-foot.drawer-foot-actions {
+  font-family: var(--font-ui); font-size: 13px; color: var(--ink); padding-top: 12px; padding-bottom: 12px;
+  background: var(--surface); box-shadow: 0 -6px 16px -12px rgba(15, 23, 42, 0.25);
+}
+
+/* Wide drawer: the body may use the full width (two columns at >= 1280 px). */
+@media (min-width: 1280px) {
+  body:not(.mobile-mode) .drawer.drawer-wide .drawer-body { padding-left: 32px; padding-right: 32px; }
+}
+
+/* Phone: the drawer is a full-screen sheet that ends above the tab bar, so its footer is never
+   hidden behind it. */
+html body.mobile-mode .drawer { height: calc(100% - var(--mobile-nav-h) - env(safe-area-inset-bottom, 0px)); }

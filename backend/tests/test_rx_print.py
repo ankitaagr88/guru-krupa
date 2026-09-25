@@ -9,7 +9,7 @@ from app.models.patients import Visit
 from app.seed.reference import seed_reference
 from app.seed.rx import DEFAULT_SETTINGS, SETTINGS_KEY
 from app.services.admin import BadValue
-from app.services.rx_print import REFRACTION_MACHINES, fmt_axis, fmt_ipd, fmt_power
+from app.services.rx_print import IOP_MACHINES, REFRACTION_MACHINES, fmt_axis, fmt_ipd, fmt_power
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -110,7 +110,8 @@ def test_lists_any_staff(client, reception_headers):
 def test_exam_glasses_roundtrip_and_tidy(client, admin_headers, doctor_headers, reception_headers, db):
     vid = _visit(client, admin_headers)
     empty = client.get(f"/api/visits/{vid}/exam-glasses", headers=reception_headers).json()
-    assert empty == {"visitId": vid, "exam": [], "glasses": None, "fromReading": None, "va": {"r": "", "l": ""}}
+    assert empty == {"visitId": vid, "exam": [], "glasses": None, "fromReading": None, "iop": None,
+                     "va": {"r": "", "l": ""}}
 
     body = {"exam": [{"key": "fundus", "r": "Normal", "l": " Normal "}, {"key": "lids", "r": "", "l": ""},
                      {"key": "iop", "r": 18, "l": "20"}],
@@ -179,6 +180,19 @@ def test_fill_from_approved_refraction_reading(client, admin_headers, reception_
     assert fill["r"] == {"sph": "-1.00", "cyl": "-0.50", "axis": "90", "va": ""}
     assert fill["l"]["cyl"] == "" and fill["l"]["sph"] == "-0.75" and fill["ipd"] == "64"
     assert out["va"] == {"r": "6/9", "l": "6/6"}
+
+
+def test_iop_from_approved_tonometer_reading(client, admin_headers, reception_headers):
+    assert "hnt1p_tono" in IOP_MACHINES and "hrk8000a_ref" not in IOP_MACHINES
+    vid = _visit(client, admin_headers)
+    values = [{"l": "IOP (R)", "v": "24"}, {"l": "IOP (L)", "v": "26"}, {"l": "CCT (R)", "v": "520"}]
+    rid = client.post("/api/readings/manual", json={"visitId": vid, "machineKey": "hnt1p_tono", "values": values},
+                      headers=admin_headers).json()["id"]
+    # not approved yet: nothing to pre-fill
+    assert client.get(f"/api/visits/{vid}/exam-glasses", headers=reception_headers).json()["iop"] is None
+    assert client.post(f"/api/readings/{rid}/approve", headers=admin_headers).status_code == 200
+    iop = client.get(f"/api/visits/{vid}/exam-glasses", headers=reception_headers).json()["iop"]
+    assert iop == {"readingId": rid, "machine": "HNT-1P — Tono-Pachy (IOP & CCT)", "r": "24", "l": "26"}
 
 
 # --------------------------------------------------------------------------- print payload

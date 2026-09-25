@@ -86,10 +86,12 @@ export function feeFields(p) {
 export const feeVisitOut = (p) => ({ ...doctorVisitOut(p), ...feeFields(p) });
 
 /* ---------------- suggested bill lines (used by ./billing) ---------------- */
-function line(ch) {
+// The visit fee line reads like the visit type everywhere ("New patient", "Follow-up");
+// the emergency line keeps its charge's name.
+function line(ch, label = ch.label) {
   return {
     id: store.nextId('billItem'),
-    label: ch.label,
+    label,
     amount: ch.amount,
     kind: 'charge',
     qty: 1,
@@ -107,9 +109,10 @@ export function feeChargeIds() {
 
 export function suggestedItems(p) {
   ensureKind(p);
-  const kindCharge = chargeById(kindByKey(p.visitKindKey)?.standardChargeId);
+  const kind = kindByKey(p.visitKindKey);
+  const kindCharge = chargeById(kind?.standardChargeId);
   const em = p.emergency ? chargeById(S.feeRules.emergencyChargeId) : null;
-  return [kindCharge, em].filter(Boolean).map(line);
+  return [kindCharge ? line(kindCharge, kind.label) : null, em ? line(em) : null].filter(Boolean);
 }
 
 export function feeNote(p) {
@@ -124,23 +127,25 @@ export function feeNote(p) {
 /** Kind / emergency changed: swap the suggested lines on an unpaid bill (one fee line, never two). */
 function syncBill(p) {
   const b = p.bill;
-  if (!b || !(b.started || b.items?.length) || b.paidAt) return; // no bill yet: start() suggests
+  // no bill yet: start() suggests; money taken against it: the fee stays (like the server)
+  if (!b || !(b.started || b.items?.length) || b.paidAt || (b.payments || []).length) return;
   const { kindIds, emergency } = feeChargeIds();
   const items = b.items || [];
   const feeLines = items.filter((it) => it.kind === 'charge' && kindIds.has(it.standardChargeId));
-  const ch = chargeById(kindByKey(p.visitKindKey)?.standardChargeId);
+  const kind = kindByKey(p.visitKindKey);
+  const ch = chargeById(kind?.standardChargeId);
   let next = items;
   if (ch) {
     const keep = feeLines.shift();
     if (keep)
       Object.assign(keep, {
-        label: ch.label,
+        label: kind.label,
         amount: ch.amount,
         standardChargeId: ch.id,
         qty: 1,
         eyes: null,
       });
-    else next = [...next, line(ch)];
+    else next = [...next, line(ch, kind.label)];
   }
   next = next.filter((it) => !feeLines.includes(it));
   if (emergency != null) {

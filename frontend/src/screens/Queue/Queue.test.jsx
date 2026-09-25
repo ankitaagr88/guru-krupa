@@ -162,6 +162,64 @@ describe('Dilation', () => {
     await waitFor(async () => expect((await visits.get(6)).stage).toBe('doctor'));
     confirm.mockRestore();
   });
+
+  it('the dilation toast stays, sends the patient to the doctor, and the Dilating tab counts who is ready', async () => {
+    renderQueue('/queue/dilate'); // Ilaben Chauhan's last drop is overdue on load
+    await waitFor(() => expect(board()).toHaveTextContent('Ilaben Chauhan'));
+    const toast = await waitFor(() => {
+      const t = screen.getAllByTestId('toast').find((x) => x.textContent.includes('Ilaben Chauhan'));
+      expect(t).toBeTruthy();
+      return t;
+    });
+    await waitFor(() => expect(screen.getByTestId('dilate-ready')).toHaveTextContent('1 ready'));
+    expect(within(toast).getByRole('button', { name: 'Open' })).toBeInTheDocument();
+    await userEvent.click(within(toast).getByRole('button', { name: 'Send to doctor' }));
+    await waitFor(async () => expect((await visits.get(7)).stage).toBe('doctor'));
+    await waitFor(() => expect(screen.queryByTestId('dilate-ready')).toBeNull());
+  });
+
+  it('the dilation drawer puts the drops first and the prescription second', async () => {
+    renderQueue('/queue/dilate?patient=6');
+    await waitFor(() => expect(drawer()).toHaveClass('show'));
+    const body = drawer().querySelector('.drawer-body');
+    const drops = body.querySelector('#dilationSection');
+    const rx = body.querySelector('#rxSection');
+    expect(drops.compareDocumentPosition(rx) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(rx).getByRole('button', { name: /Write prescription/ })).toHaveClass('secondary');
+  });
+});
+
+describe('Queue rows and the drawer', () => {
+  it('clicking the name opens the drawer (not the record); the record is linked from the drawer header', async () => {
+    renderQueue('/queue/reg');
+    await waitFor(() => expect(board()).toHaveTextContent('Rasilaben Patel'));
+    await userEvent.click(within(screen.getByTestId('queue-row-1')).getByRole('button', { name: 'Rasilaben Patel' }));
+    await waitFor(() => expect(drawer()).toHaveClass('show'));
+    expect(within(drawer().querySelector('.drawer-head')).getByTestId('drawer-record-link')).toHaveAttribute(
+      'href',
+      '/patients/1'
+    );
+    // a phone card opens the drawer too, and shows no date of birth
+    expect(screen.getByTestId('patient-card-1')).not.toHaveTextContent('DOB');
+  });
+
+  it('the move buttons sit in the drawer footer; after registration the details fold away', async () => {
+    renderQueue('/queue/pretest?patient=4');
+    await waitFor(() => expect(drawer()).toHaveClass('show'));
+    const foot = drawer().querySelector('.drawer-foot');
+    expect(within(foot).getByRole('button', { name: 'Send in to doctor' })).toBeInTheDocument();
+    const details = within(drawer()).getByTestId('patient-details');
+    expect(details.open).toBe(false);
+    expect(within(drawer()).getByTestId('capture-reading-link')).toHaveAttribute('href', '/machines?visit=4');
+    await userEvent.click(within(foot).getByRole('button', { name: 'Send in to doctor' }));
+    await waitFor(async () => expect((await visits.get(4)).stage).toBe('doctor'));
+  });
+
+  it('a finished visit shows its time, not a clock that keeps running', async () => {
+    renderQueue('/queue/done');
+    await waitFor(() => expect(board()).toHaveTextContent('Pooja Trivedi'));
+    expect(screen.getByTestId('queue-row-9')).toHaveTextContent(/Total|Done at/);
+  });
 });
 
 describe('Billing', () => {
@@ -174,13 +232,15 @@ describe('Billing', () => {
     await userEvent.click(within(drawer()).getByRole('button', { name: 'Add' }));
     await waitFor(() => expect(drawer()).toHaveTextContent('₹900'));
     await userEvent.click(within(drawer()).getByRole('button', { name: 'UPI' }));
-    await waitFor(() => expect(drawer()).toHaveTextContent('paid via upi'));
+    const foot = within(drawer().querySelector('.drawer-foot'));
+    await waitFor(() => expect(foot.getByTestId('foot-summary')).toHaveTextContent('Paid · UPI'));
     const bill = await billing.get(8);
     expect(bill.items).toHaveLength(3);
     expect(bill.paymentMode).toBe('upi');
     expect(bill.paid).toBe(true);
 
-    await userEvent.click(within(drawer()).getByRole('button', { name: /Mark visit complete/ }));
+    // paid: completing needs no question
+    await userEvent.click(foot.getByRole('button', { name: 'Complete visit' }));
     await waitFor(async () => expect((await visits.get(8)).stage).toBe('done'));
     await waitFor(() => expect(drawer()).not.toHaveClass('show'));
   });

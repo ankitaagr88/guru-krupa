@@ -9,7 +9,7 @@ import { ageSex, fmtLastVisit } from '../../lib/format';
 import useConfig from './useConfig';
 import PatientDrawer from './PatientDrawer';
 import NewPatientModal from './NewPatientModal';
-import { normalizeVisit, normalizeVisits, stepRemaining } from './queueModel';
+import { dilationComplete, normalizeVisit, normalizeVisits, stepRemaining } from './queueModel';
 import { visitKindTags } from './visitKind';
 import './queue.css';
 
@@ -114,6 +114,20 @@ export default function Queue() {
     };
   }, [loaded, selectedPid, selected]);
 
+  // The dilation toast's "Send to doctor": same move as the drawer's "Back to doctor".
+  const sendToDoctor = useCallback(
+    async (row) => {
+      try {
+        await visitsApi.move(row.id, 'doctor');
+        toast.success(`${row.name} sent to the doctor`);
+        await afterMutation();
+      } catch (err) {
+        toast.error('Could not move the patient', errorMessage(err));
+      }
+    },
+    [toast, afterMutation]
+  );
+
   /* ---------- dilation timers (mockup checkTimers) ---------- */
   useEffect(() => {
     all.forEach((row) => {
@@ -127,13 +141,36 @@ export default function Queue() {
       if (alerted.current.has(key)) return;
       alerted.current.add(key);
       const next = row.dilation.steps[idx + 1];
-      toast.dilationDue(row, next ? `Give ${next.name} next.` : 'All drops given — ready for the doctor.');
+      const openIt = () => navigate(`/queue/${row.stage}?patient=${row.patientId}`);
+      toast.dilationDue(
+        row,
+        next ? `Give ${next.name} next.` : 'All drops given — ready for the doctor.',
+        next
+          ? [{ label: 'Open', onClick: openIt, primary: true }]
+          : [
+              { label: 'Send to doctor', onClick: () => sendToDoctor(row), primary: true },
+              { label: 'Open', onClick: openIt },
+            ]
+      );
       visitsApi
         .dilationStepDone(row.id, idx)
         .catch(() => {}) // another device may already have advanced it
         .then(() => load({ bump: true }));
     });
-  }, [now, all, load, toast]);
+  }, [now, all, load, toast, navigate, sendToDoctor]);
+
+  // Dilating patients whose wait is over (all drops given, or the current drop's time is up):
+  // counted on the Dilating tab so nobody is left waiting.
+  const dilationReady = useMemo(
+    () =>
+      all.filter((r) => {
+        if (r.stage !== 'dilate' || !r.dilation) return false;
+        if (dilationComplete(r.dilation)) return true;
+        const left = stepRemaining(r.dilation, now);
+        return left != null && left <= 0;
+      }).length,
+    [all, now]
+  );
 
   /* ---------- actions ---------- */
   const open = (p) => setSearch({ patient: String(p.patientId ?? p.id) });
@@ -245,6 +282,15 @@ export default function Queue() {
             data-testid={`stage-pill-${s.key}`}
           >
             {s.label} <b>{counts[s.key] ?? 0}</b>
+            {s.key === 'dilate' && dilationReady > 0 && (
+              <span
+                className="pill-ready"
+                data-testid="dilate-ready"
+                title={`${dilationReady} waiting to be seen — the drops' time is up`}
+              >
+                {dilationReady} ready
+              </span>
+            )}
           </div>
         ))}
       </div>
@@ -257,12 +303,13 @@ export default function Queue() {
             <th>Phone</th>
             <th>Waiting</th>
             <th>Status</th>
+            <th aria-label="Patient record" />
           </tr>
         </thead>
         <tbody id="board">
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={6} className="empty-slot">
+              <td colSpan={7} className="empty-slot">
                 {loaded ? 'No patients at this stage right now' : 'Loading…'}
               </td>
             </tr>

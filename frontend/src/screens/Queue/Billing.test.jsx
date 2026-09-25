@@ -10,7 +10,8 @@ import Queue from './Queue';
 
 /* Billing like a till (lane B): one-tap charges, "Bought here" puts the medicine on the bill,
    amounts can be changed, paying gives a receipt that prints. Chirag Mehta (id 8) is at
-   billing in the demo data with Consultation fee ₹500 + Pre-test charges ₹250. */
+   billing in the demo data: his visit fee (New patient, ₹500 after a discount — it follows the
+   visit type) + Pre-test charges ₹250 (a typed line, day-book column TEST). */
 function renderBilling() {
   return render(
     <MemoryRouter initialEntries={['/queue/billing?patient=8']}>
@@ -37,7 +38,7 @@ describe('Billing panel', () => {
     await waitFor(() => expect(drawer()).toHaveClass('show'));
     const chip = await within(drawer()).findByRole('button', { name: 'OT follow-up ₹350' });
     await userEvent.click(chip);
-    await waitFor(() => expect(billSection()).toHaveTextContent('₹1100'));
+    await waitFor(() => expect(billSection()).toHaveTextContent('₹1,100'));
     let bill = await billing.get(8);
     const line = bill.items.find((i) => i.label === 'OT follow-up');
     expect(line).toMatchObject({ kind: 'charge', standardChargeId: 4, amount: 350 });
@@ -47,12 +48,12 @@ describe('Billing panel', () => {
     );
 
     // a discount on the consultation
-    const amt = within(billSection()).getByLabelText('Amount for Consultation fee');
+    const amt = within(billSection()).getByLabelText('Amount for New patient');
     fireEvent.change(amt, { target: { value: '400' } });
     fireEvent.blur(amt);
-    await waitFor(() => expect(billSection()).toHaveTextContent('₹1000'));
+    await waitFor(() => expect(billSection()).toHaveTextContent('₹1,000'));
     bill = await billing.get(8);
-    expect(bill.items.find((i) => i.label === 'Consultation fee').amount).toBe(400);
+    expect(bill.items.find((i) => i.label === 'New patient').amount).toBe(400);
   });
 
   it('"Bought here" puts the priced medicine on the bill; Undo takes it off', async () => {
@@ -177,7 +178,7 @@ describe('Billing panel', () => {
     await userEvent.click(
       within(screen.getByRole('form', { name: 'Glasses: type the amount' })).getByRole('button', { name: 'Add' })
     );
-    await waitFor(() => expect(billSection()).toHaveTextContent('₹1950'));
+    await waitFor(() => expect(billSection()).toHaveTextContent('₹1,950'));
     let bill = await billing.get(8);
     expect(bill.items.find((i) => i.label === 'Glasses')).toMatchObject({ amount: 1200, accountHeadKey: 'glasses' });
 
@@ -226,5 +227,103 @@ describe('Billing panel', () => {
     // only today's own bill is left to pay (the drawer's bill); the old ₹60 is settled
     expect((await billing.owing(5)).map((o) => o.visitId)).not.toContain(9001);
     expect((await billing.get(9001)).payments.map((p) => [p.amount, p.mode])).toContainEqual([60, 'upi']);
+  });
+
+  it('"Also collect old balance" takes both in one go, one payment per bill', async () => {
+    await visits.move(5, 'billing'); // Bharat Oza: follow-up ₹350 today, ₹60 still owed from yesterday
+    render(
+      <MemoryRouter initialEntries={['/queue/billing?patient=5']}>
+        <AppProviders initialUser={ADMIN}>
+          <Routes>
+            <Route element={<AppShell />}>
+              <Route path="/queue/:stage" element={<Queue />} />
+            </Route>
+          </Routes>
+        </AppProviders>
+      </MemoryRouter>
+    );
+    await waitFor(() => expect(drawer()).toHaveClass('show'));
+    const box = await within(billSection()).findByTestId('receive-payment');
+    await waitFor(() => expect(within(box).getByLabelText('Amount received')).toHaveValue('350'));
+    await userEvent.click(await within(box).findByRole('checkbox', { name: 'Also collect old balance ₹60' }));
+    expect(within(box).getByLabelText('Amount received')).toHaveValue('410');
+    await userEvent.click(within(box).getByRole('button', { name: 'UPI' }));
+    await waitFor(() => expect(within(billSection()).getByTestId('bill-paid')).toHaveTextContent('Paid · UPI'));
+    expect((await billing.get(9001)).payments.map((p) => [p.amount, p.mode])).toContainEqual([60, 'upi']);
+    expect(await billing.get(5)).toMatchObject({ paid: true, paidAmount: 350 });
+    expect(await billing.owing(5)).toEqual([]);
+    await waitFor(() => expect(within(drawer()).queryByTestId('owed-notice')).toBeNull());
+  });
+});
+
+describe('Billing: one control for the visit fee', () => {
+  it('the visit-type and emergency charges are not offered as chips; chips read plainly', async () => {
+    renderBilling();
+    await waitFor(() => expect(drawer()).toHaveClass('show'));
+    const fees = await within(billSection()).findByRole('group', { name: 'Visit fees' });
+    expect(within(fees).getByRole('button', { name: 'OT follow-up ₹350' })).toBeInTheDocument();
+    ['Consultation / new file', 'Follow-up', 'New case', 'Emergency'].forEach((label) =>
+      expect(within(fees).queryByRole('button', { name: new RegExp(`^${label} ₹`) })).toBeNull()
+    );
+    expect(within(billSection()).getByRole('button', { name: 'Perimetry ₹2,500 one eye · ₹4,000 both' })).toBeInTheDocument();
+    expect(within(billSection()).getByRole('button', { name: 'Glasses — enter price' })).toBeInTheDocument();
+  });
+
+  it('the fee line follows the visit type; a free follow-up leaves ₹0 and "No charge"', async () => {
+    await billing.save(8, { items: (await billing.get(8)).items.filter((i) => i.kind === 'charge') }); // just the fee
+    renderBilling();
+    await waitFor(() => expect(drawer()).toHaveClass('show'));
+    await waitFor(() => expect(billSection()).toHaveTextContent('New patient'));
+    // the fee line has no day-book picker (it goes under OPD); the column is shown by name on typed lines
+    const feeLine = within(billSection()).getAllByTestId('bill-line')[0];
+    expect(within(feeLine).queryByRole('combobox')).toBeNull();
+    expect((await billing.get(8)).items[0]).toMatchObject({ label: 'New patient', accountHeadKey: 'opd' });
+
+    const panel = within(drawer()).getByTestId('visit-kind-panel');
+    await userEvent.click(within(panel).getByRole('radio', { name: /^New case/ }));
+    await waitFor(async () => expect((await billing.get(8)).items).toMatchObject([{ label: 'New case', amount: 500 }]));
+    expect(within(panel).getByRole('radio', { name: /Follow-up · free/ })).not.toHaveTextContent(/free\s*free/);
+    await userEvent.click(within(panel).getByRole('radio', { name: /Follow-up · free/ }));
+    const zero = await within(billSection()).findByTestId('bill-zero');
+    expect((await billing.get(8)).total).toBe(0);
+    await userEvent.click(within(zero).getByRole('button', { name: 'No charge' }));
+    expect(await within(billSection()).findByTestId('bill-paid')).toHaveTextContent('No charge');
+  });
+
+  it('once money is received, a visit-type change keeps the fee line and says so', async () => {
+    renderBilling();
+    await waitFor(() => expect(drawer()).toHaveClass('show'));
+    const box = await within(billSection()).findByTestId('receive-payment');
+    await userEvent.clear(within(box).getByLabelText('Amount received'));
+    await userEvent.type(within(box).getByLabelText('Amount received'), '100');
+    await userEvent.click(within(box).getByRole('button', { name: 'Cash' }));
+    await within(billSection()).findByTestId('bill-part-paid');
+    await userEvent.click(within(within(drawer()).getByTestId('visit-kind-panel')).getByRole('radio', { name: /^New case/ }));
+    expect(await within(billSection()).findByTestId('bill-fee-kept')).toHaveTextContent(
+      'Now New case — already paid, so the fee stays New patient ₹500'
+    );
+  });
+});
+
+describe('Billing: completing the visit from the drawer footer', () => {
+  it('while money is owed, "Receive payment" leads; completing asks first and can keep it owed', async () => {
+    renderBilling();
+    await waitFor(() => expect(drawer()).toHaveClass('show'));
+    const foot = () => within(drawer().querySelector('.drawer-foot'));
+    await waitFor(() => expect(foot().getByTestId('foot-summary')).toHaveTextContent('Balance ₹750'));
+    expect(foot().getByRole('button', { name: 'Receive payment' })).toHaveClass('btn-primary');
+    expect(foot().getByRole('button', { name: 'Complete visit' })).not.toHaveClass('btn-primary');
+
+    await userEvent.click(foot().getByRole('button', { name: 'Complete visit' }));
+    expect(foot().getByTestId('complete-confirm')).toHaveTextContent(
+      '₹750 not received — complete anyway and keep it as owed?'
+    );
+    await userEvent.click(foot().getByRole('button', { name: 'Cancel' }));
+    expect((await visits.get(8)).stage).toBe('billing');
+
+    await userEvent.click(foot().getByRole('button', { name: 'Complete visit' }));
+    await userEvent.click(foot().getByRole('button', { name: 'Complete, keep as owed' }));
+    await waitFor(async () => expect((await visits.get(8)).stage).toBe('done'));
+    expect((await billing.owing(8)).map((o) => o.balance)).toEqual([750]);
   });
 });

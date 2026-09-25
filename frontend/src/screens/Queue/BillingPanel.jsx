@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useToast } from '../../components/Toast';
-import { billing as billingApi, daybook as daybookApi, errorMessage } from '../../api';
+import { billing as billingApi, daybook as daybookApi, fees as feesApi, errorMessage } from '../../api';
 import { normalizeBill } from './queueModel';
 import ReceiptPrint from '../Billing/Receipt';
 import ReceivePayment from '../Billing/ReceivePayment';
 import OwedBalances from '../Billing/OwedBalances';
 import { BILL_CHANGED } from '../Billing/billEvents';
-import { modeLabel, timeOf } from '../Billing/money';
+import { modeLabel, modesText, timeOf } from '../Billing/money';
 import { rupees } from './visitKind';
 import '../Billing/billing.css';
 import './visitKind.css';
@@ -33,9 +34,16 @@ import './visitKind.css';
 
    Visit fees (lane E2): a visit with no bill yet gets one started on the server with its visit
    kind's fee (and Emergency when flagged) already on it, marked "Suggested" — reception can
-   remove or change it; changing the visit type in the drawer swaps that line. Chips sit under
-   their Admin heading (Visit fees / Tests / Packages); a test priced per eye asks "One eye /
-   Both eyes" and the line reads "Perimetry — both eyes". */
+   remove or change it. The drawer's "Visit type & fee" is the one control for that fee: changing
+   it swaps the line (once money has been taken, the line stays and a note says so), and the
+   charges that belong to a visit type or the emergency fee are not offered again as chips here.
+   Other chips sit under their Admin heading (Visit fees / Tests / Packages); a test priced per
+   eye asks "One eye / Both eyes" and the line reads "Perimetry — both eyes".
+
+   A returning patient's old balance can be collected with today's bill: "Also collect old
+   balance ₹60" adds it to the amount, and the payment is recorded bill by bill (oldest first).
+   `onBillState({total, balance, paid, noCharge, payments, paymentMode})` tells the drawer what
+   its footer should offer (Receive payment / Complete visit). */
 
 const itemBody = (it) => ({
   label: it.label,
@@ -72,16 +80,21 @@ const fetchBill = (visitId) =>
     throw err;
   });
 
-export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaymentMode, busy = false }) {
+export default function BillingPanel({ visitId, fallbackBill, refreshKey, onBillState, busy = false }) {
   const toast = useToast();
   const [bill, setBill] = useState(() => normalizeBill(fallbackBill));
   const [charges, setCharges] = useState([]);
+  const [kinds, setKinds] = useState([]); // visit kinds (their fee charge)
+  const [emergencyId, setEmergencyId] = useState(null);
   const [heads, setHeads] = useState([]); // day-book columns (for the typed-line picker)
   const [otherHead, setOtherHead] = useState('');
   const [printing, setPrinting] = useState(null);
   const [paying, setPaying] = useState(false);
-  const report = useRef(onPaymentMode);
-  report.current = onPaymentMode;
+  const [owed, setOwed] = useState([]); // earlier visits' bills still owing
+  const [owedKey, setOwedKey] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+  const report = useRef(onBillState);
+  report.current = onBillState;
 
   const [eyesFor, setEyesFor] = useState(null); // the eye-wise charge waiting for "one / both eyes"
   const [priceFor, setPriceFor] = useState(null); // the ₹0 charge waiting for its amount
@@ -100,7 +113,8 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
     let alive = true;
     fetchBill(visitId)
       .then((b) => alive && setBill(normalizeBill(b)))
-      .catch(() => alive && setBill(normalizeBill(fallbackBill)));
+      .catch(() => alive && setBill(normalizeBill(fallbackBill)))
+      .finally(() => alive && setLoaded(true));
     return () => {
       alive = false;
     };
@@ -130,16 +144,19 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
         .then((s) => alive && setOtherHead(s?.otherHead || ''))
         .catch(() => {});
     }
+    if (typeof feesApi?.kinds === 'function') {
+      Promise.all([feesApi.kinds(), feesApi.rules ? feesApi.rules() : null])
+        .then(([k, r]) => {
+          if (!alive) return;
+          setKinds(k || []);
+          setEmergencyId(r?.emergencyChargeId ?? null);
+        })
+        .catch(() => {});
+    }
     return () => {
       alive = false;
     };
   }, []);
-
-  // The drawer's "Mark visit complete — paid via …" hears the mode only once nothing is owed.
-  const settledMode = bill?.paid ? bill?.paymentMode || null : null;
-  useEffect(() => {
-    report.current?.(settledMode);
-  }, [settledMode]);
 
   const saveBill = async (next) => {
     const prev = bill;
@@ -170,7 +187,7 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
       setPaying(false);
     }
   };
-  const receive = (amount, mode) =>
+  const receiveToday = (amount, mode) =>
     money(
       () =>
         typeof billingApi.receive === 'function'
@@ -178,6 +195,33 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
           : billingApi.pay(visitId, mode),
       'Could not record the payment'
     );
+  /** With "Also collect old balance": the old bills are paid first (oldest first), the rest goes
+      on today's bill — one payment per bill, so each bill and receipt stays right. */
+  const receive = async (amount, mode, { withOld = false } = {}) => {
+    if (!withOld || !owed.length) return receiveToday(amount, mode);
+    setPaying(true);
+    let left = amount;
+    try {
+      const oldest = [...owed].sort((a, b) => String(a.visitDate).localeCompare(String(b.visitDate)));
+      for (const o of oldest) {
+        if (left <= 0) break;
+        const part = Math.min(left, Number(o.balance) || 0);
+        if (part > 0) await billingApi.receive(o.visitId, { amount: part, mode });
+        left -= part;
+      }
+      const saved = left > 0 ? await billingApi.receive(visitId, { amount: left, mode }) : await billingApi.get(visitId);
+      if (saved) setBill(normalizeBill(saved));
+      toast.success(`${rupees(amount)} received`, "Old balance and today's bill");
+      return saved;
+    } catch (err) {
+      toast.error('Could not record the payment', errorMessage(err));
+      load();
+      return null;
+    } finally {
+      setOwedKey((k) => k + 1);
+      setPaying(false);
+    }
+  };
   const undo = (p) => {
     if (!window.confirm(`Undo the ${rupees(p.amount)} ${modeLabel(p.mode)} payment? The bill will owe it again.`))
       return;
@@ -253,17 +297,53 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
   const onBill = new Set(items.map((it) => it.standardChargeId).filter((x) => x != null));
   const disabled = busy || paying;
 
+  // The visit fee comes from the visit type (the drawer's panel), not from a chip here.
+  const kindChargeIds = new Set(kinds.map((k) => k.standardChargeId).filter((x) => x != null));
+  const feeChargeIds = new Set([...kindChargeIds, ...(emergencyId != null ? [emergencyId] : [])]);
+  const chips = charges.filter((ch) => !feeChargeIds.has(ch.id));
+  // Money already taken, then the visit type changed: the fee line stays as it was — say so.
+  const kindNow = kinds.find((k) => k.key === bill?.visitKindKey);
+  const feeLine = items.find((it) => kindChargeIds.has(it.standardChargeId));
+  const wantId = kindNow ? (kindNow.standardChargeId ?? null) : undefined;
+  const feeOutOfStep =
+    payments.length > 0 && kindNow && wantId !== undefined && (feeLine?.standardChargeId ?? null) !== wantId;
+  const owedTotal = owed.reduce((s, o) => s + (Number(o.balance) || 0), 0);
+
+  // The drawer's footer: Receive payment while money is owed, then Complete visit.
+  const noChargeClosed = noChargeDone;
+  useEffect(() => {
+    report.current?.(
+      !loaded
+        ? null
+        : {
+            total,
+            balance,
+            paid: !!bill?.paid,
+            noCharge: noChargeClosed,
+            payments,
+            paymentMode: bill?.paymentMode ?? null,
+          }
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, total, balance, bill?.paid, noChargeClosed, payments.length, bill?.paymentMode]);
+
   return (
     <div id="billingSection">
       <OwedBalances
         patientId={bill?.patientId ?? null}
         excludeVisitId={visitId}
         variant="notice"
-        refreshKey={refreshKey}
+        refreshKey={`${refreshKey}-${owedKey}`}
+        onRows={setOwed}
       />
-      <div className="field-label">Bill</div>
-      {charges.length > 0 ? (
-        groupCharges(charges).map((g) => (
+      <div className="drawer-sec-head">
+        <div className="field-label">Bill</div>
+        <Link to="/daybook" className="drawer-sec-link" data-testid="daybook-link">
+          Day book
+        </Link>
+      </div>
+      {chips.length > 0 ? (
+        groupCharges(chips).map((g) => (
           <div className="bill-charge-group" key={g.heading || '-'}>
             {g.heading && <p className="bill-charge-heading">{g.heading}</p>}
             <div className="bill-charges" role="group" aria-label={g.heading || 'Add a standard charge'}>
@@ -277,20 +357,24 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
                   disabled={disabled || onBill.has(ch.id)}
                   title={onBill.has(ch.id) ? 'Already on the bill' : `Add ${ch.label} to the bill`}
                 >
-                  {ch.label}{' '}
-                  <span className="mono">
-                    {askPrice(ch) ? '₹ type' : rupees(ch.amount)}
-                    {ch.amountBothEyes != null && ` / ${rupees(ch.amountBothEyes)}`}
-                  </span>
+                  {ch.label}
+                  {askPrice(ch) ? (
+                    <span className="charge-chip-ask"> — enter price</span>
+                  ) : ch.amountBothEyes != null ? (
+                    <span className="mono">
+                      {' '}
+                      {rupees(ch.amount)} one eye · {rupees(ch.amountBothEyes)} both
+                    </span>
+                  ) : (
+                    <span className="mono"> {rupees(ch.amount)}</span>
+                  )}
                 </button>
               ))}
             </div>
           </div>
         ))
       ) : (
-        <p className="charge-chip-empty">
-          No standard charges yet — Admin › Standard charges adds them here.
-        </p>
+        <p className="charge-chip-empty">No standard charges (Admin › Standard charges)</p>
       )}
       {eyesFor && (
         <div className="bill-eyes" role="group" aria-label={`${eyesFor.label}: one eye or both eyes`}>
@@ -338,6 +422,19 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
       {bill?.feeNote && (
         <p className="bill-fee-note" data-testid="bill-fee-note">
           {bill.feeNote}
+        </p>
+      )}
+      {feeOutOfStep && (
+        <p className="bill-fee-note warn" data-testid="bill-fee-kept">
+          Now {kindNow.label} — already paid, so the fee stays{' '}
+          {feeLine ? (
+            <>
+              {feeLine.label} <span className="mono">{rupees(feeLine.amount)}</span>
+            </>
+          ) : (
+            'off'
+          )}
+          . Edit it below if needed.
         </p>
       )}
       {items.length > 0 && (
@@ -398,14 +495,13 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
       )}
       {unpriced.length > 0 && (
         <p className="bill-price-note" data-testid="price-not-set">
-          {unpriced.length === 1 ? 'One medicine has' : `${unpriced.length} medicines have`} no price yet —
-          type the amount on the bill. To fill it in automatically next time, set a price per pack in Admin ›
-          Medicines.
+          {unpriced.length === 1 ? '1 medicine' : `${unpriced.length} medicines`} without a price — type it
+          (set prices in Admin › Medicines)
         </p>
       )}
       <div className="bill-total" id="billTotal">
         <span>Total</span>
-        <span className="mono">₹{total}</span>
+        <span className="mono">{rupees(total)}</span>
       </div>
       <div className="bill-add-row">
         <input
@@ -481,7 +577,13 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
               <span className="mono">{rupees(balance)}</span>
             </div>
           )}
-          <ReceivePayment balance={balance} busy={disabled} onReceive={receive} label="Receive" />
+          <ReceivePayment
+            balance={balance}
+            busy={disabled}
+            onReceive={receive}
+            label="Receive"
+            extra={owedTotal > 0 ? { amount: owedTotal, label: `Also collect old balance ${rupees(owedTotal)}` } : null}
+          />
         </>
       )}
       {balance < 0 && (
@@ -504,7 +606,7 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
             {noChargeDone
               ? 'No charge'
               : bill?.paid
-                ? `Paid · ${[...new Set(payments.map((p) => modeLabel(p.mode)))].join(' + ') || modeLabel(bill.paymentMode)}`
+                ? `Paid · ${modesText(payments, bill.paymentMode)}`
                 : `Part paid · ${rupees(paidAmount)} of ${rupees(total)}`}
             {bill?.receiptNo && (
               <>
@@ -533,20 +635,25 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
 /** Day-book column of a typed bill line (Admin › Day book columns). */
 function HeadPicker({ heads, value, onChange, label, disabled }) {
   return (
-    <select
-      className="bill-head-pick"
-      aria-label={label}
-      value={value || ''}
-      onChange={(e) => onChange(e.target.value)}
-      disabled={disabled}
-      title="Day book column"
-    >
-      {heads.map((h) => (
-        <option key={h.key} value={h.key}>
-          {h.label}
-        </option>
-      ))}
-    </select>
+    <span className="bill-head">
+      <span className="bill-head-cap" aria-hidden="true">
+        Day book
+      </span>
+      <select
+        className="bill-head-pick"
+        aria-label={label}
+        value={value || ''}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        title="Which column of the day book this goes under"
+      >
+        {heads.map((h) => (
+          <option key={h.key} value={h.key}>
+            {h.label}
+          </option>
+        ))}
+      </select>
+    </span>
   );
 }
 

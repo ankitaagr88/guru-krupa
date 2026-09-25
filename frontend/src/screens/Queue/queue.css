@@ -42,4 +42,117 @@
 .dispense-main { flex: 1; min-width: 0; font-family: var(--font-ui); font-size: 14px; }
 .dispense-main b { font-family: var(--font-serif); font-weight: 600; font-size: 15px; display: block; }
 .dispense-main small { display: block; font-size: 12px; color: var(--ink-soft); }
-.dispense-qty { width: 58px; padding: 7px 8px; text-align: center; font-family: var(--font-mono); margin: 0; }
+/* the quantity box stays small next to the medicine (the base .fake-input is width: 100%) */
+.dispense-row .fake-input.dispense-qty { flex: 0 0 64px; width: 64px; padding: 7px 6px; text-align: center; font-family: var(--font-mono); margin: 0; }
+.dispense-row .btn-primary, .dispense-row .status-pill, .dispense-row .link-btn { flex: none; }
+
+/* ---------- queue rows / cards: the whole row opens the drawer ---------- */
+.queue-row { cursor: pointer; }
+.row-name-btn {
+  background: none; border: none; padding: 0; margin: 0; font: inherit; color: inherit; cursor: pointer; text-align: left;
+}
+.row-name-btn:hover { color: var(--sapphire-deep); text-decoration: underline; text-underline-offset: 3px; }
+.data-table td.td-record { width: 1%; padding-left: 4px; padding-right: 12px; }
+.row-record-link {
+  display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px;
+  color: var(--ink-faint);
+}
+.row-record-link svg { width: 17px; height: 17px; }
+.row-record-link:hover { background: var(--surface); color: var(--sapphire); }
+.pc-name-text { display: block; }
+.pc-meta {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-family: var(--font-ui); font-size: 13px;
+  color: var(--ink-soft);
+}
+.pc-meta .num { font-family: var(--font-mono); font-size: 12.5px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.pc-meta .status-pill { margin-left: auto; }
+body.mobile-mode .patient-cards { gap: 8px; }
+body.mobile-mode .patient-card { padding: 11px 14px; }
+body.mobile-mode .patient-card .pc-top { margin-bottom: 4px; }
+body.mobile-mode .patient-card .pc-name { font-size: 16px; line-height: 21px; }
+body.mobile-mode .patient-card .pc-status { margin-top: 7px; padding-top: 7px; }
+body.mobile-mode .patient-card .pc-status:empty { display: none; }
+
+/* Dilating tab: patients whose drops' time is up */
+.stage-summary .pill .pill-ready {
+  font-family: var(--font-ui); font-size: 11.5px; font-weight: 600; color: var(--alert-ink); background: var(--alert-wash);
+  border: 1px solid var(--alert-line); border-radius: 9999px; padding: 1px 8px; margin-left: -2px;
+}
+
+/* ---------- drawer ---------- */
+/* footer: saves-on-its-own note / money summary on the left, the actions on the right */
+.foot-row { display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; }
+.foot-note { font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); }
+.foot-summary { font-family: var(--font-ui); font-size: 14px; color: var(--ink); }
+.foot-summary .mono { font-family: var(--font-mono); font-weight: 600; font-size: 16px; }
+.foot-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.foot-btns .btn-ghost, .foot-btns .btn-primary {
+  flex: none; padding: 10px 18px; font-size: 14px; line-height: 20px; border-radius: 10px; white-space: nowrap;
+}
+.foot-btns .btn-ghost { background: var(--surface); border: 1px solid var(--line); color: var(--ink); }
+.foot-btns .btn-ghost:hover { border-color: var(--sapphire); color: var(--sapphire-deep); }
+.foot-btns small { font-weight: 400; font-size: 12px; opacity: 0.85; margin-left: 6px; }
+.foot-btns .btn-primary.alert { background: var(--alert); }
+.foot-btns .btn-primary.alert:hover { background: var(--alert-ink); }
+.foot-confirm { background: var(--alert-wash); border: 1px solid var(--alert-line); border-radius: 12px; padding: 10px 12px; }
+.foot-question { font-family: var(--font-ui); font-size: 14px; color: var(--alert-ink); }
+.foot-question .mono { font-family: var(--font-mono); }
+body.mobile-mode .foot-btns { width: 100%; }
+body.mobile-mode .foot-btns > button { flex: 1; }
+body.mobile-mode .foot-note { display: none; }
+
+/* "Patient details": registration details folded away after registration */
+.patient-details { border: 1px solid var(--line); border-radius: 12px; margin-bottom: 12px; background: var(--surface); }
+.patient-details > summary {
+  display: flex; align-items: baseline; gap: 10px; padding: 11px 14px; cursor: pointer; list-style: none;
+}
+.patient-details > summary::-webkit-details-marker { display: none; }
+.patient-details > summary::before { content: '▸'; color: var(--ink-faint); font-size: 12px; transition: transform 0.15s; }
+.patient-details[open] > summary::before { transform: rotate(90deg); }
+.patient-details > summary .field-label { margin: 0; }
+.patient-details-hint { font-family: var(--font-ui); font-size: 12px; color: var(--ink-faint); }
+.patient-details > .summary-card { margin: 0 12px 10px; }
+
+.drawer-sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.drawer-sec-head .field-label { margin-bottom: 8px; }
+.drawer-sec-link {
+  display: inline-block; font-family: var(--font-ui); font-size: 13px; font-weight: 600; color: var(--sapphire);
+  text-decoration: none; padding: 2px 0; margin: 6px 0 4px;
+}
+.drawer-sec-link:hover { color: var(--sapphire-deep); text-decoration: underline; }
+.drawer-sec-head .drawer-sec-link { margin: 0; }
+
+/* the dilation stage: the drops first and big; the prescription second */
+.dilation-first .dstep { padding: 16px 18px; font-size: 16px; }
+.dilation-first .dstep-name { font-family: var(--font-serif); font-weight: 600; }
+.dilation-first .dstep-tag.timer { font-family: var(--font-mono); font-size: 18px; }
+.rx-drawer-btn.secondary { background: var(--surface); color: var(--sapphire-deep); border: 1px solid var(--sapphire-line); }
+.rx-drawer-btn.secondary:hover { background: var(--sapphire-wash); }
+
+/* the doctor's stage: one column in the doctor's working order; two columns on a wide screen */
+.doc-grid { display: flex; flex-direction: column; }
+.doc-col { display: contents; }
+.doc-grid section { min-width: 0; }
+.doc-o1 { order: 1; } .doc-o2 { order: 2; } .doc-o3 { order: 3; }
+.doc-o4 { order: 4; } .doc-o5 { order: 5; } .doc-o6 { order: 6; }
+.doc-grid .doc-o3 .dx-picker .field-label, .doc-grid section > .field-label:first-child { margin-top: 20px; }
+.doc-grid .doc-o1 > .field-label:first-child { margin-top: 0; }
+.readings-summary { background: var(--surface-sunk); border-color: var(--line); }
+.readings-summary .summary-line { font-size: 13px; }
+.readings-summary .mono { font-family: var(--font-mono); font-size: 12.5px; }
+.visit-kind-link { display: block; margin-top: 12px; padding-left: 0; font-weight: 500; color: var(--ink-soft); }
+.visit-kind-link:hover { color: var(--sapphire-deep); }
+@media (min-width: 1280px) {
+  body:not(.mobile-mode) .doc-grid {
+    display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 0 32px; align-items: start;
+  }
+  body:not(.mobile-mode) .doc-col { display: block; }
+  body:not(.mobile-mode) .doc-grid .doc-o3 .dx-picker .field-label { margin-top: 0; }
+}
+
+.fu-appt-link { text-decoration: none; }
+.fu-appt-link:hover b { text-decoration: underline; }
+
+/* Follow-up: "No follow-up" is one of the choices */
+.fu-picker .fu-presets { grid-template-columns: repeat(5, 1fr); }
+body.mobile-mode .fu-picker .fu-presets { grid-template-columns: repeat(3, 1fr); }

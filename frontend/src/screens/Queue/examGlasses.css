@@ -51,12 +51,11 @@
 .eg-ipd .faint { font-weight: 400; }
 .eg-note { flex: 1; }
 
-.eg-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 10px; }
-.eg-unsaved { font-family: var(--font-ui); font-size: 12px; font-weight: 600; color: var(--alert-ink); }
-.eg-save.saved:disabled {
-  background: var(--surface); color: var(--done-ink); border: 1px solid var(--line); opacity: 1;
-  font-family: var(--font-mono); font-size: 13px;
-}
+.eg-panel + .eg-panel { margin-top: 14px; }
+.eg-head-right { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+.eg-status { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-faint); white-space: nowrap; }
+.eg-status.failed { color: var(--alert-ink); font-family: var(--font-ui); font-weight: 600; }
+.eg-status .eg-link { margin-left: 6px; }
 
 body.mobile-mode .eg-row { flex-wrap: wrap; }
 body.mobile-mode .eg-note { flex-basis: 100%; }

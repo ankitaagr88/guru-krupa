@@ -232,8 +232,24 @@ def test_new_bill_with_emergency_starts_with_both_lines(db, client, reception_he
     p = _patient(db, "Fee Night Bill")
     vid = _register(db, p, at=_ist(2027, 3, 10, 21, 0)).id
     bill = client.post(f"/api/visits/{vid}/bill/start", headers=reception_headers).json()
+    # the fee line is named like the visit type (the same words on the queue, the drawer and the bill)
     assert [(i["label"], i["amount"], i["suggested"]) for i in bill["items"]] == [
-        ("Consultation / new file", 700, True), ("Emergency", 1000, True)]
+        ("New patient", 700, True), ("Emergency", 1000, True)]
+    fee = client.get(f"/api/visits/{vid}/fee", headers=reception_headers).json()
+    assert [ln["label"] for ln in fee["lines"]] == ["New patient", "Emergency"]
+
+
+def test_part_paid_bill_keeps_its_fee_line(db, client, reception_headers):
+    p = _patient(db, "Fee Part Paid")
+    vid = _register(db, p).id  # new patient, ₹700
+    base = f"/api/visits/{vid}"
+    client.post(f"{base}/bill/start", headers=reception_headers)
+    r = client.post(f"{base}/bill/payments", json={"amount": 200, "mode": "cash"}, headers=reception_headers)
+    assert r.status_code in (200, 201), r.text
+    client.put(f"{base}/kind", json={"visitKindKey": "new_case"}, headers=reception_headers)
+    bill = client.get(f"{base}/bill", headers=reception_headers).json()
+    assert [(i["label"], i["amount"]) for i in bill["items"]] == [("New patient", 700)]
+    assert bill["visitKindKey"] == "new_case"
 
 
 # --------------------------------------------------------------------------- eye-wise charges

@@ -52,8 +52,39 @@ const FOOTER_LANG = {
   gujarati: 'gujarati',
 };
 
+/* The demo's glaucoma patient (Bharat Oza) is with the doctor but was seeded with only a tonometer
+   reading, so "Fill from machine reading" had nothing to copy. Give him the refraction printout the
+   technician would have captured (seeded readings count as checked). Added once per demo session. */
+const DEMO_REFRACTION = {
+  'Bharat Oza': {
+    machine: 'HRK-8000A — Refraction (REF)',
+    src: 'scanned, 10:08 AM',
+    vals: [
+      { l: 'SPH (R)', v: '+1.50' },
+      { l: 'CYL (R)', v: '-0.75' },
+      { l: 'AX (R)', v: '95' },
+      { l: 'SPH (L)', v: '+1.75' },
+      { l: 'CYL (L)', v: '-0.50' },
+      { l: 'AX (L)', v: '80' },
+      { l: 'PD', v: '63mm' },
+    ],
+  },
+};
+const isRefraction = (vals) =>
+  ['SPH (R)', 'AX (R)', 'SPH (L)', 'AX (L)'].every((l) => (vals || []).some((v) => v.l === l));
+
+function seedDemoReadings() {
+  S.patients.forEach((p) => {
+    const extra = DEMO_REFRACTION[p.name];
+    if (!extra) return;
+    p.readings = p.readings || [];
+    if (!p.readings.some((r) => isRefraction(r.vals))) p.readings.push(c(extra));
+  });
+}
+
 function state() {
   if (!S.rxPrint || S.rxPrint.owner !== S.patients) {
+    seedDemoReadings();
     S.rxPrint = {
       owner: S.patients,
       examFindings: SEED_EXAM.map(([key, label, defaultValue], i) => ({
@@ -109,8 +140,7 @@ function examRows(exam) {
 /** The approved refraction reading of a demo visit: an approved reading from the Machines screen,
     else the demo patient's seeded readings (those count as checked). Refraction = SPH/CYL/AX per eye. */
 function refractionFill(p) {
-  const isRef = (vals) =>
-    ['SPH (R)', 'AX (R)', 'SPH (L)', 'AX (L)'].every((l) => (vals || []).some((v) => v.l === l));
+  const isRef = isRefraction;
   const approved = (S.readings || [])
     .filter((r) => r.visitId === p.id && r.approved && isRef(r.values))
     .sort((a, b) => String(b.approvedAt).localeCompare(String(a.approvedAt)));
@@ -153,6 +183,26 @@ function refractionFill(p) {
   };
 }
 
+/** IOP per eye from the visit's latest approved tonometer reading (else the seeded one), for the
+    examination's IOP row. Mirrors app.services.rx_print.iop_fill. */
+function iopFill(p) {
+  const isIop = (vals) => (vals || []).some((v) => v.l === 'IOP (R)' || v.l === 'IOP (L)');
+  const approved = (S.readings || [])
+    .filter((r) => r.visitId === p.id && r.approved && isIop(r.values))
+    .sort((a, b) => String(b.approvedAt).localeCompare(String(a.approvedAt)));
+  const seeded = (p.readings || []).filter((r) => isIop(r.vals));
+  const src = approved[0]
+    ? { id: approved[0].id, machine: approved[0].machine, vals: approved[0].values }
+    : seeded.length
+      ? { id: 0, machine: seeded[seeded.length - 1].machine, vals: seeded[seeded.length - 1].vals }
+      : null;
+  if (!src) return null;
+  const val = (l) => text(src.vals.find((v) => v.l === l)?.v ?? '');
+  const r = val('IOP (R)');
+  const l = val('IOP (L)');
+  return r || l ? { readingId: src.id, machine: src.machine, r, l } : null;
+}
+
 function out(p) {
   const saved = state().visits[p.id] || { exam: [], glasses: null };
   return {
@@ -160,6 +210,7 @@ function out(p) {
     exam: examRows(saved.exam),
     glasses: glassesFilled(saved.glasses) ? normalizeGlasses(saved.glasses) : null,
     fromReading: refractionFill(p),
+    iop: iopFill(p),
     va: { r: p.va?.R || '', l: p.va?.L || '' },
   };
 }
