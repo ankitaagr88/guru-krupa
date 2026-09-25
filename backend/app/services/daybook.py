@@ -10,11 +10,12 @@ it the column totals, the opening "CASH BALANCE", cash taken out ("-3000 MAAM") 
     received that day, LEFT the balance still owed now;
   - one "old_balance" row per earlier visit's bill that received money that day (TOTAL = the money
     received; nothing under the columns — those charges were counted on the visit's own day);
-  - one "ot" row per surgery that day (not cancelled) with a lens tier or a payment mode: the lens
-    tier's price under the OT column (settings `otHead`). An OT case records only its lens tier and
-    payment mode — no payment time or part payments — so the price counts on the surgery's date,
-    as received when a payment mode is set and as LEFT otherwise. The price is the lens tier's
-    current price (the case does not keep its own copy).
+  - one "ot" row per surgery that day (not cancelled) with a lens tier, OT team fees or a payment
+    mode: the case total (lens tier price + the OT team's fees, app.services.ot_team) under the OT
+    column (settings `otHead`). An OT case records only its lens tier, team fees and payment mode —
+    no payment time or part payments — so the total counts on the surgery's date, as received when a
+    payment mode is set and as LEFT otherwise. The lens price is the lens tier's current price (the
+    case does not keep its own copy); team fees are the ones saved on the case.
 
 The columns are the admin's day-book columns (`AccountHead`, Admin › Day book columns) in order;
 a switched-off column only shows on a day that has money under it. A line whose column no longer
@@ -43,7 +44,7 @@ from app.models.patients import Patient, Visit
 from app.models.staff import Staff
 from app.schemas.daybook import (AccountHeadOut, CashBox, CashMovementOut, DayBookOut, DayBookRow, DayBookSettings,
                                  DayBookTotals, HeadColumn, ModeAmount)
-from app.services import billing
+from app.services import billing, ot_team
 from app.services.billing import BadValue, BillingError, Conflict, NotFound  # noqa: F401  (routes use them)
 from app.services.reports import _aware, day_bounds, payments_on
 
@@ -187,22 +188,29 @@ def save_settings(db: Session, values: dict, by) -> DayBookSettings:
     return new
 
 
-# --------------------------------------------------------------------------- OT (lens) money
+# --------------------------------------------------------------------------- OT (lens + team) money
 def _lens_prices(db: Session) -> dict[str, int]:
     return {t.key: t.price for t in db.scalars(select(LensTier))}
 
 
+def _team_fees(case: OtCase) -> int:
+    return ot_team.team_fees(ot_team.team_of(None, case))
+
+
 def _ot_cases(db: Session, start: date, end: date) -> list[OtCase]:
-    """Cases in [start, end] that carry money: a lens tier or a payment mode, not cancelled."""
+    """Cases in [start, end] that carry money: a lens tier, OT team fees or a payment mode, not cancelled."""
     rows = db.scalars(select(OtCase).where(OtCase.date >= start, OtCase.date <= end, OtCase.status != "cancelled")
                       .order_by(OtCase.date, OtCase.id))
-    return [c for c in rows if (c.billing or {}).get("lensTier") or (c.billing or {}).get("paymentMode")]
+    return [c for c in rows
+            if (c.billing or {}).get("lensTier") or (c.billing or {}).get("paymentMode") or _team_fees(c)]
 
 
 def _ot_money(case: OtCase, prices: dict[str, int]) -> tuple[int, str | None]:
+    """(case total = lens price + team fees, payment mode or None)."""
     b = case.billing or {}
     mode = b.get("paymentMode") or None
-    return prices.get(b.get("lensTier") or "", 0), (mode if mode in PAYMENT_MODES else None)
+    total = prices.get(b.get("lensTier") or "", 0) + _team_fees(case)
+    return total, (mode if mode in PAYMENT_MODES else None)
 
 
 # --------------------------------------------------------------------------- cash drawer
@@ -355,7 +363,7 @@ def day_book(db: Session, day: date) -> DayBookOut:
                                modes=modes, left=billing.bill_balance(bill), status=billing.bill_status(bill),
                                note=f"Old balance · visit of {v.date.strftime('%d %b %Y')}"))
 
-    # Surgeries that day (lens price under the OT column).
+    # Surgeries that day (lens price + OT team fees under the OT column).
     prices = _lens_prices(db)
     ot_col = col(cfg.ot_head)
     for case in _ot_cases(db, day, day):
@@ -367,6 +375,7 @@ def day_book(db: Session, day: date) -> DayBookOut:
             by_mode[mode][0] += 1
             by_mode[mode][1] += price
         lens = (case.billing or {}).get("lensTier") or ""
+        fees = _team_fees(case)
         rows.append(DayBookRow(kind="ot", ot_case_id=case.id, patient_id=case.patient_id,
                                name=patient.name if patient else case.patient_name,
                                phone=patient.phone if patient else None,
@@ -375,7 +384,8 @@ def day_book(db: Session, day: date) -> DayBookOut:
                                amounts={ot_col: price} if price else {}, total=price, received=received,
                                modes=[mode] if mode else [], left=price - received,
                                status="paid" if mode else ("unpaid" if price else ""),
-                               note=" · ".join(x for x in (case.procedure, lens and f"lens {lens}") if x)))
+                               note=" · ".join(x for x in (case.procedure, lens and f"lens {lens}",
+                                                           fees and f"OT team ₹{fees:,}") if x)))
 
     # Columns: the active ones in order, plus a switched-off one that has money that day.
     used = defaultdict(int)

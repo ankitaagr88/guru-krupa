@@ -1,5 +1,6 @@
 """OT / surgery cases: scheduling with real time slots, nested section updates, consent photos,
-surgical bill (lens tier price). Mirrors the mockup's `otCases` functions."""
+surgical bill (lens tier price + the OT team's fees, see app.services.ot_team). Mirrors the mockup's
+`otCases` functions."""
 import copy
 import uuid
 from datetime import date, datetime, time, timedelta, timezone
@@ -16,6 +17,7 @@ from app.models.ot import (OT_STATUSES, OtCase, OtConsentPhoto, OtSlot, empty_bi
 from app.models.patients import Patient
 from app.schemas.ot import LensTierOut, OtCaseOut, OtConsentPhotoOut, OtSlotOut
 from app.schemas.readings import ReadingValue
+from app.services import ot_team
 from app.services.queue import today
 
 SLOT_STEP_MIN = 45
@@ -180,7 +182,8 @@ def create_case(db: Session, *, patient_id: int | None, patient_name: str | None
     case = OtCase(patient_id=patient_id, patient_name=patient_name, age=age, sex=sex, date=on,
                   time_slot=time_slot, procedure=procedure, status="scheduled",
                   pre_op_biometry=deep_merge(empty_biometry(), pre_op_biometry or {}),
-                  operative=empty_operative(), post_op=empty_post_op(), billing=empty_billing())
+                  operative=empty_operative(), post_op=empty_post_op(),
+                  billing={**empty_billing(), "team": ot_team.default_team(db)})
     db.add(case)
     db.commit()
     return get_case(db, case.id)
@@ -200,6 +203,8 @@ def update_case(db: Session, case: OtCase, values: dict) -> OtCase:
             merged = deep_merge(getattr(case, k) or {}, v)
             if k == "billing":
                 _validate_billing(db, merged)
+                if "team" in v:  # lists replace; validated + tidied (BadValue -> 422)
+                    merged["team"] = ot_team.clean_team(db, v["team"])
             setattr(case, k, merged)  # new dict so SQLAlchemy sees the change
         else:
             setattr(case, k, v)
@@ -304,13 +309,18 @@ def scan_biometry(db: Session, case: OtCase, data: bytes, filename: str | None,
 
 # --- output ------------------------------------------------------------------------------------
 
-def billing_out(db: Session, billing: dict) -> dict:
-    """Stored billing keys + computed `lensPrice` / `total` (surgeon/OT fees out of scope for now)."""
+def billing_out(db: Session, billing: dict, operative: dict | None = None) -> dict:
+    """Stored billing keys + the OT team + computed `lensPrice`, `teamFees` (sum of the team's fees)
+    and `total` = lensPrice + teamFees. A case saved before teams existed shows its
+    `operative.surgeon` as a Surgeon row (not written back)."""
     b = dict(empty_billing())
     b.update(billing or {})
+    b["team"] = ot_team.team_of(db, billing or {}, operative)
     price = _lens_price(db, b.get("lensTier"))
+    fees = ot_team.team_fees(b["team"])
     b["lensPrice"] = price
-    b["total"] = price
+    b["teamFees"] = fees
+    b["total"] = price + fees
     return b
 
 
@@ -323,7 +333,7 @@ def case_out(db: Session, case: OtCase) -> OtCaseOut:
         consent_photos=[OtConsentPhotoOut(id=p.id, image_path=p.image_path, captured_at=_aware(p.captured_at))
                         for p in case.consent_photos],
         post_op=case.post_op or empty_post_op(),
-        billing=billing_out(db, case.billing),
+        billing=billing_out(db, case.billing, case.operative),
         created_at=_aware(case.created_at),
         updated_at=_aware(case.updated_at or case.created_at),
     )

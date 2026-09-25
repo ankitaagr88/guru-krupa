@@ -262,6 +262,34 @@ export const ot = {
   },
 };
 
+/* OT team: who was in the operating theatre, including outside doctors / partners, and their fees.
+   The team of a case is saved with ot.update(id, {billing: {team: [...]}}) — any staff; the list replaces
+   the old one. Shapes:
+     TeamMember = {roleKey, roleLabel, name, qualification, regNo, external (outside, not clinic staff),
+                   partnerId|null, fee (whole ₹)}   role label / name / qualification / reg. no. are copies,
+                   so old cases keep them when the lists change. An outside member without a qualification
+                   is refused (422, the message names the row). case.billing = {lensTier, mediclaim,
+                   paymentMode, team:[TeamMember], lensPrice, teamFees, total (= lensPrice + teamFees)}.
+     Role       = {id, key, label, defaultFee, sortOrder, active}
+     Partner    = {id, name, qualification, regNo, phone, defaultRoleKey|null, defaultFee, note, active, createdAt}
+   Nothing is deleted: roles and outside doctors are switched off. */
+export const otTeam = {
+  // → {roles:[Role] switched on, in order, partners:[Partner] switched on, staff:[{name, role}]}
+  options: () => data(client.get('/ot/team-options')),
+  admin: {
+    roles: () => data(client.get('/admin/ot-team-roles')), // all, switched-off too
+    createRole: (label, defaultFee = 0) => data(client.post('/admin/ot-team-roles', { label, defaultFee })),
+    // patch {label?, defaultFee?, active?}
+    updateRole: (key, patch) => data(client.patch(`/admin/ot-team-roles/${key}`, patch)),
+    reorderRoles: (keys) => data(client.put('/admin/ot-team-roles/order', { keys })),
+    partners: () => data(client.get('/admin/ot-partners')), // all, switched-off too
+    // body {name, qualification (required), regNo?, phone?, defaultRoleKey?, defaultFee?, note?}
+    createPartner: (body) => data(client.post('/admin/ot-partners', body)),
+    // patch: any of those + active; defaultRoleKey '' clears it
+    updatePartner: (id, patch) => data(client.patch(`/admin/ot-partners/${id}`, patch)),
+  },
+};
+
 export const prescriptions = {
   // GET /medicines?q= → [{id, name, brand, composition, form, formLabel, strength, packSize, manufacturer, displayName}]
   // matches name, brand or composition (brand/prefix hits first); active rows only

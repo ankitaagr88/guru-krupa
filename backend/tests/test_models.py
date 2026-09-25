@@ -107,6 +107,6 @@ def test_ot_case_json_defaults(db):
     assert loaded.status == "scheduled"
     assert loaded.operative["surgeon"] == "Dr. Anu Juneja Pathak"
     assert loaded.post_op["finalRx"]["L"] == {"sph": "", "cyl": "", "axis": "", "va": ""}
-    assert loaded.billing == {"lensTier": None, "mediclaim": False, "paymentMode": None}
+    assert loaded.billing == {"lensTier": None, "mediclaim": False, "paymentMode": None, "team": []}
     assert loaded.pre_op_biometry["K2"]["L"] == "43.93D"
     assert len(loaded.consent_photos) == 1

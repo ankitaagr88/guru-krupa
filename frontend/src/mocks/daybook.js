@@ -8,6 +8,7 @@
 import { store } from './store';
 import { dateStr } from './data';
 import { EARLIER_TODAY, billOut, lineHead, money, pastReceipts, paymentsOn } from './billing';
+import { teamFees, teamOf } from './otTeam';
 
 const S = store.state;
 const c = store.clone;
@@ -76,9 +77,16 @@ const settingsUsing = (key) =>
 function otRows(date) {
   const m = money();
   return S.otCases
-    .filter((k) => k.date === date && k.status !== 'cancelled' && (k.billing?.lensTier || k.billing?.paymentMode))
+    .filter(
+      (k) =>
+        k.date === date &&
+        k.status !== 'cancelled' &&
+        (k.billing?.lensTier || k.billing?.paymentMode || teamFees(teamOf(k)))
+    )
     .map((k) => {
-      const price = S.lensTiers.find((t) => t.key === k.billing?.lensTier)?.price || 0;
+      // the case total: lens tier price + the OT team's fees
+      const fees = teamFees(teamOf(k));
+      const price = (S.lensTiers.find((t) => t.key === k.billing?.lensTier)?.price || 0) + fees;
       const mode = MODES.includes(k.billing?.paymentMode) ? k.billing.paymentMode : null;
       const received = mode ? price : 0;
       return {
@@ -98,7 +106,13 @@ function otRows(date) {
         modes: mode ? [mode] : [],
         left: price - received,
         status: mode ? 'paid' : price ? 'unpaid' : '',
-        note: [k.procedure, k.billing?.lensTier && `lens ${k.billing.lensTier}`].filter(Boolean).join(' · '),
+        note: [
+          k.procedure,
+          k.billing?.lensTier && `lens ${k.billing.lensTier}`,
+          fees && `OT team ₹${fees.toLocaleString('en-IN')}`,
+        ]
+          .filter(Boolean)
+          .join(' · '),
       };
     });
 }

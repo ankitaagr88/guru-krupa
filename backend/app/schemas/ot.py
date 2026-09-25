@@ -36,7 +36,9 @@ class OtCaseCreate(CamelModel):
 
 
 class OtCasePatch(CamelModel):
-    """Partial update. Section dicts are deep-merged into the stored JSON, not replaced."""
+    """Partial update. Section dicts are deep-merged into the stored JSON, not replaced (a list inside,
+    such as `billing.team`, replaces the old list; the team is checked by app.services.ot_team.clean_team).
+    Surgery times: `operative.startTime` / `operative.endTime` ("HH:MM"), set by the doctor / OT staff."""
 
     patient_name: str | None = Field(None, max_length=120)
     age: int | None = None
@@ -74,7 +76,7 @@ class OtCaseOut(CamelModel):
     operative: dict[str, Any]
     consent_photos: list[OtConsentPhotoOut]
     post_op: dict[str, Any]
-    billing: dict[str, Any]  # stored keys + computed `lensPrice` and `total`
+    billing: dict[str, Any]  # stored keys + team + computed `lensPrice`, `teamFees`, `total` (= lens + fees)
     created_at: datetime
     updated_at: datetime | None
 

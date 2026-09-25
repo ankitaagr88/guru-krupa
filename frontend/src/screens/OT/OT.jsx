@@ -7,6 +7,7 @@ import NewCaseModal from './NewCaseModal';
 import CaseDrawer from './CaseDrawer';
 import PatientLink from '../../components/PatientLink';
 import { OT_STATUS, caseSlot, slotMinutes } from './constants';
+import { fmtTime } from './SurgeryTimes';
 import './ot.css';
 
 const STRIP_FROM = -3;
@@ -150,6 +151,12 @@ export default function OT() {
                   </td>
                   <td data-label="Time" className="ot-td-slot">
                     {caseSlot(k)}
+                    {k.operative?.startTime && (
+                      <span className="ot-td-times" data-testid={`ot-times-${k.id}`}>
+                        {fmtTime(k.operative.startTime)}
+                        {k.operative.endTime ? `–${fmtTime(k.operative.endTime)}` : ' – going on'}
+                      </span>
+                    )}
                   </td>
                   <td data-label="Procedure">{k.procedure}</td>
                   <td data-label="Status">

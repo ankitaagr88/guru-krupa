@@ -26,7 +26,9 @@ def empty_post_op() -> dict:
 
 
 def empty_billing() -> dict:
-    return {"lensTier": None, "mediclaim": False, "paymentMode": None}
+    # team = [{roleKey, roleLabel, name, qualification, regNo, external, partnerId, fee}] — see
+    # app.services.ot_team (the OT team and their fees are part of the surgery's bill).
+    return {"lensTier": None, "mediclaim": False, "paymentMode": None, "team": []}
 
 
 class OtCase(Base):
@@ -84,3 +86,35 @@ class OtProcedure(Base):
     name: Mapped[str] = mapped_column(String(160), unique=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class OtTeamRole(Base):
+    """Admin-configurable role in the OT team (Surgeon, Anaesthetist, Scrub nurse...) with the usual fee
+    put on the surgery's bill when that role is picked. Switched off rather than deleted: old cases keep it."""
+
+    __tablename__ = "ot_team_roles"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    key: Mapped[str] = mapped_column(String(30), unique=True)
+    label: Mapped[str] = mapped_column(String(80))
+    default_fee: Mapped[int] = mapped_column(Integer, default=0)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class OtPartner(Base):
+    """Directory of outside doctors / partners who join the OT team (visiting surgeon, anaesthetist...):
+    not clinic staff. A case copies name, qualification and reg. no. onto its team row (snapshot)."""
+
+    __tablename__ = "ot_partners"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120))
+    qualification: Mapped[str] = mapped_column(String(120), default="")
+    reg_no: Mapped[str] = mapped_column(String(60), default="")
+    phone: Mapped[str] = mapped_column(String(20), default="")
+    default_role_key: Mapped[str | None] = mapped_column(String(30))
+    default_fee: Mapped[int] = mapped_column(Integer, default=0)
+    note: Mapped[str] = mapped_column(String(255), default="")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

@@ -13,6 +13,7 @@ from app.routes import register
 from app.schemas.ot import (LensTierOut, OtBiometryScanOut, OtCaseCreate, OtCaseOut, OtCasePatch, OtSlotOut,
                             OtStatusIn)
 from app.services import ot as svc
+from app.services.admin import BadValue
 
 router = register(APIRouter(prefix="/ot", tags=["ot"], dependencies=[Depends(get_current_user)]))
 lens_router = register(APIRouter(tags=["ot"], dependencies=[Depends(get_current_user)]))
@@ -98,6 +99,9 @@ def patch_case(case_id: int, data: OtCasePatch, db: Session = Depends(get_db),
         raise _conflict(str(e))
     except svc.UnknownLensTier as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Unknown lens tier '{e}'")
+    except BadValue as e:  # the OT team (billing.team): the message names the row
+        db.rollback()
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(e))
     return svc.case_out(db, case)
 
 

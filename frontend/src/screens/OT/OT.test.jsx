@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { renderShell } from '../../test/utils';
-import { ot as otApi } from '../../api';
+import { RECEPTION, renderShell } from '../../test/utils';
+import { ot as otApi, otTeam } from '../../api';
 import { mockStore } from '../../mocks/adapters';
 import { dateStr } from '../../mocks/data';
 import OT from './OT';
@@ -102,12 +102,13 @@ describe('OT screen (F6)', () => {
     await waitFor(() => expect(spy).toHaveBeenLastCalledWith(1, { billing: { mediclaim: true } }));
     spy.mockRestore();
 
-    // Operative surgeon default
+    // OT team starts with the clinic's surgeon
     await userEvent.click(within(drawer).getByRole('tab', { name: 'Operative' }));
-    expect(within(drawer).getByLabelText('Surgeon')).toHaveValue('Dr. Anu Juneja Pathak');
+    expect(within(drawer).getByLabelText('Name 1')).toHaveValue('Dr. Anu Juneja Pathak');
+    expect(within(drawer).getByLabelText('Role 1')).toHaveValue('surgeon');
 
-    // Status
-    await userEvent.click(within(drawer).getByText('Start surgery'));
+    // Status follows the start time
+    await userEvent.click(within(within(drawer).getByTestId('ot-times')).getByRole('button', { name: 'Now' }));
     await waitFor(() => expect(within(drawer).getByTestId('ot-case-status')).toHaveTextContent('In progress'));
     await waitFor(() => expect(screen.getByTestId('ot-row-1')).toHaveTextContent('In progress'));
   });
@@ -130,5 +131,141 @@ describe('OT screen (F6)', () => {
     expect(within(drawer).getByLabelText('K2 R')).toHaveValue('44.10D');
     // the unreadable value is left as it was, not overwritten
     expect(within(drawer).getByLabelText('K2 L')).toHaveValue('43.93D');
+  });
+
+  async function openCase1(user) {
+    if (user) renderShell({ route: '/ot', child: <OT />, user });
+    else renderOT();
+    await userEvent.click(await screen.findByTestId('ot-row-1'));
+    const drawer = document.getElementById('otCaseDrawer');
+    await waitFor(() => expect(drawer).toHaveClass('show'));
+    return drawer;
+  }
+
+  it('surgery times: a start time makes it In progress, an end time Completed; end before start refused; Reopen clears the end', async () => {
+    const drawer = await openCase1();
+    const d = within(drawer);
+    const status = () => d.getByTestId('ot-case-status');
+
+    fireEvent.change(d.getByLabelText('Start time'), { target: { value: '09:10' } });
+    await waitFor(() => expect(status()).toHaveTextContent('In progress'));
+    await waitFor(() => expect(d.getByLabelText('End time')).not.toBeDisabled());
+
+    fireEvent.change(d.getByLabelText('End time'), { target: { value: '09:00' } });
+    expect(await d.findByRole('alert')).toHaveTextContent('End time must be after the start time.');
+    expect(status()).toHaveTextContent('In progress');
+
+    fireEvent.change(d.getByLabelText('End time'), { target: { value: '09:45' } });
+    await waitFor(() => expect(status()).toHaveTextContent('Completed'));
+    expect(d.getByTestId('ot-duration')).toHaveTextContent('Took 35 min');
+    await waitFor(() => expect(screen.getByTestId('ot-times-1')).toHaveTextContent('9:10 am–9:45 am'));
+    const saved = await otApi.get(1);
+    expect(saved.operative).toMatchObject({ startTime: '09:10', endTime: '09:45' });
+    expect(saved.status).toBe('completed');
+
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    await userEvent.click(d.getByRole('button', { name: /Reopen/ }));
+    await waitFor(() => expect(status()).toHaveTextContent('In progress'));
+    expect(d.getByLabelText('End time')).toHaveValue('');
+    expect((await otApi.get(1)).operative.endTime).toBe('');
+    confirm.mockRestore();
+
+    // clearing the start time steps back to Scheduled
+    fireEvent.change(d.getByLabelText('Start time'), { target: { value: '' } });
+    await waitFor(() => expect(status()).toHaveTextContent('Scheduled'));
+  });
+
+  it('surgery times are read-only for reception (no Reopen either)', async () => {
+    const drawer = await openCase1(RECEPTION);
+    const d = within(drawer);
+    expect(d.getByLabelText('Start time')).toBeDisabled();
+    expect(d.getByLabelText('End time')).toBeDisabled();
+    expect(d.queryByRole('button', { name: 'Now' })).toBeNull();
+    expect(d.getByText('Times are entered by the doctor / OT staff.')).toBeInTheDocument();
+    expect(d.getByRole('button', { name: /Cancel surgery/ })).toBeInTheDocument();
+  });
+
+  it('OT team: add an outside doctor from the list — qualification and fee filled — and it is saved', async () => {
+    const drawer = await openCase1(RECEPTION); // any staff may edit the team
+    const d = within(drawer);
+    await userEvent.click(d.getByRole('tab', { name: 'Operative' }));
+    await userEvent.click(d.getByRole('button', { name: '+ Add team member' }));
+    await userEvent.selectOptions(d.getByLabelText('Role 2'), 'anaesthetist');
+    const spy = vi.spyOn(otApi, 'update');
+    await userEvent.type(d.getByLabelText('Name 2'), 'Dr. Kavita Shah');
+    expect(d.getByLabelText('Qualification 2')).toHaveValue('MD Anaesthesia');
+    expect(d.getByLabelText('Reg. no. 2')).toHaveValue('G-24518');
+    expect(d.getByLabelText('Outside (not our staff) 2')).toBeChecked();
+    expect(d.getByLabelText('Fee 2')).toHaveValue('2500');
+    expect(d.getByTestId('ot-team-row-2')).toHaveTextContent('Outside');
+    await waitFor(
+      () => expect(spy).toHaveBeenLastCalledWith(1, { billing: { team: expect.any(Array) } }),
+      { timeout: 2000 }
+    );
+    const team = spy.mock.calls.at(-1)[1].billing.team;
+    expect(team).toHaveLength(2);
+    expect(team[1]).toMatchObject({
+      roleKey: 'anaesthetist',
+      roleLabel: 'Anaesthetist',
+      name: 'Dr. Kavita Shah',
+      qualification: 'MD Anaesthesia',
+      external: true,
+      partnerId: 1,
+      fee: 2500,
+    });
+    expect(team[1]._id).toBeUndefined();
+    spy.mockRestore();
+    await waitFor(async () => expect((await otApi.get(1)).billing.teamFees).toBe(2500));
+    expect(d.queryByRole('button', { name: 'Save to outside-doctor list' })).toBeNull();
+  });
+
+  it('OT team: an outside doctor without a qualification shows the server message', async () => {
+    const drawer = await openCase1();
+    const d = within(drawer);
+    await userEvent.click(d.getByRole('tab', { name: 'Operative' }));
+    await userEvent.click(d.getByRole('button', { name: '+ Add team member' }));
+    await userEvent.selectOptions(d.getByLabelText('Role 2'), 'anaesthetist');
+    await userEvent.type(d.getByLabelText('Name 2'), 'Dr. Visiting');
+    await userEvent.click(d.getByLabelText('Outside (not our staff) 2'));
+    expect(
+      await d.findByText(/OT team row 2 \(Anaesthetist, Dr\. Visiting\): an outside doctor needs a medical qualification/,
+        {}, { timeout: 2000 })
+    ).toBeInTheDocument();
+    // typing the qualification saves it; admins may add the person to the outside-doctor list
+    await userEvent.type(d.getByLabelText('Qualification 2'), 'MD Anaesthesia');
+    await waitFor(async () => expect((await otApi.get(1)).billing.team).toHaveLength(2), { timeout: 2000 });
+    await userEvent.click(d.getByRole('button', { name: 'Save to outside-doctor list' }));
+    await waitFor(() => expect(d.queryByRole('button', { name: 'Save to outside-doctor list' })).toBeNull());
+    const partners = await otTeam.admin.partners();
+    expect(partners.map((p) => p.name)).toContain('Dr. Visiting');
+  });
+
+  it('billing tab: lens line + a line per team member, fees editable, total = lens + fees', async () => {
+    const drawer = await openCase1();
+    const d = within(drawer);
+    await userEvent.click(d.getByRole('tab', { name: 'Billing' }));
+    await userEvent.click(d.getByRole('radio', { name: /Toric IOL/ }));
+    await waitFor(() => expect(d.getByTestId('ot-total')).toHaveTextContent('₹38,000'));
+    const lines = d.getAllByTestId('ot-bill-team-line');
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toHaveTextContent('Surgeon — Dr. Anu Juneja Pathak');
+    const fee = d.getByLabelText('Fee for Dr. Anu Juneja Pathak');
+    await userEvent.clear(fee);
+    await userEvent.type(fee, '5000');
+    expect(d.getByTestId('ot-total')).toHaveTextContent('₹43,000');
+    await waitFor(async () => expect((await otApi.get(1)).billing.total).toBe(43000), { timeout: 2000 });
+  });
+
+  it('the seeded completed case shows the outside anaesthetist, the times and total', async () => {
+    renderOT();
+    await screen.findByTestId('ot-row-1');
+    await userEvent.click(document.querySelector(`.date-pill[data-date="${dateStr(-3)}"]`));
+    expect(await screen.findByTestId('ot-times-3')).toHaveTextContent('2:20 pm–2:55 pm');
+    await userEvent.click(screen.getByTestId('ot-row-3'));
+    const drawer = document.getElementById('otCaseDrawer');
+    await waitFor(() => expect(drawer).toHaveClass('show'));
+    await userEvent.click(within(drawer).getByRole('tab', { name: 'Billing' }));
+    expect(within(drawer).getByText(/Anaesthetist — Dr. Kavita Shah \(Outside\)/)).toBeInTheDocument();
+    expect(within(drawer).getByTestId('ot-total')).toHaveTextContent('₹31,000');
   });
 });

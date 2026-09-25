@@ -337,3 +337,7 @@ export const rxPrint = {
     },
   },
 };
+
+/** The current print settings (doctor's name, degrees, reg. no.) — the demo OT uses them for the
+    Surgeon row a new surgery starts with. */
+export const printSettings = () => c(state().settings);

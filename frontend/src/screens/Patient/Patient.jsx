@@ -5,6 +5,7 @@ import { patients as patientsApi, errorMessage } from '../../api';
 import { useToast } from '../../components/Toast';
 import { PhotoTile } from '../Machines/ExamPhotos';
 import { OT_STATUS } from '../OT/constants';
+import { fmtTime } from '../OT/SurgeryTimes';
 import { ageSexLabel, fmtDob, fmtLastVisit } from '../../lib/format';
 import { PrescriptionModal } from '../Prescription';
 import NewPatientModal from '../Queue/NewPatientModal';
@@ -33,6 +34,15 @@ const fmtWhen = (iso) => {
   return Number.isNaN(dt.getTime()) ? '' : dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 };
 const CHANNEL = { whatsapp: 'WhatsApp', call: 'Call', walkin: 'Walk-in' };
+
+/** "9:00 AM · 2:20–2:55 pm · Dr. X" — slot, surgery times when entered, surgeon from the OT team
+    (an older case: its operative.surgeon). */
+function surgeryLine(k) {
+  const o = k.operative || {};
+  const surgeon = (k.billing?.team || []).find((m) => m.roleKey === 'surgeon')?.name || o.surgeon;
+  const times = o.startTime ? `${fmtTime(o.startTime)}–${o.endTime ? fmtTime(o.endTime) : '…'}` : '';
+  return [k.timeSlot, times, surgeon].filter(Boolean).join(' · ');
+}
 
 export default function Patient() {
   const { id } = useParams();
@@ -208,7 +218,7 @@ export default function Patient() {
                 <span className="num">{fmtDate(k.date)}</span>
                 <span className="patient-line-main">
                   {k.procedure}
-                  <small>{k.timeSlot}{k.operative?.surgeon ? ` · ${k.operative.surgeon}` : ''}</small>
+                  <small>{surgeryLine(k)}</small>
                 </span>
                 <span className={`status-pill ${st.cls}`}>{st.label}</span>
               </Link>

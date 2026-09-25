@@ -6,7 +6,7 @@ import { ROLES, ROLE_LABELS, useAuth } from '../../auth/AuthContext';
 import { admin as adminApi, patients as patientsApi, onDataChange, errorMessage } from '../../api';
 import { MedicinesSection } from './MedicinesAdmin';
 import { TreatmentsSection } from './TreatmentsAdmin';
-import { OtSlotsSection, OtProceduresSection } from './OtAdmin';
+import { OtSlotsSection, OtProceduresSection, OtTeamRolesSection, OtPartnersSection } from './OtAdmin';
 import { ImportSection } from './ImportAdmin';
 import { ChargesSection } from './ChargesAdmin';
 import { VisitFeesSection } from './VisitFeesAdmin';
@@ -428,6 +428,10 @@ export default function Admin() {
       <OtSlotsSection run={run} />
       <OtProceduresSection run={run} />
 
+      {/* ---------------- OT team: roles + outside doctors & partners ---------------- */}
+      <OtTeamRolesSection run={run} />
+      <OtPartnersSection run={run} />
+
       {/* ---------------- medicines (F12) — names only ---------------- */}
       <MedicinesSection
         medicines={medicines}
@@ -716,6 +720,8 @@ const ADMIN_SECTIONS = [
   ['h-lens', 'Lens prices'],
   ['h-otslots', 'OT slots'],
   ['h-otprocs', 'OT procedures'],
+  ['h-otroles', 'OT team roles'],
+  ['h-otpartners', 'Outside doctors'],
   ['h-medicines', 'Medicines'],
   ['h-charges', 'Standard charges'],
   ['h-heads', 'Day book columns'],

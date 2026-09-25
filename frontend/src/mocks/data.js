@@ -562,8 +562,19 @@ export function emptyOtPostOp() {
   };
 }
 export function emptyOtBilling() {
-  return { lensTier: null, mediclaim: false, paymentMode: null };
+  return { lensTier: null, mediclaim: false, paymentMode: null, team: [] };
 }
+// The clinic's surgeon as the first OT team row (a new case copies the print settings instead).
+const ownSurgeon = () => ({
+  roleKey: 'surgeon',
+  roleLabel: 'Surgeon',
+  name: 'Dr. Anu Juneja Pathak',
+  qualification: 'M.S. Ophthalmology',
+  regNo: '',
+  external: false,
+  partnerId: null,
+  fee: 0,
+});
 
 // Backend B7: 11 slots, 9:00 AM to 4:30 PM every 45 minutes (GET /ot/slots).
 export const OT_TIME_SLOTS = [
@@ -608,7 +619,7 @@ export function seedOtCases() {
       operative: emptyOtOperative(),
       consentPhotos: [],
       postOp: emptyOtPostOp(),
-      billing: emptyOtBilling(),
+      billing: { ...emptyOtBilling(), team: [ownSurgeon()] },
     },
     {
       id: 2,
@@ -629,7 +640,7 @@ export function seedOtCases() {
       operative: emptyOtOperative(),
       consentPhotos: [],
       postOp: emptyOtPostOp(),
-      billing: emptyOtBilling(),
+      billing: { ...emptyOtBilling(), team: [ownSurgeon()] },
     },
     {
       id: 3,
@@ -653,6 +664,8 @@ export function seedOtCases() {
         technique: 'Phacoemulsification',
         anesthesia: 'Topical',
         surgeon: 'Dr. Anu Juneja Pathak',
+        startTime: '14:20',
+        endTime: '14:55',
         complications: 'None',
         notes: 'Uneventful surgery, good red reflex maintained throughout.',
       },
@@ -666,7 +679,24 @@ export function seedOtCases() {
           L: { sph: '', cyl: '', axis: '', va: '' },
         },
       },
-      billing: { lensTier: 'monofocal', mediclaim: true, paymentMode: 'mediclaim' },
+      billing: {
+        lensTier: 'monofocal',
+        mediclaim: true,
+        paymentMode: 'mediclaim',
+        team: [
+          ownSurgeon(),
+          {
+            roleKey: 'anaesthetist',
+            roleLabel: 'Anaesthetist',
+            name: 'Dr. Kavita Shah',
+            qualification: 'MD Anaesthesia',
+            regNo: 'G-24518',
+            external: true,
+            partnerId: 1,
+            fee: 2500,
+          },
+        ],
+      },
     },
   ];
 }

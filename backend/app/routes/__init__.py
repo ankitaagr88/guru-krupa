@@ -23,6 +23,7 @@ from app.routes import intake as _intake  # noqa: E402,F401
 from app.routes import inventory as _inventory  # noqa: E402,F401
 from app.routes import mr as _mr  # noqa: E402,F401
 from app.routes import ot as _ot  # noqa: E402,F401
+from app.routes import ot_team as _ot_team  # noqa: E402,F401
 from app.routes import patients as _patients  # noqa: E402,F401
 from app.routes import prescriptions as _prescriptions  # noqa: E402,F401
 from app.routes import readings as _readings  # noqa: E402,F401

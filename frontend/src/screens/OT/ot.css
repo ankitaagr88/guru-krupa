@@ -6,6 +6,7 @@
 .ot-open-btn:hover { background: var(--sapphire); color: var(--on-sapphire); }
 .ot-td-slot { font-family: var(--font-mono); font-weight: 500; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .ot-td-sub { font-family: var(--font-ui); font-size: 12px; color: var(--ink-faint); font-weight: 400; }
+.ot-td-times { display: block; font-family: var(--font-ui); font-size: 12px; color: var(--ink-soft); font-weight: 400; margin-top: 2px; }
 
 /* new-case modal */
 .ot-modal { width: 460px; }
@@ -59,8 +60,42 @@
 .ot-status-actions .stage-btn.danger { color: var(--alert-ink); }
 .ot-status-actions .stage-btn.danger:hover { border-color: var(--alert); background: var(--alert-wash); }
 
+/* surgery start / end time (status area) */
+.ot-times { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin-bottom: 4px; }
+.ot-time-field label { display: block; font-family: var(--font-ui); font-size: 12px; font-weight: 600; color: var(--ink-soft); margin-bottom: 4px; }
+.ot-time-row { display: flex; gap: 6px; align-items: center; }
+.ot-time-row .fake-input { margin-bottom: 0; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.ot-times .btn-ghost { flex: none; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 11px; font-family: var(--font-ui); font-weight: 600; font-size: 13px; color: var(--sapphire-deep); cursor: pointer; }
+.ot-times .btn-ghost:hover { border-color: var(--sapphire); background: var(--sapphire-wash); }
+.ot-times .ot-save-note { grid-column: 1 / -1; margin: 0; }
+
+/* OT team (operative tab) + bill lines (billing tab) */
+.ot-team { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.ot-team-row { border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px 4px; background: var(--surface); }
+.ot-team-row.outside { border-color: var(--gold-line); background: var(--gold-wash); }
+.ot-team-line { display: grid; grid-template-columns: 1fr 1.4fr; gap: 6px; }
+.ot-drawer .ot-team-line .fake-input, .ot-drawer .ot-team-line .drop-select { margin-bottom: 6px; }
+.ot-team-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+.ot-team-outside { display: flex; align-items: center; gap: 6px; font-family: var(--font-ui); font-size: 13px; color: var(--ink); cursor: pointer; }
+.ot-outside-tag { font-family: var(--font-ui); font-size: 11px; font-weight: 600; letter-spacing: 0.3px; text-transform: uppercase; color: var(--gold-deep); background: var(--surface); border: 1px solid var(--gold-line); border-radius: 999px; padding: 2px 8px; }
+.ot-team-fee { display: flex; align-items: center; gap: 6px; margin-left: auto; font-family: var(--font-ui); font-size: 13px; color: var(--ink-soft); }
+.ot-drawer .ot-team-fee .fake-input { width: 96px; margin-bottom: 0; padding: 7px 9px; text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.ot-team-del { background: none; border: none; color: var(--ink-faint); font-size: 14px; cursor: pointer; padding: 4px 6px; border-radius: 6px; }
+.ot-team-del:hover { color: var(--alert-ink); background: var(--alert-wash); }
+.ot-team-add { align-self: flex-start; background: var(--sapphire-wash); color: var(--sapphire-deep); border: 1px dashed var(--sapphire-line); border-radius: 10px; padding: 8px 13px; font-family: var(--font-ui); font-weight: 600; font-size: 13px; cursor: pointer; }
+.ot-team-add:hover { border-style: solid; }
+.ot-team-link { background: none; border: none; color: var(--sapphire); font-family: var(--font-ui); font-weight: 600; font-size: 13px; cursor: pointer; padding: 2px 0 6px; }
+.ot-team-link:hover { text-decoration: underline; }
+.ot-bill-lines { border: 1px solid var(--line); border-radius: 10px; padding: 4px 12px; margin-top: 10px; background: var(--surface); }
+.ot-bill-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-family: var(--font-ui); font-size: 14px; color: var(--ink); }
+.ot-bill-line:last-child { border-bottom: none; }
+.ot-bill-line small { color: var(--ink-faint); font-size: 12px; }
+.ot-bill-line .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ot-bill-lines > .ot-save-note { margin: 8px 0; }
+
 body.mobile-mode .ot-wrap { max-width: none; }
 body.mobile-mode .ot-manual-grid { grid-template-columns: 1fr 1fr; }
 body.mobile-mode .ot-manual-grid .fake-input:first-child { grid-column: 1 / -1; }
 body.mobile-mode .rx-grid { grid-template-columns: repeat(2, 1fr); }
+body.mobile-mode .ot-team-line { grid-template-columns: 1fr; }
 body:not(.mobile-mode) .ot-drawer .capture-btn { display: flex; }

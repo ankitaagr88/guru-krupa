@@ -9,7 +9,6 @@ export const OT_PROCEDURES = [
 
 export const TECHNIQUES = ['Phacoemulsification', 'ECCE', 'SICS', 'LASIK'];
 export const ANESTHESIA = ['Topical', 'Peribulbar', 'General'];
-export const DEFAULT_SURGEON = 'Dr. Anu Juneja Pathak';
 export const PAYMENT_MODES = [
   { key: 'cash', label: 'Cash' },
   { key: 'card', label: 'Card' },

@@ -74,7 +74,10 @@ def test_create_copies_patient_and_defaults(client, admin_headers):
     assert c["preOpBiometry"]["K1"] == {"R": "", "L": ""}  # merged onto the empty template
     assert c["operative"]["surgeon"] == "Dr. Anu Juneja Pathak"
     assert c["postOp"]["finalRx"]["R"] == {"sph": "", "cyl": "", "axis": "", "va": ""}
-    assert c["billing"] == {"lensTier": None, "mediclaim": False, "paymentMode": None, "lensPrice": 0, "total": 0}
+    surgeon = {"roleKey": "surgeon", "roleLabel": "Surgeon", "name": "Dr. Anu Juneja Pathak",
+               "qualification": "M.S. Ophthalmology", "regNo": "", "external": False, "partnerId": None, "fee": 0}
+    assert c["billing"] == {"lensTier": None, "mediclaim": False, "paymentMode": None, "team": [surgeon],
+                            "lensPrice": 0, "teamFees": 0, "total": 0}
     assert c["consentPhotos"] == [] and c["createdAt"] and c["updatedAt"]
 
     assert client.post("/api/ot/cases", json={"date": D0.isoformat(), "timeSlot": "11:15 AM", "procedure": PROC},
@@ -142,7 +145,8 @@ def test_patch_deep_merge_and_move(client, admin_headers):
     # billing: lens tier drives lensPrice/total; unknown tier -> 400
     b = client.patch(f"/api/ot/cases/{cid}", json={"billing": {"lensTier": "toric", "mediclaim": True}},
                      headers=admin_headers).json()["billing"]
-    assert b == {"lensTier": "toric", "mediclaim": True, "paymentMode": None, "lensPrice": 38000, "total": 38000}
+    assert {k: v for k, v in b.items() if k != "team"} == {"lensTier": "toric", "mediclaim": True, "paymentMode": None,
+                                                           "lensPrice": 38000, "teamFees": 0, "total": 38000}
     b = client.patch(f"/api/ot/cases/{cid}", json={"billing": {"paymentMode": "mediclaim"}}, headers=admin_headers).json()["billing"]
     assert b["lensTier"] == "toric" and b["paymentMode"] == "mediclaim" and b["total"] == 38000
     assert client.patch(f"/api/ot/cases/{cid}", json={"billing": {"lensTier": "diamond"}},

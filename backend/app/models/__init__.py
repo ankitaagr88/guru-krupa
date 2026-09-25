@@ -8,7 +8,7 @@ from app.models.config import (ClinicSetting, ExamFinding, LensTier, LensType, P
                                ReferralSource, Relation, Stage, VisitKind)
 from app.models.dilation import DilationRun, DilationStep  # noqa: F401
 from app.models.mr import MrVisit  # noqa: F401
-from app.models.ot import OtCase, OtConsentPhoto, OtProcedure, OtSlot  # noqa: F401
+from app.models.ot import OtCase, OtConsentPhoto, OtPartner, OtProcedure, OtSlot, OtTeamRole  # noqa: F401
 from app.models.patients import ExamPhoto, Patient, Visit  # noqa: F401
 from app.models.pharmacy import (Diagnosis, InventoryItem, Medicine, MedicineForm, Prescription, PrescriptionLine,  # noqa: F401
                                  StockMovement, TreatmentStandard, TreatmentStandardLine)

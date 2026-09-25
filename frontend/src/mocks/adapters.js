@@ -26,9 +26,11 @@ export { fees } from './fees';
 export { intake } from './intake';
 export { daybook } from './daybook';
 export { rxPrint } from './rxPrint';
+export { otTeam } from './otTeam';
 import { doctor as doctorMock } from './doctor';
 import { applySuggestion, feeVisitOut } from './fees';
 import { printExtras as rxPrintExtras } from './rxPrint';
+import { cleanTeam, defaultTeam, teamFees, teamOf } from './otTeam';
 
 const S = store.state;
 const c = store.clone;
@@ -705,14 +707,18 @@ export const readings = {
 
 /* ---------------- OT ---------------- */
 /* Shapes follow the B7 contract (OtCaseOut): `timeSlot` (11 slots 9:00 AM–4:30 PM
-   every 45 min), billing carries computed `lensPrice`/`total`, consent photos
-   have ids. Nested sections deep-merge on PATCH like the real endpoint. */
+   every 45 min), billing carries the OT team and computed `lensPrice`/`teamFees`/`total`
+   (lens + team fees), consent photos have ids. Nested sections deep-merge on PATCH like the real
+   endpoint (lists such as billing.team replace; the team is checked like the server — ./otTeam). */
 const ACTIVE_OT = (k) => k.status !== 'cancelled';
 
 function otCaseOut(k) {
   const out = c(k);
   const tier = S.lensTiers.find((t) => t.key === out.billing?.lensTier);
-  out.billing = { ...out.billing, lensPrice: tier ? tier.price : 0, total: tier ? tier.price : 0 };
+  const team = c(teamOf(k));
+  const lensPrice = tier ? tier.price : 0;
+  const fees = teamFees(team);
+  out.billing = { ...out.billing, team, lensPrice, teamFees: fees, total: lensPrice + fees };
   out.consentPhotos = (out.consentPhotos || []).map((ph, i) => ({
     id: ph.id ?? i + 1,
     imagePath: null,
@@ -789,7 +795,7 @@ export const ot = {
       operative: emptyOtOperative(),
       consentPhotos: [],
       postOp: emptyOtPostOp(),
-      billing: emptyOtBilling(),
+      billing: { ...emptyOtBilling(), team: defaultTeam() },
       createdAt: new Date().toISOString(),
       updatedAt: null,
     };
@@ -813,6 +819,7 @@ export const ot = {
       throw httpError(400, `Unknown lens tier '${patch.billing.lensTier}'`);
     const { time, ...rest } = patch;
     if (time) rest.timeSlot = time;
+    if (rest.billing && 'team' in rest.billing) rest.billing = { ...rest.billing, team: cleanTeam(rest.billing.team) };
     deepMerge(x, rest);
     x.updatedAt = new Date().toISOString();
     store.notify();

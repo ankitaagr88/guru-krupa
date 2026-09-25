@@ -25,8 +25,10 @@ export const PATCH_DEBOUNCE_MS = 600;
    updateOtRx, which mutated in place — "everything saves on its own").
    `edit(path, value)` updates the local copy at once and accumulates ONLY the
    changed keys, e.g. {postOp:{finalRx:{R:{sph:'-0.25'}}}}, which the backend
-   deep-merges. `editNow` flushes immediately (toggles, radios). */
-export function useCasePatch(caseObj, setCase, { onError, debounceMs = PATCH_DEBOUNCE_MS } = {}) {
+   deep-merges (lists such as billing.team replace). `editNow` flushes immediately (toggles,
+   radios) and resolves with the saved case, or null when the save failed (`onError(message)`);
+   `onSaved()` runs after every successful save. */
+export function useCasePatch(caseObj, setCase, { onError, onSaved, debounceMs = PATCH_DEBOUNCE_MS } = {}) {
   const pending = useRef({});
   const timer = useRef(null);
   const idRef = useRef(caseObj?.id);
@@ -35,6 +37,8 @@ export function useCasePatch(caseObj, setCase, { onError, debounceMs = PATCH_DEB
   setCaseRef.current = setCase;
   const onErrorRef = useRef(onError);
   onErrorRef.current = onError;
+  const onSavedRef = useRef(onSaved);
+  onSavedRef.current = onSaved;
 
   const flush = useCallback(async () => {
     clearTimeout(timer.current);
@@ -47,6 +51,7 @@ export function useCasePatch(caseObj, setCase, { onError, debounceMs = PATCH_DEB
       .then((updated) => {
         // Server copy wins, but keep anything typed while the request was in flight.
         setCaseRef.current((prev) => (prev && prev.id === updated.id ? deepMerge(updated, pending.current) : prev));
+        onSavedRef.current?.();
         return updated;
       })
       .catch((err) => {

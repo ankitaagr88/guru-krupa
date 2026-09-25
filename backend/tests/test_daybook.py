@@ -243,3 +243,34 @@ def test_day_book_settings(client, admin_headers, reception_headers):
                    headers=reception_headers).json()
     assert b["items"][0]["accountHeadKey"] == "opd"
     client.put("/api/admin/daybook-settings", json={"otherHead": "other"}, headers=admin_headers)
+
+
+def test_ot_row_counts_lens_plus_team_fees(client, admin_headers, db):
+    """An OT case's day-book amount is its bill total: lens price + the OT team's fees. A case with only
+    team fees (no lens, no payment mode yet) still shows, as money LEFT; cash counts in the drawer."""
+    from app.models.config import LensTier
+    from app.models.ot import OtCase
+
+    day = date(2024, 3, 25)
+    tier = db.query(LensTier).order_by(LensTier.sort_order).first()
+    team = [{"roleKey": "surgeon", "roleLabel": "Surgeon", "name": "Dr. Own", "qualification": "MS", "regNo": "",
+             "external": False, "partnerId": None, "fee": 0},
+            {"roleKey": "anaesthetist", "roleLabel": "Anaesthetist", "name": "Dr. Visiting",
+             "qualification": "MD Anaesthesia", "regNo": "", "external": True, "partnerId": None, "fee": 2500}]
+    paid = OtCase(patient_name="Team Paid", date=day, procedure="Cataract (phaco)", status="completed",
+                  billing={"lensTier": tier.key, "mediclaim": False, "paymentMode": "cash", "team": team})
+    owed = OtCase(patient_name="Team Owed", date=day, procedure="Pterygium", status="scheduled",
+                  billing={"lensTier": None, "mediclaim": False, "paymentMode": None,
+                           "team": [dict(team[1], fee=1500)]})
+    db.add_all([paid, owed])
+    db.commit()
+
+    book = _book(client, admin_headers, day)
+    ot = {r["name"]: r for r in book["rows"] if r["kind"] == "ot"}
+    p, o = ot["Team Paid"], ot["Team Owed"]
+    assert (p["amounts"], p["total"], p["received"], p["left"]) == ({"ot": tier.price + 2500}, tier.price + 2500,
+                                                                     tier.price + 2500, 0)
+    assert "OT team ₹2,500" in p["note"]
+    assert (o["amounts"], o["total"], o["received"], o["left"], o["status"]) == ({"ot": 1500}, 1500, 0, 1500, "unpaid")
+    assert book["totals"]["amounts"]["ot"] == tier.price + 2500 + 1500
+    assert book["cash"]["cashReceived"] == tier.price + 2500

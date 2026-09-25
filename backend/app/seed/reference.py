@@ -178,12 +178,14 @@ def seed_reference(db: Session) -> None:
     from app.seed.daybook import seed_daybook
     from app.seed.family import seed_family
     from app.seed.fees import seed_fees
+    from app.seed.ot_team import seed_ot_team
     from app.seed.rx import seed_rx
 
     seed_family(db)
     seed_fees(db)
     seed_daybook(db)  # after the fee list: gives each charge its day-book column
     seed_rx(db)
+    seed_ot_team(db)
     medicines = {}
     for row in medicine_rows():
         name = row.pop("name")

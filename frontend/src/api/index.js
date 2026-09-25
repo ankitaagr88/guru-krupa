@@ -16,6 +16,7 @@ export const visits = pick('visits');
 export const appointments = pick('appointments');
 export const readings = pick('readings');
 export const ot = pick('ot');
+export const otTeam = pick('otTeam');
 export const prescriptions = pick('prescriptions');
 export const inventory = pick('inventory');
 export const admin = pick('admin');

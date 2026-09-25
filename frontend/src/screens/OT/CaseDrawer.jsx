@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Drawer from '../../components/Drawer';
 import { useAuth } from '../../auth/AuthContext';
-import { ot as otApi, errorMessage } from '../../api';
+import { ot as otApi, otTeam as otTeamApi, errorMessage } from '../../api';
 import { PhotoTile } from '../Machines/ExamPhotos';
 import { IconCamera, IconPaperclip } from '../../components/Icons';
 import { useCasePatch } from './useCasePatch';
+import SurgeryTimes from './SurgeryTimes';
+import OtTeam, { memberLabel, rupees, sumFees, toDraft, toSaved } from './OtTeam';
 import {
   ANESTHESIA,
   BIOMETRY_ROWS,
-  DEFAULT_SURGEON,
   OT_STATUS,
   PAYMENT_MODES,
   TECHNIQUES,
@@ -25,6 +26,9 @@ const TABS = [
 ];
 
 const CLINICAL_ROLES = ['admin', 'doctor', 'ot_staff'];
+
+// The status follows the surgery times: an end time = Completed, a start time = In progress.
+export const statusFromTimes = (start, end) => (end ? 'completed' : start ? 'in_progress' : 'scheduled');
 
 function filled(obj) {
   if (!obj || typeof obj !== 'object') return !!obj;
@@ -148,14 +152,21 @@ function RowFragment({ row, b, edit }) {
   );
 }
 
-function OperativeTab({ k, edit, canEdit }) {
+function OperativeTab({ k, edit, canEdit, team }) {
   const o = k.operative || {};
   const ro = !canEdit;
   return (
     <>
       <div className="field-label" style={{ marginTop: 0 }}>
-        Operative details
+        OT team
       </div>
+      <p className="small-note">
+        Everyone in the theatre for this surgery. Tick &ldquo;Outside&rdquo; for a doctor who is not our staff (visiting
+        surgeon, anaesthetist…) — they need their medical qualification. Fees go on the surgery&apos;s bill.
+      </p>
+      <OtTeam {...team} />
+
+      <div className="field-label">Operative details</div>
       {ro && <p className="ot-save-note">Operative notes can be edited by the doctor / OT staff.</p>}
       <input
         className="fake-input"
@@ -197,14 +208,6 @@ function OperativeTab({ k, edit, canEdit }) {
           <option key={t}>{t}</option>
         ))}
       </select>
-      <input
-        className="fake-input"
-        placeholder="Surgeon"
-        value={o.surgeon ?? DEFAULT_SURGEON}
-        onChange={(e) => edit(['operative', 'surgeon'], e.target.value)}
-        readOnly={ro}
-        aria-label="Surgeon"
-      />
       <textarea
         className="fake-input"
         rows={2}
@@ -377,10 +380,15 @@ function PostOpTab({ k, edit, canEdit }) {
   );
 }
 
-function BillingTab({ k, editNow, lensTiers }) {
+function BillingTab({ k, editNow, lensTiers, teamRows, onTeamChange }) {
   const b = k.billing || {};
   const tier = lensTiers.find((t) => t.key === b.lensTier);
-  const total = b.total ?? (tier ? tier.price : 0);
+  const lensPrice = tier ? tier.price : (b.lensPrice ?? 0);
+  // worked out here from the lens and the team as typed, so it follows the fee boxes at once
+  const total = lensPrice + sumFees(teamRows);
+  const named = teamRows.filter((r) => (r.name || '').trim());
+  const setFee = (row, value) =>
+    onTeamChange(teamRows.map((r) => (r._id === row._id ? { ...r, fee: Number(value.replace(/[^\d]/g, '')) || 0 } : r)));
   return (
     <>
       <div className="field-label" style={{ marginTop: 0 }}>
@@ -415,9 +423,38 @@ function BillingTab({ k, editNow, lensTiers }) {
           <div className="knob" />
         </button>
       </div>
+      <div className="ot-bill-lines" data-testid="ot-bill-lines">
+        <div className="ot-bill-line">
+          <span>{tier ? tier.label : 'Lens'}</span>
+          <span className="num" data-testid="ot-lens-price">
+            {tier ? rupees(lensPrice) : 'not chosen'}
+          </span>
+        </div>
+        {named.map((m) => (
+          <div className="ot-bill-line" key={m._id} data-testid="ot-bill-team-line">
+            <span>
+              {memberLabel(m)}
+              {m.qualification ? <small> · {m.qualification}</small> : null}
+            </span>
+            <label className="ot-team-fee">
+              ₹
+              <input
+                className="fake-input num"
+                inputMode="numeric"
+                value={String(m.fee ?? 0)}
+                onChange={(e) => setFee(m, e.target.value)}
+                aria-label={`Fee for ${m.name}`}
+              />
+            </label>
+          </div>
+        ))}
+        {named.length === 0 && (
+          <p className="ot-save-note">No OT team yet — add the team on the Operative tab; their fees show here.</p>
+        )}
+      </div>
       <div className="bill-total" style={{ marginTop: 10 }}>
         <span>Total</span>
-        <span data-testid="ot-total">₹{Number(total || 0).toLocaleString('en-IN')}</span>
+        <span data-testid="ot-total">{rupees(total)}</span>
       </div>
       <p className="label" style={{ margin: '10px 0 6px' }}>
         Payment mode
@@ -444,20 +481,86 @@ function BillingTab({ k, editNow, lensTiers }) {
 export default function CaseDrawer({ caseObj, setCase, lensTiers, isMobile, onClose, onStatus }) {
   const { currentUser } = useAuth();
   const canEditClinical = CLINICAL_ROLES.includes(currentUser?.role);
+  const isAdmin = currentUser?.role === 'admin';
   const [tab, setTab] = useState('preop');
   const [saveErr, setSaveErr] = useState('');
   const [statusBusy, setStatusBusy] = useState(false);
+  const [teamOptions, setTeamOptions] = useState({ roles: [], partners: [], staff: [] });
+  const [teamRows, setTeamRows] = useState([]); // draft of billing.team (rows without a name are not saved yet)
   const onError = useCallback((msg) => setSaveErr(msg), []);
-  const { edit, editNow, flush } = useCasePatch(caseObj, setCase, { onError });
+  const onSaved = useCallback(() => setSaveErr(''), []);
+  const { edit, editNow, flush } = useCasePatch(caseObj, setCase, { onError, onSaved });
 
   useEffect(() => {
     setTab('preop');
     setSaveErr('');
+    setTeamRows(toDraft(caseObj?.billing?.team));
+    // only when another case is opened: the draft is the source while this one is open
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [caseObj?.id]);
+
+  useEffect(() => {
+    let alive = true;
+    otTeamApi
+      .options()
+      .then((o) => alive && o && setTeamOptions(o))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const k = caseObj;
   const open = !!k;
   const st = OT_STATUS[k?.status] || { label: k?.status, cls: '' };
+
+  const changeTeam = (rows) => {
+    setTeamRows(rows);
+    edit(['billing', 'team'], toSaved(rows));
+  };
+  const savePartner = async (row) => {
+    try {
+      const p = await otTeamApi.admin.createPartner({
+        name: row.name,
+        qualification: row.qualification,
+        regNo: row.regNo,
+        defaultRoleKey: row.roleKey || null,
+        defaultFee: Number(row.fee) || 0,
+      });
+      setTeamOptions((o) => ({ ...o, partners: [...o.partners, p].sort((a, b) => a.name.localeCompare(b.name)) }));
+      return p;
+    } catch (ex) {
+      setSaveErr(errorMessage(ex, 'Could not add to the outside-doctor list'));
+      return null;
+    }
+  };
+
+  /* Save both surgery times, then move the status to match (never on a cancelled case). */
+  const onTimes = async (start, end) => {
+    if (!k || k.status === 'cancelled') return;
+    setStatusBusy(true);
+    setSaveErr('');
+    try {
+      edit(['operative', 'startTime'], start);
+      const saved = await editNow(['operative', 'endTime'], end);
+      if (!saved) return; // not saved: the error is on screen
+      const next = statusFromTimes(start, end);
+      if (next !== saved.status) {
+        const updated = await otApi.setStatus(k.id, next);
+        setCase((prev) => (prev && prev.id === updated.id ? { ...prev, status: updated.status, updatedAt: updated.updatedAt } : prev));
+        onStatus?.(updated);
+      }
+    } catch (ex) {
+      setSaveErr(errorMessage(ex, 'Could not change status'));
+    } finally {
+      setStatusBusy(false);
+    }
+  };
+
+  const reopen = () => {
+    if (!window.confirm('Reopen this surgery? Its end time will be cleared, so it shows as not finished.')) return;
+    onTimes(k.operative?.startTime || '', '');
+  };
 
   const setStatus = async (status) => {
     if (!k) return;
@@ -526,26 +629,26 @@ export default function CaseDrawer({ caseObj, setCase, lensTiers, isMobile, onCl
           </div>
 
           {tab === 'preop' && <PreOpTab k={k} edit={edit} setCase={setCase} flush={flush} isMobile={isMobile} />}
-          {tab === 'operative' && <OperativeTab k={k} edit={edit} canEdit={canEditClinical} />}
+          {tab === 'operative' && (
+            <OperativeTab
+              k={k}
+              edit={edit}
+              canEdit={canEditClinical}
+              team={{ rows: teamRows, options: teamOptions, onChange: changeTeam, isAdmin, onSavePartner: savePartner }}
+            />
+          )}
           {tab === 'consent' && <ConsentTab k={k} setCase={setCase} isMobile={isMobile} />}
           {tab === 'postop' && <PostOpTab k={k} edit={edit} canEdit={canEditClinical} />}
-          {tab === 'billing' && <BillingTab k={k} editNow={editNow} lensTiers={lensTiers} />}
+          {tab === 'billing' && (
+            <BillingTab k={k} editNow={editNow} lensTiers={lensTiers} teamRows={teamRows} onTeamChange={changeTeam} />
+          )}
 
           <div className="field-label">Status</div>
+          <SurgeryTimes k={k} canEdit={canEditClinical} busy={statusBusy} onTimes={onTimes} />
           <div className="ot-status-actions">
-            {k.status === 'scheduled' && (
-              <button type="button" className="stage-btn" onClick={() => setStatus('in_progress')} disabled={statusBusy}>
-                Start surgery <small>in progress</small>
-              </button>
-            )}
-            {k.status !== 'completed' && k.status !== 'cancelled' && (
-              <button type="button" className="stage-btn amber" onClick={() => setStatus('completed')} disabled={statusBusy}>
-                Mark completed
-              </button>
-            )}
-            {k.status === 'completed' && (
-              <button type="button" className="stage-btn" onClick={() => setStatus('scheduled')} disabled={statusBusy}>
-                Reopen <small>back to scheduled</small>
+            {k.status === 'completed' && canEditClinical && (
+              <button type="button" className="stage-btn" onClick={reopen} disabled={statusBusy}>
+                Reopen <small>clears the end time</small>
               </button>
             )}
             {k.status !== 'cancelled' && (
@@ -554,7 +657,12 @@ export default function CaseDrawer({ caseObj, setCase, lensTiers, isMobile, onCl
               </button>
             )}
             {k.status === 'cancelled' && (
-              <button type="button" className="stage-btn" onClick={() => setStatus('scheduled')} disabled={statusBusy}>
+              <button
+                type="button"
+                className="stage-btn"
+                onClick={() => setStatus(statusFromTimes(k.operative?.startTime, k.operative?.endTime))}
+                disabled={statusBusy}
+              >
                 Re-schedule <small>same slot if still free</small>
               </button>
             )}
