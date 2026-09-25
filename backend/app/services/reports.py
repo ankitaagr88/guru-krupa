@@ -16,12 +16,13 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models.audit import AuditLog
-from app.models.billing import PAYMENT_MODES, Bill, BillItem
+from app.models.billing import PAYMENT_MODES, BillItem, BillPayment
 from app.models.config import Stage
 from app.models.patients import Visit
 from app.models.pharmacy import PrescriptionLine
 from app.schemas.reports import (Collections, KindCount, MedicineSold, ModeTotal, PatientCounts, ReceiptRow,
                                  StageTime, TodayReport, UnpaidBill, VisitKindCounts)
+from app.services import billing
 from app.services.fees import visit_kinds as all_visit_kinds
 
 DONE_STAGE = "done"
@@ -97,30 +98,35 @@ def visit_kind_counts(db: Session, visits: list[Visit]) -> VisitKindCounts:
     return VisitKindCounts(kinds=kinds, emergencies=sum(1 for v in visits if v.emergency), not_set=counts.get("", 0))
 
 
-def _bill_total(bill: Bill) -> int:
-    return sum(i.amount for i in bill.items)
+def payments_on(db: Session, bounds) -> list[BillPayment]:
+    """Payments received within [start, end), in time order."""
+    lo, hi = bounds
+    rows = db.scalars(select(BillPayment).where(BillPayment.at >= lo - timedelta(days=1),
+                                                BillPayment.at < hi + timedelta(days=1)))
+    return sorted((p for p in rows if _within(p.at, bounds)), key=lambda p: (_aware(p.at), p.id))
 
 
 def collections(db: Session, day: date, visits: list[Visit], bounds) -> tuple[Collections, list[ReceiptRow]]:
-    # Paid that day (by paid time, whatever day the visit was).
-    lo, hi = bounds
-    candidates = db.scalars(select(Bill).where(Bill.paid_at.is_not(None), Bill.paid_at >= lo - timedelta(days=1),
-                                               Bill.paid_at < hi + timedelta(days=1)))
-    paid = sorted((b for b in candidates if _within(b.paid_at, bounds)), key=lambda b: _aware(b.paid_at))
+    # Received that day (by payment time, whatever day the visit was).
+    payments = payments_on(db, bounds)
     by_mode = {m: [0, 0] for m in PAYMENT_MODES}
     receipts = []
-    for b in paid:
-        total = _bill_total(b)
-        slot = by_mode.setdefault(b.payment_mode or "cash", [0, 0])
+    for p in payments:
+        b = p.bill
+        slot = by_mode.setdefault(p.mode or "cash", [0, 0])
         slot[0] += 1
-        slot[1] += total
-        receipts.append(ReceiptRow(receipt_no=b.receipt_no, visit_id=b.visit_id, name=b.visit.patient.name,
-                                   token=b.visit.token, total=total, payment_mode=b.payment_mode, paid_at=b.paid_at))
-    unpaid = [UnpaidBill(visit_id=v.id, name=v.patient.name, token=v.token, total=_bill_total(v.bill))
-              for v in visits if v.bill is not None and v.bill.paid_at is None and v.bill.items]
+        slot[1] += p.amount
+        receipts.append(ReceiptRow(receipt_no=b.receipt_no, visit_id=b.visit_id, payment_id=p.id,
+                                   name=b.visit.patient.name, token=b.visit.token, total=p.amount,
+                                   bill_total=billing.bill_total(b), balance=billing.bill_balance(b),
+                                   payment_mode=p.mode, paid_at=_aware(p.at)))
+    unpaid = [UnpaidBill(visit_id=b.visit_id, patient_id=b.visit.patient_id, name=b.visit.patient.name,
+                         token=b.visit.token, visit_date=b.visit.date, total=billing.bill_total(b),
+                         paid_amount=billing.paid_amount(b), balance=billing.bill_balance(b))
+              for b in billing.owed_bills(db, on_or_before=day)]
     out = Collections(by_mode=[ModeTotal(mode=m, bills=n, amount=a) for m, (n, a) in by_mode.items()],
-                      total=sum(a for _, a in by_mode.values()), bills_paid=len(paid), unpaid=unpaid,
-                      unpaid_total=sum(u.total for u in unpaid))
+                      total=sum(a for _, a in by_mode.values()), bills_paid=len({p.bill_id for p in payments}),
+                      unpaid=unpaid, unpaid_total=sum(u.balance for u in unpaid))
     return out, receipts
 
 

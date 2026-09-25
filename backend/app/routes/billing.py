@@ -1,4 +1,10 @@
-"""Per-visit bill (`/visits/{id}/bill`), standard charges and receipts (lane B owns this module).
+"""Per-visit bill (`/visits/{id}/bill`), standard charges, part payments and receipts (lane B;
+payments: lane M).
+
+Money: `POST /visits/{id}/bill/payments` {amount, mode, note?} receives part or all of the balance,
+`DELETE /visits/{id}/bill/payments/{pid}` undoes one, `POST /visits/{id}/bill/pay` {paymentMode}
+receives the whole balance, `POST /visits/{id}/bill/no-charge` closes a ₹0 bill, and
+`GET /patients/{id}/owing` lists a patient's bills with money still to collect.
 
 Standard charges: `GET /standard-charges` (any staff: the active ones, in order, for the one-tap
 chips) and `/admin/standard-charges` (admin: list incl. switched-off, create, patch, delete —
@@ -10,12 +16,12 @@ from sqlalchemy.orm import Session
 from app.auth.deps import get_current_user, require_role
 from app.auth.roles import ADMIN_ONLY, ANY_STAFF
 from app.db import get_db
-from app.models.patients import Visit
+from app.models.patients import Patient, Visit
 from app.models.staff import Staff
 from app.routes import register
 from app.schemas.admin import IdOrder
-from app.schemas.billing import (BillIn, BillOut, BillPayIn, StandardChargeIn, StandardChargeOut,
-                                 StandardChargePatch)
+from app.schemas.billing import (BillIn, BillOut, BillPayIn, OwedBill, PaymentIn, StandardChargeIn,
+                                 StandardChargeOut, StandardChargePatch)
 from app.services import billing as svc
 
 router = register(APIRouter(tags=["billing"], dependencies=[Depends(get_current_user)]))
@@ -64,17 +70,64 @@ def start_bill(visit_id: int, db: Session = Depends(get_db), user: Staff = Depen
     return svc.bill_out(svc.start_bill(db, _visit(db, visit_id)))
 
 
+def _bill(visit: Visit):
+    if visit.bill is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No bill for this visit")
+    return visit.bill
+
+
 @router.post("/visits/{visit_id}/bill/pay", response_model=BillOut)
 def pay_bill(visit_id: int, data: BillPayIn, db: Session = Depends(get_db),
              user: Staff = Depends(require_role(*ANY_STAFF))):
-    """Mark paid; the first payment gives the bill its receipt number (`receiptNo`)."""
-    visit = _visit(db, visit_id)
-    if visit.bill is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No bill for this visit")
+    """Receive the whole balance in one mode (older callers). The first payment gives the bill its
+    receipt number (`receiptNo`); a ₹0 bill is closed as "No charge"; on a bill already paid in full,
+    another mode corrects the mode of its latest payment."""
+    bill = _bill(_visit(db, visit_id))
     try:
-        return svc.bill_out(svc.pay_bill(db, visit.bill, data.payment_mode))
+        return svc.bill_out(svc.pay_bill(db, bill, data.payment_mode, user))
     except svc.BillingError as exc:
         raise _http(exc)
+
+
+@router.post("/visits/{visit_id}/bill/payments", response_model=BillOut, status_code=status.HTTP_201_CREATED)
+def add_payment(visit_id: int, data: PaymentIn, db: Session = Depends(get_db),
+                user: Staff = Depends(require_role(*ANY_STAFF))):
+    """Receive part (or all) of the balance: {amount, mode, note?}. 422 when more than the balance,
+    409 when nothing is owed."""
+    bill = _bill(_visit(db, visit_id))
+    try:
+        return svc.bill_out(svc.add_payment(db, bill, data.amount, data.mode, user, data.note))
+    except svc.BillingError as exc:
+        raise _http(exc)
+
+
+@router.delete("/visits/{visit_id}/bill/payments/{payment_id}", response_model=BillOut)
+def remove_payment(visit_id: int, payment_id: int, db: Session = Depends(get_db),
+                   user: Staff = Depends(require_role(*ANY_STAFF))):
+    """Undo a payment entered by mistake (audited). The bill owes that amount again."""
+    bill = _bill(_visit(db, visit_id))
+    try:
+        return svc.bill_out(svc.remove_payment(db, bill, svc.get_payment(bill, payment_id), user))
+    except svc.BillingError as exc:
+        raise _http(exc)
+
+
+@router.post("/visits/{visit_id}/bill/no-charge", response_model=BillOut)
+def no_charge(visit_id: int, db: Session = Depends(get_db), user: Staff = Depends(require_role(*ANY_STAFF))):
+    """Close a ₹0 bill (free follow-up) as "No charge" — created if the visit has none yet. 409 when
+    the bill has an amount."""
+    try:
+        return svc.bill_out(svc.close_no_charge(db, _visit(db, visit_id), user))
+    except svc.BillingError as exc:
+        raise _http(exc)
+
+
+@router.get("/patients/{patient_id}/owing", response_model=list[OwedBill])
+def patient_owing(patient_id: int, db: Session = Depends(get_db)):
+    """The patient's bills with money still to collect, oldest first (patient page, billing drawer)."""
+    if db.get(Patient, patient_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Patient not found")
+    return [svc.owed_out(b) for b in svc.owed_bills(db, patient_id=patient_id)]
 
 
 # --------------------------------------------------------------------------- standard charges
@@ -91,7 +144,8 @@ def list_standard_charges(db: Session = Depends(get_db), user: Staff = admin_use
 @router.post("/admin/standard-charges", response_model=StandardChargeOut, status_code=status.HTTP_201_CREATED)
 def create_standard_charge(data: StandardChargeIn, db: Session = Depends(get_db), user: Staff = admin_user):
     try:
-        return svc.create_standard_charge(db, data.label, data.amount, user, data.amount_both_eyes, data.group_label)
+        return svc.create_standard_charge(db, data.label, data.amount, user, data.amount_both_eyes, data.group_label,
+                                          data.account_head_key)
     except svc.BillingError as exc:
         raise _http(exc)
 
