@@ -71,3 +71,12 @@ body.mobile-mode .install-prompt { width: 100%; justify-content: space-between; 
 .intake-row .btn-primary { flex-shrink: 0; }
 
 .reading-thumb.large { max-height: 320px; cursor: zoom-in; }
+
+/* Machine first, then patient: the chosen machine, the capture button, the "next patient" row. */
+.machine-chosen { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; margin-bottom: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--sapphire-wash); }
+.machine-capture-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+.machine-capture-btn { display: inline-flex; align-items: center; gap: 8px; }
+.machine-capture-btn svg { width: 18px; height: 18px; }
+.machine-next-row { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+.machine-next-row .btn-primary { flex: 1 1 220px; }
+.machine-next-row .btn-ghost { flex: 0 1 auto; }

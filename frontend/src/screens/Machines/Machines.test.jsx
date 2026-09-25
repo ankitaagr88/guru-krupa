@@ -18,16 +18,30 @@ function renderMachines({ device = 'mobile' } = {}) {
   return renderShell({ route: '/machines', child: <Machines /> });
 }
 
-describe('Machines screen (F5)', () => {
+// Step 1: the machine, step 2: the patient.
+async function pick(machineKey, patientName) {
+  await userEvent.click(await screen.findByTestId(`machine-${machineKey}`));
+  await userEvent.click(await screen.findByText(patientName));
+}
+
+describe('Machines screen (F5) — machine first, then the patient', () => {
   beforeEach(() => {
     globalThis.indexedDB = {};
     resetFakeIdb();
     _resetForTests();
     mockStore.reset();
+    localStorage.removeItem('gk_machine');
   });
 
-  it('lists today\'s patients (not done) and filters by name or token', async () => {
+  it('lists every machine first; then today\'s patients (not done), filtered by name or token', async () => {
     renderMachines();
+    expect(await screen.findByText('Which machine are you using?')).toBeInTheDocument();
+    expect(await screen.findByTestId('machine-hnt1p_tono')).toBeInTheDocument();
+    expect(screen.getByTestId('machine-tbut_schirmer')).toHaveTextContent('typed in');
+    expect(screen.queryByPlaceholderText('Search by name or token…')).toBeNull();
+
+    await userEvent.click(screen.getByTestId('machine-hnt1p_tono'));
+    expect(screen.getByTestId('machine-chosen')).toHaveTextContent('HNT-1P');
     const input = await screen.findByPlaceholderText('Search by name or token…');
     await screen.findByText('Rasilaben Patel');
     expect(screen.getByText('Kiran Vaghela')).toBeInTheDocument();
@@ -40,19 +54,32 @@ describe('Machines screen (F5)', () => {
     await userEvent.type(input, 'kiran');
     expect(screen.getByText('Kiran Vaghela')).toBeInTheDocument();
     expect(screen.queryByText('Falguni Shah')).not.toBeInTheDocument();
+
+    // "Change machine" goes back to the machine list
+    await userEvent.click(screen.getByTestId('change-machine'));
+    expect(await screen.findByText('Which machine are you using?')).toBeInTheDocument();
   });
 
-  it('desktop: no camera controls — pick the machine, add an image, values appear for approval', async () => {
+  it('remembers the machine on this device and offers "Next patient on <machine>"', async () => {
+    const { unmount } = renderMachines();
+    await pick('hnt1p_tono', 'Kiran Vaghela');
+    expect(await screen.findByTestId('capture-machine')).toHaveTextContent('HNT-1P');
+    await userEvent.click(screen.getByTestId('next-patient'));
+    expect(await screen.findByText('Falguni Shah')).toBeInTheDocument();
+    expect(screen.getByTestId('machine-chosen')).toHaveTextContent('HNT-1P');
+    unmount();
+
+    renderMachines(); // next time the screen opens at the same machine
+    expect(await screen.findByTestId('machine-chosen')).toHaveTextContent('HNT-1P');
+  });
+
+  it('desktop: no camera controls — add a printout image for the chosen machine, values appear for approval', async () => {
     renderMachines({ device: 'desktop' });
-    await userEvent.click(await screen.findByText('Kiran Vaghela'));
-    expect(await screen.findByText('Readings for')).toBeInTheDocument();
+    await pick('hnt1p_tono', 'Kiran Vaghela');
+    expect(await screen.findByText('Readings')).toBeInTheDocument();
     expect(screen.queryByTestId('offline-toggle')).not.toBeVisible();
-    expect(screen.queryByText(/Photograph the machine/)).toBeNull();
-    const add = screen.getByTestId('intake-add');
-    expect(add).toBeDisabled();
-    await userEvent.selectOptions(screen.getByLabelText('Machine the printout is from'), 'hnt1p_tono');
-    expect(add).toBeEnabled();
-    await userEvent.click(add);
+    expect(screen.queryByText(/Photograph the printout/)).toBeNull();
+    await userEvent.click(screen.getByTestId('intake-add'));
     fireEvent.change(screen.getByTestId('capture-input'), { target: { files: [file()] } });
     await waitFor(() => expect(screen.getByTestId('reading-status')).toHaveTextContent('Done'), { timeout: 4000 });
     const card = screen.getByTestId('reading-status').closest('.reading-card');
@@ -62,16 +89,11 @@ describe('Machines screen (F5)', () => {
 
   it('captures a printout: reading goes pending → done and the values render', async () => {
     renderMachines();
-    await userEvent.click(await screen.findByText('Kiran Vaghela'));
-    expect(await screen.findByText('Capturing for')).toBeInTheDocument();
+    await pick('hnt1p_tono', 'Kiran Vaghela');
+    expect(await screen.findByText('Capturing')).toBeInTheDocument();
 
-    // machine picker from GET /machines (7 machines, TBUT is manual-only)
-    const tono = await screen.findByTestId('machine-hnt1p_tono');
-    expect(screen.getByTestId('machine-tbut_schirmer')).toHaveTextContent('typed in');
-
-    await userEvent.click(tono);
-    const input = screen.getByTestId('capture-input');
-    fireEvent.change(input, { target: { files: [file()] } });
+    await userEvent.click(screen.getByTestId('capture-btn'));
+    fireEvent.change(screen.getByTestId('capture-input'), { target: { files: [file()] } });
 
     const status = await screen.findByTestId('reading-status', {}, { timeout: 3000 });
     expect(['Pending', 'Processing']).toContain(status.textContent);
@@ -92,26 +114,26 @@ describe('Machines screen (F5)', () => {
     expect(within(card).getByTestId('reading-approved')).toHaveTextContent(/Approved by .* photo deleted/);
     expect(within(card).queryByText('Show printout')).toBeNull();
     expect(within(card).queryByTestId('approve-reading')).toBeNull();
-    expect(screen.getByTestId('machine-hnt1p_tono')).toHaveTextContent('approved');
+    expect(screen.getByText('approved')).toBeInTheDocument();
   });
 
   it('queues offline and uploads on reconnect with the same clientUuid', async () => {
     const spy = vi.spyOn(readingsApi, 'capture');
     renderMachines();
-    await userEvent.click(await screen.findByText('Falguni Shah'));
-    await screen.findByText('Capturing for');
+    await pick('hrk8000a_ref', 'Falguni Shah');
+    await screen.findByText('Capturing');
 
     await userEvent.click(screen.getByTestId('offline-toggle'));
     expect(await screen.findByTestId('connectivity-banner')).toHaveTextContent('No connection');
 
-    await userEvent.click(await screen.findByTestId('machine-hrk8000a_ref'));
+    await userEvent.click(screen.getByTestId('capture-btn'));
     fireEvent.change(screen.getByTestId('capture-input'), { target: { files: [file()] } });
 
     await screen.findByText(/Waiting to upload \(1\)/);
     const [queued] = await listPending();
     expect(queued.machineKey).toBe('hrk8000a_ref');
     expect(spy).not.toHaveBeenCalled();
-    expect(screen.getByTestId('machine-hrk8000a_ref')).toHaveTextContent('waiting to upload');
+    expect(screen.getByText('waiting to upload')).toBeInTheDocument();
 
     // back online → the sync loop flushes the queue
     await userEvent.click(screen.getByTestId('offline-toggle'));
@@ -123,10 +145,9 @@ describe('Machines screen (F5)', () => {
     spy.mockRestore();
   });
 
-  it('manual-only machines open the typed-entry form and save a done reading', async () => {
+  it('a typed-in machine opens the typed-entry form straight away and saves a done reading', async () => {
     renderMachines();
-    await userEvent.click(await screen.findByText('Mahesh Desai'));
-    await userEvent.click(await screen.findByTestId('machine-tbut_schirmer'));
+    await pick('tbut_schirmer', 'Mahesh Desai');
     const form = await screen.findByTestId('manual-form');
     await userEvent.type(within(form).getByLabelText('TBUT (R)'), '8s');
     await userEvent.click(within(form).getByText('Save values'));

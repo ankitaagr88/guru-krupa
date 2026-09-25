@@ -12,16 +12,17 @@ import PatientLink from '../../components/PatientLink';
 import './machines.css';
 
 const POLL_MS = 2000;
+const MACHINE_KEY = 'gk_machine'; // the machine this device was last used at
 
 /* ------------------------------------------------------------------ */
 /* Patient picker (mockup filterMachinePatients / selectMachinePatient) */
 /* ------------------------------------------------------------------ */
-function PatientPicker({ rows, query, onQuery, onPick, stages, loading }) {
+function PatientPicker({ rows, query, onQuery, onPick, stages, loading, machine }) {
   const items = filterVisits(rows, query);
   const stageLabel = (key) => stages.find((s) => s.key === key)?.label || key;
   return (
     <>
-      <p className="label">Which patient is this reading for?</p>
+      <p className="label">Which patient is this {machine ? `${machine.label} ` : ''}reading for?</p>
       <input
         className="fake-input"
         id="machinePatientSearch"
@@ -53,17 +54,38 @@ function PatientPicker({ rows, query, onQuery, onPick, stages, loading }) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Machine picker — step 1: every machine, one tap                       */
+/* ------------------------------------------------------------------ */
+function MachinePicker({ machines, onPick }) {
+  return (
+    <>
+      <p className="label">Which machine are you using?</p>
+      <div className="machine-opts" id="machineOptZone">
+        {machines.map((m) => (
+          <button key={m.key} type="button" className="test-opt" onClick={() => onPick(m)} data-testid={`machine-${m.key}`}>
+            <span className="test-opt-label">
+              {m.manualOnly ? <IconPencil /> : <IconCamera />} {m.label}
+            </span>
+            {m.manualOnly && <span className="manual-tag">typed in</span>}
+          </button>
+        ))}
+        {machines.length === 0 && <p className="machine-list-empty">Loading machines…</p>}
+      </div>
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Capture area (mockup renderMachineCaptureArea / renderMachineOptions) */
 /* ------------------------------------------------------------------ */
-function CaptureArea({ patient, machines, stages, isMobile, onChangePatient }) {
+function CaptureArea({ patient, machine, machines, stages, isMobile, onNextPatient, onChangeMachine }) {
   const { isOffline, enqueue, flush, onUploaded, listPending, pendingCount } = useOffline();
   const [list, setList] = useState([]);
   const [flash, setFlash] = useState(null); // {spin, text}
-  const [manualFor, setManualFor] = useState(null); // machine
+  // Typed entry: always for a typed-in-only machine; on request when a printout is unreadable.
+  const [typing, setTyping] = useState(!!machine.manualOnly);
   const [pending, setPending] = useState([]);
-  const [intakeMachine, setIntakeMachine] = useState(''); // desktop: which machine the image is from
   const fileRef = useRef(null);
-  const captureFor = useRef(null);
   const visitId = patient.id;
   const stageLabel = stages.find((s) => s.key === patient.stage)?.label || patient.stage;
 
@@ -138,20 +160,11 @@ function CaptureArea({ patient, machines, stages, isMobile, onChangePatient }) {
     if (ms) setTimeout(() => setFlash((f) => (f && f.text === text ? null : f)), ms);
   };
 
-  const pickMachine = (m) => {
-    if (m.manualOnly) {
-      setManualFor(m);
-      return;
-    }
-    captureFor.current = m;
-    fileRef.current?.click();
-  };
-
   const onFile = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
-    const m = captureFor.current;
-    if (!file || !m) return;
+    const m = machine;
+    if (!file) return;
     try {
       showFlash('Photo captured — saving on this device…', true);
       await enqueue({ visitId, machineKey: m.key, blob: file, capturedAt: new Date().toISOString() });
@@ -179,25 +192,37 @@ function CaptureArea({ patient, machines, stages, isMobile, onChangePatient }) {
     }
   };
 
-  const latestFor = (key) => {
-    const mine = list.filter((r) => r.machineKey === key);
+  const latest = (() => {
+    const mine = list.filter((r) => r.machineKey === machine.key);
     return mine.length ? mine[mine.length - 1] : null;
-  };
-  const queuedFor = (key) => pending.some((p) => p.machineKey === key);
+  })();
+  let tag = null;
+  if (pending.some((p) => p.machineKey === machine.key))
+    tag = <span className="done-tag processing">waiting to upload</span>;
+  else if (latest && isBusy(latest)) tag = <span className="done-tag processing">processing…</span>;
+  else if (latest && latest.status === 'failed') tag = <span className="done-tag failed">failed — retake</span>;
+  else if (latest && latest.approved) tag = <span className="done-tag">approved</span>;
+  else if (latest) tag = <span className="done-tag processing">captured — check and approve</span>;
 
   return (
     <div id="machineCaptureArea" style={{ marginTop: 16 }}>
       <div className="summary-card" style={{ marginBottom: 14 }}>
-        <div className="summary-card-title">{isMobile ? 'Capturing for' : 'Readings for'}</div>
+        <div className="summary-card-title">{isMobile ? 'Capturing' : 'Readings'}</div>
+        <div className="summary-line" data-testid="capture-machine">
+          <span>Machine</span>
+          <b>{machine.label}</b>
+        </div>
         <div className="summary-line">
-          <b>
-            <PatientLink id={patient.patientId} name={patient.name} />
-          </b>{' '}
-          — {patient.token} · currently {stageLabel}
+          <span>Patient</span>
+          <span>
+            <b>
+              <PatientLink id={patient.patientId} name={patient.name} />
+            </b>{' '}
+            — {patient.token} · currently {stageLabel}
+          </span>
         </div>
       </div>
 
-      {isMobile && <p className="label">Photograph the machine&apos;s printout to scan it in</p>}
       <input
         ref={fileRef}
         type="file"
@@ -209,105 +234,43 @@ function CaptureArea({ patient, machines, stages, isMobile, onChangePatient }) {
         aria-label="Printout photo"
       />
 
-      {!isMobile && (
-        <div className="intake-row" data-testid="intake-row">
-          <select
-            className="drop-select"
-            value={intakeMachine}
-            onChange={(e) => setIntakeMachine(e.target.value)}
-            aria-label="Machine the printout is from"
-          >
-            <option value="">— which machine is the printout from? —</option>
-            {machines
-              .filter((m) => !m.manualOnly)
-              .map((m) => (
-                <option key={m.key} value={m.key}>
-                  {m.label}
-                </option>
-              ))}
-          </select>
+      {!machine.manualOnly && !typing && (
+        <div className="machine-capture-row">
           <button
             type="button"
-            className="btn-primary"
-            disabled={!intakeMachine}
-            onClick={() => pickMachine(machines.find((m) => m.key === intakeMachine))}
-            data-testid="intake-add"
+            className="btn-primary machine-capture-btn"
+            onClick={() => fileRef.current?.click()}
+            data-testid={isMobile ? 'capture-btn' : 'intake-add'}
           >
-            Add printout image
+            {isMobile && <IconCamera />}
+            {isMobile ? 'Photograph the printout' : 'Add printout image'}
           </button>
+          {tag}
         </div>
       )}
-      {!isMobile && (
+      {!machine.manualOnly && !typing && (
+        <button type="button" className="machine-type-link" onClick={() => setTyping(true)}>
+          Printout unreadable? Type the values instead
+        </button>
+      )}
+      {!isMobile && !typing && (
         <p className="hint" style={{ margin: '6px 0 14px' }}>
           Readings photographed on the phone appear here on their own. The values are extracted and shown below for
           checking and approval.
         </p>
       )}
 
-      <div className="machine-opts" id="machineOptZone" style={isMobile ? undefined : { display: 'none' }}>
-        {machines.map((m) => {
-          const r = latestFor(m.key);
-          let tag = null;
-          if (queuedFor(m.key)) tag = <span className="done-tag processing">waiting to upload</span>;
-          else if (r && isBusy(r)) tag = <span className="done-tag processing">processing…</span>;
-          else if (r && r.status === 'failed') tag = <span className="done-tag failed">failed — retake</span>;
-          else if (r && r.approved) tag = <span className="done-tag">approved — rescan</span>;
-          else if (r) tag = <span className="done-tag processing">captured — check and approve</span>;
-          return (
-            <button
-              key={m.key}
-              type="button"
-              className="test-opt"
-              onClick={() => pickMachine(m)}
-              data-testid={`machine-${m.key}`}
-            >
-              <span className="test-opt-label">
-                {m.manualOnly ? <IconPencil /> : <IconCamera />} {m.label}
-              </span>
-              {tag || (m.manualOnly ? <span className="manual-tag">typed in</span> : null)}
-            </button>
-          );
-        })}
-        {machines.length === 0 && <p className="machine-list-empty">Loading machines…</p>}
-      </div>
-      {isMobile && machines.some((m) => !m.manualOnly) && !manualFor && (
-        <button
-          type="button"
-          className="machine-type-link"
-          onClick={() => setManualFor(machines.find((m) => !m.manualOnly))}
-        >
-          Printout unreadable? Type the values instead
-        </button>
-      )}
-
-      {manualFor && (
-        <div>
-          {machines.length > 1 && (
-            <select
-              className="drop-select"
-              style={{ marginBottom: 8 }}
-              value={manualFor.key}
-              onChange={(e) => setManualFor(machines.find((m) => m.key === e.target.value))}
-              aria-label="Machine for manual entry"
-            >
-              {machines.map((m) => (
-                <option key={m.key} value={m.key}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-          )}
-          <ManualEntryForm
-            key={manualFor.key}
-            visitId={visitId}
-            machine={manualFor}
-            onCancel={() => setManualFor(null)}
-            onSaved={(r) => {
-              upsert(r);
-              setManualFor(null);
-            }}
-          />
-        </div>
+      {typing && (
+        <ManualEntryForm
+          key={machine.key}
+          visitId={visitId}
+          machine={machine}
+          onCancel={machine.manualOnly ? onNextPatient : () => setTyping(false)}
+          onSaved={(r) => {
+            upsert(r);
+            setTyping(false);
+          }}
+        />
       )}
 
       <div id="machineFlashZone">
@@ -331,7 +294,7 @@ function CaptureArea({ patient, machines, stages, isMobile, onChangePatient }) {
         </div>
       )}
 
-      <p className="field-label">{isMobile ? 'Already captured for this patient' : 'Values read for this patient'}</p>
+      <p className="field-label">{isMobile ? 'Already captured for this patient (all machines)' : 'Values read for this patient'}</p>
       <div id="machineReadingsList">
         {list.length === 0 ? (
           <p className="machine-list-empty">None yet</p>
@@ -357,9 +320,14 @@ function CaptureArea({ patient, machines, stages, isMobile, onChangePatient }) {
 
       <ExamPhotos visitId={visitId} isMobile={isMobile} isOffline={isOffline} />
 
-      <button type="button" className="btn-ghost" style={{ marginTop: 14, width: '100%' }} onClick={onChangePatient}>
-        Change patient
-      </button>
+      <div className="machine-next-row">
+        <button type="button" className="btn-primary" onClick={onNextPatient} data-testid="next-patient">
+          Next patient on {machine.label}
+        </button>
+        <button type="button" className="btn-ghost" onClick={onChangeMachine} data-testid="change-machine">
+          Change machine
+        </button>
+      </div>
     </div>
   );
 }
@@ -375,6 +343,23 @@ export default function Machines() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState(null);
+  const [machineKey, setMachineKey] = useState(() => {
+    try {
+      return localStorage.getItem(MACHINE_KEY) || '';
+    } catch {
+      return '';
+    }
+  });
+  const machine = machines.find((m) => m.key === machineKey) || null;
+  const chooseMachine = (key) => {
+    setMachineKey(key);
+    try {
+      if (key) localStorage.setItem(MACHINE_KEY, key);
+      else localStorage.removeItem(MACHINE_KEY);
+    } catch {
+      /* private window: just not remembered */
+    }
+  };
 
   useTopbar({
     sub: isMobile ? 'Machines · capture a reading for any patient, any stage' : 'Machines · values read from printouts, for checking and approval',
@@ -442,33 +427,45 @@ export default function Machines() {
         )}
       </div>
 
-      {!current ? (
-        <PatientPicker
-          rows={rows}
-          query={query}
-          onQuery={setQuery}
-          onPick={(p) => {
-            setSelected(p);
-            setQuery(p.name);
-          }}
-          stages={stages}
-          loading={loading}
-        />
-      ) : (
+      {!machine ? (
+        <MachinePicker machines={machines} onPick={(m) => chooseMachine(m.key)} />
+      ) : !current ? (
         <>
-          <p className="label">{isMobile ? 'Which patient is this reading for?' : 'Patient'}</p>
-          <input className="fake-input" id="machinePatientSearch" value={current.name} readOnly />
-          <CaptureArea
-            patient={current}
-            machines={machines}
-            stages={stages}
-            isMobile={isMobile}
-            onChangePatient={() => {
-              setSelected(null);
+          <div className="machine-chosen" data-testid="machine-chosen">
+            <span>
+              Machine: <b>{machine.label}</b>
+            </span>
+            <button type="button" className="link-btn" onClick={() => chooseMachine('')} data-testid="change-machine">
+              Change machine
+            </button>
+          </div>
+          <PatientPicker
+            rows={rows}
+            query={query}
+            onQuery={setQuery}
+            onPick={(p) => {
+              setSelected(p);
               setQuery('');
             }}
+            stages={stages}
+            loading={loading}
+            machine={machine}
           />
         </>
+      ) : (
+        <CaptureArea
+          key={`${machine.key}-${current.id}`}
+          patient={current}
+          machine={machine}
+          machines={machines}
+          stages={stages}
+          isMobile={isMobile}
+          onNextPatient={() => setSelected(null)}
+          onChangeMachine={() => {
+            setSelected(null);
+            chooseMachine('');
+          }}
+        />
       )}
     </div>
   );
