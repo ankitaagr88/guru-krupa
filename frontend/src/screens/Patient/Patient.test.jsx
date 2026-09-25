@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { fireEvent, screen, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router-dom';
 import { renderShell } from '../../test/utils';
-import { mockStore, patients } from '../../mocks/adapters';
+import { billing, mockStore, patients } from '../../mocks/adapters';
 import Patient from './Patient';
 import Queue from '../Queue';
 
@@ -58,6 +58,32 @@ describe('Patient screen', () => {
     expect(p.dob).toBe('1990-03-12');
     const today = new Date();
     expect(p.age).toBe(today.getFullYear() - 1990 - (today.getMonth() < 2 || (today.getMonth() === 2 && today.getDate() < 12) ? 1 : 0));
+  });
+
+  it('shows money still owed from an earlier visit and receives it', async () => {
+    // Bharat Oza (id 5) still owes ₹60 from yesterday in the demo
+    renderShell({
+      route: '/patients/5',
+      child: (
+        <Routes>
+          <Route path="/patients/:id" element={<Patient />} />
+        </Routes>
+      ),
+    });
+    const card = await screen.findByTestId('owed-card');
+    expect(card).toHaveTextContent('Money still owed · ₹60');
+    expect(within(card).getByTestId('owed-row')).toHaveTextContent(/₹60 still owed from/);
+    await userEvent.click(within(card).getByRole('button', { name: 'Receive payment' }));
+    const amount = within(card).getByLabelText('Amount received');
+    expect(amount).toHaveValue('60');
+    await userEvent.clear(amount);
+    await userEvent.type(amount, '40');
+    await userEvent.click(within(card).getByRole('button', { name: 'Cash' }));
+    await waitFor(() => expect(screen.getByTestId('owed-card')).toHaveTextContent('Money still owed · ₹20'));
+    await userEvent.click(within(screen.getByTestId('owed-card')).getByRole('button', { name: 'Receive payment' }));
+    await userEvent.click(within(screen.getByTestId('owed-card')).getByRole('button', { name: 'UPI' }));
+    await waitFor(() => expect(screen.queryByTestId('owed-card')).toBeNull());
+    expect((await billing.owing(5)).filter((o) => o.visitId === 9001)).toEqual([]);
   });
 
   it('a patient name on the queue links to the record', async () => {

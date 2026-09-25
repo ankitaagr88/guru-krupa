@@ -1,19 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useTopbar } from '../../components/AppShell';
 import DateStrip, { fmtDateLabel } from '../../components/DateStrip';
 import { useToast } from '../../components/Toast';
 import { billing as billingApi, reports as reportsApi, onDataChange, errorMessage } from '../../api';
 import { dateStr } from '../../mocks/data';
-import { PAYMENT_MODES } from '../Queue/queueModel';
 import ReceiptPrint from '../Billing/Receipt';
+import { modeLabel, rupees, shortDate, timeOf } from '../Billing/money';
 import './today.css';
 
 /* "Today" summary (lane B owns this screen): patients seen, average time per stage,
    collections by payment mode, medicines sold — so "more patients per day" is measurable.
    Data: `reports.today(date)` (GET /reports/today). Pick an earlier day from the strip or
-   the date box. Receipts can be printed again from here. */
-
-const rupees = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
+   the date box. Receipts can be printed again from here.
+   Money (lane M): collections count each payment on the day it came in (a balance paid a week
+   later counts that week), so "Receipts" has one row per payment; "Money still owed" lists every
+   bill still owing (earlier days too), each name linking to the patient page to collect it. */
 
 function minutes(m) {
   if (m == null) return '—';
@@ -21,10 +23,6 @@ function minutes(m) {
   if (r < 60) return `${r} min`;
   return `${Math.floor(r / 60)} h ${r % 60} min`;
 }
-
-const modeLabel = (k) => PAYMENT_MODES.find((m) => m.key === k)?.label || k || '—';
-const timeOf = (iso) =>
-  iso ? new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) : '—';
 
 export default function Today() {
   const toast = useToast();
@@ -110,7 +108,7 @@ export default function Today() {
               label="Money collected"
               value={rupees(money.total)}
               sub={`${money.billsPaid} bill${money.billsPaid === 1 ? '' : 's'} paid${
-                money.unpaidTotal ? ` · ${rupees(money.unpaidTotal)} unpaid` : ''
+                money.unpaidTotal ? ` · ${rupees(money.unpaidTotal)} still owed` : ''
               }`}
             />
             <StatTile
@@ -134,11 +132,15 @@ export default function Today() {
 
             <section className="today-card" aria-labelledby="h-collections">
               <h3 id="h-collections">Money collected by payment mode</h3>
+              <p className="today-note">
+                Counted on the day the money came in. The <Link to="/daybook">day book</Link> has the full sheet and the
+                cash drawer.
+              </p>
               <table className="today-table" data-testid="collections">
                 <thead>
                   <tr>
                     <th>Mode</th>
-                    <th className="num">Bills</th>
+                    <th className="num">Payments</th>
                     <th className="num">Amount</th>
                   </tr>
                 </thead>
@@ -154,7 +156,7 @@ export default function Today() {
                 <tfoot>
                   <tr>
                     <td>Total</td>
-                    <td className="num mono">{money.billsPaid}</td>
+                    <td className="num mono">{money.byMode.reduce((s, m) => s + m.bills, 0)}</td>
                     <td className="num mono">{rupees(money.total)}</td>
                   </tr>
                 </tfoot>
@@ -162,13 +164,21 @@ export default function Today() {
               {money.unpaid.length > 0 && (
                 <div className="today-unpaid" data-testid="unpaid">
                   <h4>
-                    Not paid yet · <span className="mono">{rupees(money.unpaidTotal)}</span>
+                    Money still owed · <span className="mono">{rupees(money.unpaidTotal)}</span>
                   </h4>
                   <ul>
                     {money.unpaid.map((u) => (
-                      <li key={u.visitId}>
-                        <span className="mono">{u.token}</span> <b>{u.name}</b>
-                        <span className="mono">{rupees(u.total)}</span>
+                      <li key={u.visitId} data-testid="owed">
+                        <span className="mono">{u.token}</span>
+                        <b>
+                          {u.patientId != null ? <Link to={`/patients/${u.patientId}`}>{u.name}</Link> : u.name}
+                          {u.visitDate && u.visitDate !== date && (
+                            <small className="today-owed-date"> · from {shortDate(u.visitDate)}</small>
+                          )}
+                        </b>
+                        <span className="mono" title={`Bill ${rupees(u.total)}, paid ${rupees(u.paidAmount)}`}>
+                          {rupees(u.balance ?? u.total)}
+                        </span>
                       </li>
                     ))}
                   </ul>
@@ -229,10 +239,15 @@ export default function Today() {
                   </thead>
                   <tbody>
                     {rep.receipts.map((r, i) => (
-                      <tr key={r.receiptNo || i}>
+                      <tr key={r.paymentId ?? `${r.receiptNo}-${i}`}>
                         <td className="mono">{r.receiptNo || '—'}</td>
                         <td className="mono">{timeOf(r.paidAt)}</td>
-                        <td className="today-name">{r.name}</td>
+                        <td className="today-name">
+                          {r.name}
+                          {r.balance > 0 && (
+                            <small className="today-owed-date"> · {rupees(r.balance)} still owed</small>
+                          )}
+                        </td>
                         <td>{modeLabel(r.paymentMode)}</td>
                         <td className="num mono">{rupees(r.total)}</td>
                         <td className="num">

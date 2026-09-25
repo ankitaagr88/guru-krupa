@@ -34,23 +34,32 @@ class StageTime(CamelModel):
 
 class ModeTotal(CamelModel):
     mode: str  # cash | upi | card | mediclaim
-    bills: int
+    bills: int  # payments received in this mode that day
     amount: int
 
 
 class UnpaidBill(CamelModel):
+    """A bill with money still owed (as of now), from this day or an earlier one."""
+
     visit_id: int
+    patient_id: int | None = None
     name: str
     token: str
+    visit_date: date | None = None
     total: int
+    paid_amount: int = 0
+    balance: int = 0
 
 
 class Collections(CamelModel):
+    """Money received that day — counted by the day each payment was received, whatever day the
+    visit was (a balance paid a week later counts on the day it came in)."""
+
     by_mode: list[ModeTotal]
     total: int
-    bills_paid: int
-    unpaid: list[UnpaidBill]
-    unpaid_total: int
+    bills_paid: int  # bills that received money that day
+    unpaid: list[UnpaidBill]  # "Money still owed": every bill still owing, visits on or before the day
+    unpaid_total: int  # sum of their balances
 
 
 class MedicineSold(CamelModel):
@@ -60,13 +69,18 @@ class MedicineSold(CamelModel):
 
 
 class ReceiptRow(CamelModel):
+    """One payment received that day (a bill paid in two parts on one day has two rows)."""
+
     receipt_no: str | None
     visit_id: int
+    payment_id: int | None = None
     name: str
     token: str
-    total: int
+    total: int  # this payment's amount
+    bill_total: int = 0
+    balance: int = 0  # still owed on the bill now
     payment_mode: str | None
-    paid_at: datetime
+    paid_at: datetime  # when this payment was received
 
 
 class TodayReport(CamelModel):

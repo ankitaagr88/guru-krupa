@@ -139,6 +139,19 @@
   font-family: var(--font-serif);
   flex: 1;
 }
+.today-unpaid li a {
+  color: inherit;
+}
+.today-owed-date {
+  font-family: var(--font-ui);
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.today-unpaid .today-owed-date {
+  color: inherit;
+  opacity: 0.8;
+}
 
 /* ---- time per stage: horizontal bars ---- */
 .stage-bars {

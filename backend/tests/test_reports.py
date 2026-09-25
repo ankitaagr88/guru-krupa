@@ -15,7 +15,7 @@ def _utc(h, m, day=10):
 def clinic_day():
     from app.db import SessionLocal
     from app.models.audit import AuditLog
-    from app.models.billing import Bill, BillItem
+    from app.models.billing import Bill, BillItem, BillPayment
     from app.models.patients import Patient, Visit
     from app.models.pharmacy import Prescription, PrescriptionLine
     from app.seed.reference import seed_reference
@@ -57,19 +57,23 @@ def clinic_day():
         lb = PrescriptionLine(prescription_id=rx_b.id, name="Report Drop", dispensed_qty=1, dispensed_at=_utc(5, 25))
         db.add_all([la, lb])
         db.flush()
+        # Money counts by payment (BillPayment), by the day it was received.
         db.add_all([
             Bill(visit_id=a.id, payment_mode="cash", paid_at=_utc(5, 0), receipt_no="GK-2025-90001",
                  items=[BillItem(label="Consultation", amount=300, kind="charge"),
                         BillItem(label="Report Drop × 2", amount=170, kind="medicine", qty=2,
-                                 prescription_line_id=la.id)]),
+                                 prescription_line_id=la.id)],
+                 payments=[BillPayment(amount=470, mode="cash", at=_utc(5, 0))]),
             Bill(visit_id=b.id, items=[BillItem(label="Consultation", amount=300, kind="charge")]),
             Bill(visit_id=c.id, payment_mode="upi", paid_at=_utc(6, 0), receipt_no="GK-2025-90002",
-                 items=[BillItem(label="Follow-up consultation", amount=200, kind="charge")]),
+                 items=[BillItem(label="Follow-up consultation", amount=200, kind="charge")],
+                 payments=[BillPayment(amount=200, mode="upi", at=_utc(6, 0))]),
             Bill(visit_id=d.id, payment_mode="card", paid_at=_utc(19, 0), receipt_no="GK-2025-90003",
-                 items=[BillItem(label="Consultation", amount=999, kind="charge")]),
+                 items=[BillItem(label="Consultation", amount=999, kind="charge")],
+                 payments=[BillPayment(amount=999, mode="card", at=_utc(19, 0))]),
         ])
         db.commit()
-        return {"a": a.id, "b": b.id, "c": c.id}
+        return {"a": a.id, "b": b.id, "c": c.id, "pb": pb.id}
 
 
 def test_today_report_numbers(client, admin_headers, clinic_day):
@@ -96,7 +100,10 @@ def test_today_report_numbers(client, admin_headers, clinic_day):
     modes = {m["mode"]: (m["bills"], m["amount"]) for m in money["byMode"]}
     assert modes == {"cash": (1, 470), "upi": (1, 200), "card": (0, 0), "mediclaim": (0, 0)}
     assert money["total"] == 670 and money["billsPaid"] == 2
-    assert money["unpaid"] == [{"visitId": clinic_day["b"], "name": "Report Bharat", "token": "#902", "total": 300}]
+    # "Money still owed": every bill still owing from this day or before, with its balance
+    assert money["unpaid"] == [{"visitId": clinic_day["b"], "patientId": clinic_day["pb"], "name": "Report Bharat",
+                                "token": "#902", "visitDate": "2025-06-10", "total": 300, "paidAmount": 0,
+                                "balance": 300}]
     assert money["unpaidTotal"] == 300
 
     # A's line was billed at 170; B's was bought here but not priced (no medicine row) -> 0
@@ -128,3 +135,41 @@ def test_today_report_next_day_and_roles(client, admin_headers, clinic_day, db):
     assert client.get("/api/reports/today", headers={"Authorization": f"Bearer {ot}"}).status_code == 403
     assert client.get("/api/reports/today", headers={"Authorization": f"Bearer {rec}"}).status_code == 200
     assert client.get("/api/reports/today").status_code == 401
+
+
+def test_collections_count_payments_on_the_day_received(client, admin_headers, db):
+    """A bill paid in two parts on two days: each part counts on its own day, by its own mode; the
+    owed list shows what is still owed now."""
+    from app.models.billing import Bill, BillItem, BillPayment
+    from app.models.patients import Patient, Visit
+
+    p = Patient(name="Report Part Payer")
+    db.add(p)
+    db.flush()
+    v = Visit(patient_id=p.id, date=date(2025, 7, 1), token="#950", stage_key="done", status="completed",
+              created_at=datetime(2025, 7, 1, 4, 0, tzinfo=timezone.utc))
+    db.add(v)
+    db.flush()
+    db.add(Bill(visit_id=v.id, receipt_no="GK-2025-90010", payment_mode="upi",
+                items=[BillItem(label="Consultation", amount=560, kind="charge")],
+                payments=[BillPayment(amount=500, mode="cash", at=datetime(2025, 7, 1, 5, 0, tzinfo=timezone.utc)),
+                          BillPayment(amount=40, mode="upi", at=datetime(2025, 7, 3, 6, 0, tzinfo=timezone.utc))]))
+    db.commit()
+
+    def money(day):
+        rep = client.get("/api/reports/today", params={"date": day}, headers=admin_headers).json()
+        return rep["collections"], rep["receipts"]
+
+    first, receipts = money("2025-07-01")
+    assert first["total"] == 500 and first["billsPaid"] == 1
+    assert {m["mode"]: m["amount"] for m in first["byMode"]}["cash"] == 500
+    assert [(r["total"], r["billTotal"], r["paymentMode"]) for r in receipts] == [(500, 560, "cash")]
+    owed = [u for u in first["unpaid"] if u["visitId"] == v.id]  # 560 - 540 = 20 still owed
+    assert owed and owed[0]["balance"] == 20 and owed[0]["paidAmount"] == 540
+
+    later, receipts = money("2025-07-03")
+    assert later["total"] == 40 and {m["mode"]: m["bills"] for m in later["byMode"]}["upi"] == 1
+    assert [(r["receiptNo"], r["total"], r["balance"]) for r in receipts] == [("GK-2025-90010", 40, 20)]
+    assert money("2025-07-02")[0]["total"] == 0
+    # a report for a day before the visit does not list it as owed
+    assert all(u["visitId"] != v.id for u in money("2025-06-30")[0]["unpaid"])

@@ -5,7 +5,7 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { AppProviders } from '../../App';
 import AppShell from '../../components/AppShell';
 import { ADMIN } from '../../test/utils';
-import { billing, mockStore, prescriptions } from '../../mocks/adapters';
+import { billing, mockStore, prescriptions, visits } from '../../mocks/adapters';
 import Queue from './Queue';
 
 /* Billing like a till (lane B): one-tap charges, "Bought here" puts the medicine on the bill,
@@ -113,9 +113,118 @@ describe('Billing panel', () => {
     await waitFor(() => expect(window.print).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(screen.queryByTestId('receipt-print')).toBeNull());
 
-    // paying again with another mode keeps the number
-    await userEvent.click(within(billSection()).getByRole('button', { name: 'UPI' }));
-    await waitFor(async () => expect((await billing.get(8)).paymentMode).toBe('upi'));
-    expect((await billing.get(8)).receiptNo).toBe(receiptNo);
+    // undo the payment (entered by mistake): owing again, the receipt number stays with the bill
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    await userEvent.click(within(billSection()).getByRole('button', { name: 'Undo the ₹750 Cash payment' }));
+    await waitFor(() => expect(within(billSection()).queryByTestId('bill-paid')).toBeNull());
+    const bill = await billing.get(8);
+    expect(bill).toMatchObject({ balance: 750, paid: false, receiptNo, payments: [] });
+    confirm.mockRestore();
+  });
+
+  it('"Receive payment" takes part now and the rest later, each in its own mode', async () => {
+    window.print = vi.fn();
+    renderBilling();
+    await waitFor(() => expect(drawer()).toHaveClass('show'));
+    await waitFor(() => expect(billSection()).toHaveTextContent('₹750'));
+    const box = within(billSection()).getByTestId('receive-payment');
+    const amt = within(box).getByLabelText('Amount received');
+    expect(amt).toHaveValue('750'); // starts at the balance
+    await userEvent.clear(amt);
+    await userEvent.type(amt, '800');
+    await userEvent.click(within(box).getByRole('button', { name: 'Cash' }));
+    expect(await within(box).findByRole('alert')).toHaveTextContent('more than the ₹750');
+    await userEvent.clear(amt);
+    await userEvent.type(amt, '500');
+    await userEvent.click(within(box).getByRole('button', { name: 'Cash' }));
+
+    const due = await within(billSection()).findByTestId('bill-balance');
+    expect(due).toHaveTextContent('₹250');
+    const part = within(billSection()).getByTestId('bill-part-paid');
+    expect(part).toHaveTextContent('Part paid');
+    let bill = await billing.get(8);
+    expect(bill).toMatchObject({ paidAmount: 500, balance: 250, status: 'part_paid', paid: false });
+    expect(bill.receiptNo).toMatch(/^GK-/);
+
+    // the rest by UPI: the amount box now starts at ₹250
+    await waitFor(() =>
+      expect(within(within(billSection()).getByTestId('receive-payment')).getByLabelText('Amount received')).toHaveValue('250')
+    );
+    await userEvent.click(within(within(billSection()).getByTestId('receive-payment')).getByRole('button', { name: 'UPI' }));
+    const paid = await within(billSection()).findByTestId('bill-paid');
+    expect(paid).toHaveTextContent('Paid · Cash + UPI');
+    bill = await billing.get(8);
+    expect(bill.payments.map((p) => [p.amount, p.mode])).toEqual([
+      [500, 'cash'],
+      [250, 'upi'],
+    ]);
+    expect(bill.receiptNo).toBe((await billing.get(8)).receiptNo);
+
+    // the printed receipt lists both payments and the balance due
+    await userEvent.click(within(paid).getByRole('button', { name: 'Print receipt' }));
+    const rows = await screen.findByTestId('receipt-payments');
+    expect(rows).toHaveTextContent('Cash');
+    expect(rows).toHaveTextContent('UPI');
+    expect(rows).toHaveTextContent('Balance due');
+  });
+
+  it('Glasses (₹0 in Admin) asks for the amount; a typed line picks its day-book column', async () => {
+    renderBilling();
+    await waitFor(() => expect(drawer()).toHaveClass('show'));
+    await userEvent.click(await within(billSection()).findByRole('button', { name: /^Glasses/ }));
+    const price = within(billSection()).getByLabelText('Amount for Glasses');
+    await userEvent.type(price, '1200');
+    await userEvent.click(
+      within(screen.getByRole('form', { name: 'Glasses: type the amount' })).getByRole('button', { name: 'Add' })
+    );
+    await waitFor(() => expect(billSection()).toHaveTextContent('₹1950'));
+    let bill = await billing.get(8);
+    expect(bill.items.find((i) => i.label === 'Glasses')).toMatchObject({ amount: 1200, accountHeadKey: 'glasses' });
+
+    await userEvent.type(within(billSection()).getByPlaceholderText(/Item — e.g./), 'Frame repair');
+    await userEvent.type(within(billSection()).getByPlaceholderText('₹'), '100');
+    const pick = within(billSection()).getByLabelText('Day book column for the new item');
+    await waitFor(() => expect(pick).toHaveValue('other')); // Admin's default for typed lines
+    await userEvent.selectOptions(pick, 'glasses');
+    await userEvent.click(within(billSection()).getAllByRole('button', { name: 'Add' }).at(-1));
+    await waitFor(async () =>
+      expect((await billing.get(8)).items.find((i) => i.label === 'Frame repair')?.accountHeadKey).toBe('glasses')
+    );
+    bill = await billing.get(8);
+    expect(bill.total).toBe(2050);
+  });
+
+  it('a ₹0 bill closes with "No charge"', async () => {
+    await billing.save(8, { items: [] });
+    renderBilling();
+    await waitFor(() => expect(drawer()).toHaveClass('show'));
+    const zero = await within(billSection()).findByTestId('bill-zero');
+    await userEvent.click(within(zero).getByRole('button', { name: 'No charge' }));
+    expect(await within(billSection()).findByTestId('bill-paid')).toHaveTextContent('No charge');
+    expect(await billing.get(8)).toMatchObject({ status: 'no_charge', paid: true, receiptNo: null });
+  });
+
+  it('a returning patient who still owes from an earlier visit: "₹60 still owed" and collect it', async () => {
+    await visits.move(5, 'billing'); // Bharat Oza owes ₹60 from yesterday in the demo
+    render(
+      <MemoryRouter initialEntries={['/queue/billing?patient=5']}>
+        <AppProviders initialUser={ADMIN}>
+          <Routes>
+            <Route element={<AppShell />}>
+              <Route path="/queue/:stage" element={<Queue />} />
+            </Route>
+          </Routes>
+        </AppProviders>
+      </MemoryRouter>
+    );
+    await waitFor(() => expect(drawer()).toHaveClass('show'));
+    const notice = await within(drawer()).findByTestId('owed-notice');
+    expect(notice).toHaveTextContent(/₹60 still owed from/);
+    await userEvent.click(within(notice).getByRole('button', { name: 'Receive payment' }));
+    await userEvent.click(within(notice).getByRole('button', { name: 'UPI' }));
+    await waitFor(() => expect(within(drawer()).queryByTestId('owed-notice')).toBeNull());
+    // only today's own bill is left to pay (the drawer's bill); the old ₹60 is settled
+    expect((await billing.owing(5)).map((o) => o.visitId)).not.toContain(9001);
+    expect((await billing.get(9001)).payments.map((p) => [p.amount, p.mode])).toContainEqual([60, 'upi']);
   });
 });

@@ -1,25 +1,35 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useToast } from '../../components/Toast';
-import { billing as billingApi, errorMessage } from '../../api';
-import { PAYMENT_MODES, normalizeBill } from './queueModel';
+import { billing as billingApi, daybook as daybookApi, errorMessage } from '../../api';
+import { normalizeBill } from './queueModel';
 import ReceiptPrint from '../Billing/Receipt';
+import ReceivePayment from '../Billing/ReceivePayment';
+import OwedBalances from '../Billing/OwedBalances';
 import { BILL_CHANGED } from '../Billing/billEvents';
+import { modeLabel, timeOf } from '../Billing/money';
 import { rupees } from './visitKind';
 import '../Billing/billing.css';
 import './visitKind.css';
 
 /* Bill panel for the billing stage (mockup `renderBilling` / `addBillItem` /
-   `removeBillItem` / `selectPaymentMode`). Self-contained (lane B owns it): loads and
-   saves the visit's bill itself. The drawer only passes the visit and hears back which
-   payment mode was picked (`onPaymentMode`) for its "Mark visit complete" button.
-   `fallbackBill` is the bill embedded in the queue row, shown until the fetch lands;
-   `refreshKey` bumps after every board reload.
+   `removeBillItem` / `selectPaymentMode`). Self-contained (lane B owns it; payments and day-book
+   columns: lane M): loads and saves the visit's bill itself. The drawer only passes the visit and
+   hears back the payment mode once the bill is fully paid (`onPaymentMode`) for its "Mark visit
+   complete" button. `fallbackBill` is the bill embedded in the queue row, shown until the fetch
+   lands; `refreshKey` bumps after every board reload.
 
    Works like a till: one tap adds a standard charge (Admin › Standard charges); "Bought
    here" in the medicines panel above puts the medicine on the bill on the server and
    announces it with a `gk:bill-changed` window event, so the panel reloads. Every amount
-   can be changed (a discount, or a medicine that has no price yet). Paying gives the bill
-   a receipt number and a "Print receipt" button.
+   can be changed (a discount, or a medicine that has no price yet). A charge priced ₹0 in Admin
+   (Glasses) asks for the amount when tapped.
+
+   Money (lane M): "Receive payment" takes an amount (the balance, or less for a part payment)
+   and a mode; a bill can take several payments (₹500 cash now, ₹60 UPI later), each with Undo.
+   The first payment gives the bill a receipt number and "Print receipt"; a ₹0 bill (free
+   follow-up) is closed with "No charge". A typed line picks its day-book column (defaults to the
+   Admin setting). A returning patient who still owes money from an earlier visit gets a notice
+   at the top with "Receive payment".
 
    Visit fees (lane E2): a visit with no bill yet gets one started on the server with its visit
    kind's fee (and Emergency when flagged) already on it, marked "Suggested" — reception can
@@ -35,6 +45,7 @@ const itemBody = (it) => ({
   standardChargeId: it.standardChargeId ?? null,
   prescriptionLineId: it.prescriptionLineId ?? null,
   eyes: it.eyes ?? null,
+  accountHeadKey: it.accountHeadKey ?? null,
 });
 
 const EYES = { one: 'one eye', both: 'both eyes' };
@@ -51,6 +62,9 @@ function groupCharges(charges) {
   return groups;
 }
 
+/** A one-tap charge whose Admin price is ₹0 (Glasses): the amount is typed at billing. */
+const askPrice = (ch) => Number(ch.amount) === 0 && ch.amountBothEyes == null;
+
 /** GET the bill; none yet -> start it with the visit's suggested fee lines. */
 const fetchBill = (visitId) =>
   billingApi.get(visitId).catch((err) => {
@@ -62,11 +76,16 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
   const toast = useToast();
   const [bill, setBill] = useState(() => normalizeBill(fallbackBill));
   const [charges, setCharges] = useState([]);
+  const [heads, setHeads] = useState([]); // day-book columns (for the typed-line picker)
+  const [otherHead, setOtherHead] = useState('');
   const [printing, setPrinting] = useState(null);
+  const [paying, setPaying] = useState(false);
   const report = useRef(onPaymentMode);
   report.current = onPaymentMode;
 
   const [eyesFor, setEyesFor] = useState(null); // the eye-wise charge waiting for "one / both eyes"
+  const [priceFor, setPriceFor] = useState(null); // the ₹0 charge waiting for its amount
+  const [priceDraft, setPriceDraft] = useState('');
   const load = useCallback(
     () =>
       fetchBill(visitId)
@@ -101,23 +120,34 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
     (billingApi.charges ? billingApi.charges() : Promise.resolve([]))
       .then((rows) => alive && setCharges(rows || []))
       .catch(() => alive && setCharges([]));
+    if (daybookApi?.heads) {
+      daybookApi
+        .heads()
+        .then((rows) => alive && setHeads(rows || []))
+        .catch(() => alive && setHeads([]));
+      daybookApi
+        .settings()
+        .then((s) => alive && setOtherHead(s?.otherHead || ''))
+        .catch(() => {});
+    }
     return () => {
       alive = false;
     };
   }, []);
 
+  // The drawer's "Mark visit complete — paid via …" hears the mode only once nothing is owed.
+  const settledMode = bill?.paid ? bill?.paymentMode || null : null;
   useEffect(() => {
-    report.current?.(bill?.paymentMode || null);
-  }, [bill?.paymentMode]);
+    report.current?.(settledMode);
+  }, [settledMode]);
 
-  const saveBill = async (next, { pay = false } = {}) => {
+  const saveBill = async (next) => {
     const prev = bill;
     setBill(next);
     try {
       const body = { items: next.items.map(itemBody) };
-      if (next.paymentMode) body.paymentMode = next.paymentMode;
-      let saved = await billingApi.save(visitId, body);
-      if (pay && next.paymentMode) saved = await billingApi.pay(visitId, next.paymentMode);
+      if (next.paymentMode && !(next.payments || []).length) body.paymentMode = next.paymentMode;
+      const saved = await billingApi.save(visitId, body);
       if (saved) setBill(normalizeBill({ ...next, ...saved }));
     } catch (err) {
       setBill(prev);
@@ -125,16 +155,50 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
     }
   };
   const onItems = (items) => saveBill({ ...bill, items });
-  const onPaymentModePick = (mode) => saveBill({ ...bill, paymentMode: mode }, { pay: true });
+
+  /** Money calls: receive / undo / no charge. The server answers with the whole bill. */
+  const money = async (fn, failTitle) => {
+    setPaying(true);
+    try {
+      const saved = await fn();
+      if (saved) setBill(normalizeBill(saved));
+      return saved;
+    } catch (err) {
+      toast.error(failTitle, errorMessage(err));
+      return null;
+    } finally {
+      setPaying(false);
+    }
+  };
+  const receive = (amount, mode) =>
+    money(
+      () =>
+        typeof billingApi.receive === 'function'
+          ? billingApi.receive(visitId, { amount, mode })
+          : billingApi.pay(visitId, mode),
+      'Could not record the payment'
+    );
+  const undo = (p) => {
+    if (!window.confirm(`Undo the ${rupees(p.amount)} ${modeLabel(p.mode)} payment? The bill will owe it again.`))
+      return;
+    money(() => billingApi.undoPayment(visitId, p.id), 'Could not undo the payment');
+  };
+  const noCharge = () => money(() => billingApi.noCharge(visitId), 'Could not close the bill');
 
   const [label, setLabel] = useState('');
   const [amount, setAmount] = useState('');
+  const [headPick, setHeadPick] = useState('');
   const [error, setError] = useState('');
   const items = bill?.items || [];
   const total = items.reduce((s, it) => s + Number(it.amount || 0), 0);
+  const payments = bill?.payments || [];
+  const paidAmount = payments.reduce((s, x) => s + Number(x.amount || 0), 0);
+  const balance = total - paidAmount;
+  const noChargeDone = bill?.status === 'no_charge' || (total === 0 && !!bill?.paid);
   const unpriced = items.filter(
     (it) => it.priceMissing ?? (it.kind === 'medicine' && Number(it.amount) === 0)
   );
+  const newHead = headPick || otherHead;
 
   const add = () => {
     const l = label.trim();
@@ -144,14 +208,22 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
       return;
     }
     setError('');
-    onItems([...items, { label: l, amount: Math.round(a), kind: 'other', qty: 1 }]);
+    const line = { label: l, amount: Math.round(a), kind: 'other', qty: 1 };
+    if (newHead) line.accountHeadKey = newHead;
+    onItems([...items, line]);
     setLabel('');
     setAmount('');
   };
   const addCharge = (ch, eyes = null) => {
     setEyesFor(null);
+    setPriceFor(null);
     if (ch.amountBothEyes != null && !eyes) {
       setEyesFor(ch); // ask "One eye / Both eyes" first
+      return;
+    }
+    if (askPrice(ch)) {
+      setPriceDraft('');
+      setPriceFor(ch); // Glasses: ask for the amount first
       return;
     }
     const line = eyes
@@ -163,18 +235,32 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
       : { label: ch.label, amount: ch.amount };
     onItems([...items, { ...line, kind: 'charge', qty: 1, standardChargeId: ch.id }]);
   };
+  const addPriced = () => {
+    const n = Math.round(Number(priceDraft));
+    if (!n || n < 1) return;
+    const ch = priceFor;
+    setPriceFor(null);
+    onItems([...items, { label: ch.label, amount: n, kind: 'charge', qty: 1, standardChargeId: ch.id }]);
+  };
   const remove = (i) => onItems(items.filter((_, j) => j !== i));
   const reprice = (i, value) => {
     const n = Math.round(Number(value));
     if (Number.isNaN(n) || n < 0 || n === Number(items[i].amount)) return;
     onItems(items.map((it, j) => (j === i ? { ...it, amount: n, priceMissing: false } : it)));
   };
+  const rehead = (i, key) => onItems(items.map((it, j) => (j === i ? { ...it, accountHeadKey: key } : it)));
 
   const onBill = new Set(items.map((it) => it.standardChargeId).filter((x) => x != null));
-  const modeLabel = PAYMENT_MODES.find((m) => m.key === bill?.paymentMode)?.label || bill?.paymentMode;
+  const disabled = busy || paying;
 
   return (
     <div id="billingSection">
+      <OwedBalances
+        patientId={bill?.patientId ?? null}
+        excludeVisitId={visitId}
+        variant="notice"
+        refreshKey={refreshKey}
+      />
       <div className="field-label">Bill</div>
       {charges.length > 0 ? (
         groupCharges(charges).map((g) => (
@@ -188,12 +274,12 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
                   className="charge-chip"
                   data-testid={`charge-chip-${ch.id}`}
                   onClick={() => addCharge(ch)}
-                  disabled={busy || onBill.has(ch.id)}
+                  disabled={disabled || onBill.has(ch.id)}
                   title={onBill.has(ch.id) ? 'Already on the bill' : `Add ${ch.label} to the bill`}
                 >
                   {ch.label}{' '}
                   <span className="mono">
-                    {rupees(ch.amount)}
+                    {askPrice(ch) ? '₹ type' : rupees(ch.amount)}
                     {ch.amountBothEyes != null && ` / ${rupees(ch.amountBothEyes)}`}
                   </span>
                 </button>
@@ -209,16 +295,45 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
       {eyesFor && (
         <div className="bill-eyes" role="group" aria-label={`${eyesFor.label}: one eye or both eyes`}>
           <b>{eyesFor.label}</b>
-          <button type="button" className="btn-ghost sm" onClick={() => addCharge(eyesFor, 'one')} disabled={busy}>
+          <button type="button" className="btn-ghost sm" onClick={() => addCharge(eyesFor, 'one')} disabled={disabled}>
             One eye <span className="mono">{rupees(eyesFor.amount)}</span>
           </button>
-          <button type="button" className="btn-ghost sm" onClick={() => addCharge(eyesFor, 'both')} disabled={busy}>
+          <button type="button" className="btn-ghost sm" onClick={() => addCharge(eyesFor, 'both')} disabled={disabled}>
             Both eyes <span className="mono">{rupees(eyesFor.amountBothEyes)}</span>
           </button>
           <button type="button" className="btn-ghost sm" onClick={() => setEyesFor(null)}>
             Cancel
           </button>
         </div>
+      )}
+      {priceFor && (
+        <form
+          className="bill-price-ask"
+          aria-label={`${priceFor.label}: type the amount`}
+          onSubmit={(e) => {
+            e.preventDefault();
+            addPriced();
+          }}
+        >
+          <b>{priceFor.label}</b>
+          <span className="bill-amount">
+            ₹
+            <input
+              type="text"
+              inputMode="numeric"
+              aria-label={`Amount for ${priceFor.label}`}
+              value={priceDraft}
+              autoFocus
+              onChange={(e) => setPriceDraft(e.target.value.replace(/[^\d]/g, ''))}
+            />
+          </span>
+          <button type="submit" className="btn-primary sm" disabled={disabled || !Number(priceDraft)}>
+            Add
+          </button>
+          <button type="button" className="btn-ghost sm" onClick={() => setPriceFor(null)}>
+            Cancel
+          </button>
+        </form>
       )}
       {bill?.feeNote && (
         <p className="bill-fee-note" data-testid="bill-fee-note">
@@ -230,6 +345,7 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
           <tbody id="billItems">
             {items.map((it, i) => {
               const needsPrice = unpriced.includes(it);
+              const typed = (it.kind || 'other') === 'other';
               return (
                 <tr
                   key={it.id ?? `${it.label}-${i}`}
@@ -245,13 +361,22 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
                       </span>
                     )}
                     {needsPrice && <small>Price not set — type the amount</small>}
+                    {typed && heads.length > 0 && (
+                      <HeadPicker
+                        heads={heads}
+                        value={it.accountHeadKey || otherHead}
+                        onChange={(key) => rehead(i, key)}
+                        label={`Day book column for ${it.label}`}
+                        disabled={disabled}
+                      />
+                    )}
                   </td>
                   <td data-label="Amount" style={{ textAlign: 'right' }}>
                     <AmountInput
                       value={it.amount}
                       onCommit={(v) => reprice(i, v)}
                       label={it.label}
-                      disabled={busy}
+                      disabled={disabled}
                     />
                   </td>
                   <td className="no-label" style={{ width: '1%' }}>
@@ -260,7 +385,7 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
                       className="bill-del"
                       onClick={() => remove(i)}
                       aria-label={`Remove ${it.label}`}
-                      disabled={busy}
+                      disabled={disabled}
                     >
                       ✕
                     </button>
@@ -304,7 +429,16 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
           inputMode="decimal"
           style={{ marginBottom: 0, width: 80 }}
         />
-        <button type="button" className="med-add-btn" onClick={add} disabled={busy}>
+        {heads.length > 0 && (
+          <HeadPicker
+            heads={heads}
+            value={newHead}
+            onChange={setHeadPick}
+            label="Day book column for the new item"
+            disabled={disabled}
+          />
+        )}
+        <button type="button" className="med-add-btn" onClick={add} disabled={disabled}>
           Add
         </button>
       </div>
@@ -313,46 +447,106 @@ export default function BillingPanel({ visitId, fallbackBill, refreshKey, onPaym
           {error}
         </p>
       )}
+
       <p className="label" style={{ margin: '14px 0 6px' }}>
-        Payment mode
+        Payment
       </p>
-      <div className="channel-toggle" id="paymentToggle">
-        {PAYMENT_MODES.map((m) => (
-          <button
-            key={m.key}
-            type="button"
-            className={`channel-opt walkin${bill?.paymentMode === m.key ? ' active' : ''}`}
-            data-pay={m.key}
-            onClick={() => onPaymentModePick(m.key)}
-            disabled={busy}
-          >
-            {m.label}
+      {payments.length > 0 && (
+        <ul className="bill-payments" data-testid="bill-payments">
+          {payments.map((p) => (
+            <li key={p.id}>
+              <span className="mono">{rupees(p.amount)}</span>
+              <span className="grow">
+                {modeLabel(p.mode)} · {timeOf(p.at)}
+                {p.byName ? ` · ${p.byName}` : ''}
+              </span>
+              <button
+                type="button"
+                className="link-btn"
+                onClick={() => undo(p)}
+                disabled={disabled}
+                aria-label={`Undo the ${rupees(p.amount)} ${modeLabel(p.mode)} payment`}
+              >
+                Undo
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {balance > 0 && (
+        <>
+          {payments.length > 0 && (
+            <div className="bill-balance" data-testid="bill-balance">
+              <span>Balance due</span>
+              <span className="mono">{rupees(balance)}</span>
+            </div>
+          )}
+          <ReceivePayment balance={balance} busy={disabled} onReceive={receive} label="Receive" />
+        </>
+      )}
+      {balance < 0 && (
+        <div className="bill-balance" data-testid="bill-balance">
+          <span>Lines were taken off after paying — give back</span>
+          <span className="mono">{rupees(-balance)}</span>
+        </div>
+      )}
+      {total === 0 && !noChargeDone && bill?.id != null && (
+        <div className="bill-balance settled" data-testid="bill-zero">
+          <span>Nothing to pay on this visit</span>
+          <button type="button" className="btn-primary sm" onClick={noCharge} disabled={disabled}>
+            No charge
           </button>
-        ))}
-      </div>
-      {bill?.paid && (
-        <div className="bill-paid" data-testid="bill-paid">
+        </div>
+      )}
+      {(bill?.paid || (bill?.receiptNo && payments.length > 0)) && (
+        <div className="bill-paid" data-testid={bill?.paid ? 'bill-paid' : 'bill-part-paid'}>
           <span>
-            Paid · {modeLabel}
-            {bill.receiptNo && (
+            {noChargeDone
+              ? 'No charge'
+              : bill?.paid
+                ? `Paid · ${[...new Set(payments.map((p) => modeLabel(p.mode)))].join(' + ') || modeLabel(bill.paymentMode)}`
+                : `Part paid · ${rupees(paidAmount)} of ${rupees(total)}`}
+            {bill?.receiptNo && (
               <>
                 {' '}
                 · Receipt <span className="mono">{bill.receiptNo}</span>
               </>
             )}
           </span>
-          <button
-            type="button"
-            className="btn-primary sm"
-            onClick={() => setPrinting({ ...bill, items, total })}
-            disabled={!!printing}
-          >
-            Print receipt
-          </button>
+          {!noChargeDone && (
+            <button
+              type="button"
+              className="btn-primary sm"
+              onClick={() => setPrinting({ ...bill, items, total })}
+              disabled={!!printing}
+            >
+              Print receipt
+            </button>
+          )}
         </div>
       )}
       {printing && <ReceiptPrint bill={printing} onDone={() => setPrinting(null)} />}
     </div>
+  );
+}
+
+/** Day-book column of a typed bill line (Admin › Day book columns). */
+function HeadPicker({ heads, value, onChange, label, disabled }) {
+  return (
+    <select
+      className="bill-head-pick"
+      aria-label={label}
+      value={value || ''}
+      onChange={(e) => onChange(e.target.value)}
+      disabled={disabled}
+      title="Day book column"
+    >
+      {heads.map((h) => (
+        <option key={h.key} value={h.key}>
+          {h.label}
+        </option>
+      ))}
+    </select>
   );
 }
 

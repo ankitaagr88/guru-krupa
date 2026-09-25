@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { admin as adminApi } from '../../api';
+import { admin as adminApi, daybook as daybookApi } from '../../api';
 import { EditableText, ReorderBtns } from './pieces';
 
 /* Admin › Standard charges (lane B owns this file): consultation, pre-test, dilation… with
@@ -8,13 +8,16 @@ import { EditableText, ReorderBtns } from './pieces';
    it). Takes the parent's `run(fn, okMsg)` like the other sections.
    Tests are priced per eye: "Both eyes" set = the bill asks "One eye / Both eyes" (Amount is the
    one-eye price); empty = one price. "Heading" groups the chips on the bill (Visit fees, Tests,
-   Packages — any text). */
+   Packages — any text). "Day book column" is where the charge is counted on the day book (lane M:
+   Admin › Day book columns); a ₹0 charge (Glasses) asks for its amount on the bill. */
 export function ChargesSection({ run }) {
   const [rows, setRows] = useState([]);
   const [label, setLabel] = useState('');
   const [amount, setAmount] = useState('');
   const [both, setBoth] = useState('');
   const [group, setGroup] = useState('');
+  const [heads, setHeads] = useState([]); // day-book columns (lane M)
+  const [head, setHead] = useState('');
 
   const load = async () => {
     try {
@@ -25,6 +28,10 @@ export function ChargesSection({ run }) {
   };
   useEffect(() => {
     load();
+    daybookApi
+      ?.heads?.({ includeInactive: true })
+      .then((rows) => setHeads(rows || []))
+      .catch(() => setHeads([]));
   }, []);
   const doRun = async (fn, okMsg) => {
     const ok = await run(fn, okMsg);
@@ -39,6 +46,7 @@ export function ChargesSection({ run }) {
     const n = Math.round(Number(amount) || 0);
     const body = { label: l, amount: n, groupLabel: group.trim() };
     if (both !== '') body.amountBothEyes = Math.round(Number(both) || 0);
+    if (head) body.accountHeadKey = head;
     if (await doRun(() => adminApi.standardCharges.create(body), `${l} added`)) {
       setLabel('');
       setAmount('');
@@ -58,6 +66,13 @@ export function ChargesSection({ run }) {
   const regroup = (ch) => (v) =>
     v.trim() !== (ch.groupLabel || '') &&
     doRun(() => adminApi.standardCharges.update(ch.id, { groupLabel: v.trim() }));
+  const rehead = (ch) => (key) =>
+    key &&
+    key !== ch.accountHeadKey &&
+    doRun(
+      () => adminApi.standardCharges.update(ch.id, { accountHeadKey: key }),
+      `${ch.label}: day book column ${heads.find((h) => h.key === key)?.label || key}`
+    );
   const groups = [...new Set(rows.map((ch) => ch.groupLabel).filter(Boolean))];
   const rename = (ch) => (v) =>
     v.trim() &&
@@ -89,7 +104,8 @@ export function ChargesSection({ run }) {
         amount can still be changed on the bill for a discount. A charge that bills already use can&apos;t be
         deleted — switch it off to hide it. For a test priced per eye, fill in <b>Both eyes</b>: the bill
         then asks &ldquo;One eye / Both eyes&rdquo; and <b>Amount</b> is the one-eye price. <b>Heading</b>{' '}
-        groups the buttons on the bill (Visit fees, Tests, Packages).
+        groups the buttons on the bill (Visit fees, Tests, Packages). <b>Day book column</b> is the column the
+        charge is counted under on the day book. An amount of ₹0 means the price is typed on the bill (Glasses).
       </p>
       <table className="data-table uniform-cells admin-table" style={{ marginBottom: 10 }}>
         <thead>
@@ -99,6 +115,7 @@ export function ChargesSection({ run }) {
             <th style={{ width: 130 }}>Amount (₹)</th>
             <th style={{ width: 130 }}>Both eyes (₹)</th>
             <th style={{ width: 140 }}>Heading</th>
+            <th style={{ width: 130 }}>Day book column</th>
             <th style={{ width: 70 }}>Active</th>
             <th style={{ width: 40 }}></th>
           </tr>
@@ -106,7 +123,7 @@ export function ChargesSection({ run }) {
         <tbody id="chargeList">
           {rows.length === 0 && (
             <tr>
-              <td colSpan={7} className="hint">
+              <td colSpan={8} className="hint">
                 No charges yet — add the first one below.
               </td>
             </tr>
@@ -158,6 +175,24 @@ export function ChargesSection({ run }) {
                   ariaLabel={`Heading for ${ch.label}`}
                   placeholder="No heading"
                 />
+              </td>
+              <td data-label="Day book column">
+                <select
+                  className="admin-select"
+                  aria-label={`Day book column for ${ch.label}`}
+                  value={ch.accountHeadKey || ''}
+                  onChange={(e) => rehead(ch)(e.target.value)}
+                >
+                  {!ch.accountHeadKey && <option value="">Not set</option>}
+                  {heads
+                    .filter((h) => h.active || h.key === ch.accountHeadKey)
+                    .map((h) => (
+                      <option key={h.key} value={h.key}>
+                        {h.label}
+                        {h.active ? '' : ' (off)'}
+                      </option>
+                    ))}
+                </select>
               </td>
               <td data-label="Active">
                 <button
@@ -220,6 +255,22 @@ export function ChargesSection({ run }) {
           onChange={(e) => setGroup(e.target.value)}
           style={{ maxWidth: 160 }}
         />
+        <select
+          className="admin-select"
+          aria-label="New charge day book column"
+          value={head}
+          onChange={(e) => setHead(e.target.value)}
+          style={{ maxWidth: 160 }}
+        >
+          <option value="">Day book column…</option>
+          {heads
+            .filter((h) => h.active)
+            .map((h) => (
+              <option key={h.key} value={h.key}>
+                {h.label}
+              </option>
+            ))}
+        </select>
         <datalist id="charge-groups">
           {groups.map((g) => (
             <option key={g} value={g} />

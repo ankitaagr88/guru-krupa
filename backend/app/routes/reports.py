@@ -1,8 +1,9 @@
 """The "Today" summary and other read-only reports (lane B owns this module).
 
 GET /reports/today?date=YYYY-MM-DD (default: today, clinic time) → patients seen, average
-minutes per stage (from the `stage_move` audit rows), collections by payment mode, medicines
-sold and the day's receipts."""
+minutes per stage (from the `stage_move` audit rows), money received that day by payment mode
+(counted by the day each payment came in), the bills still owing, medicines sold and the day's
+payments (receipts)."""
 from datetime import date
 
 from fastapi import APIRouter, Depends, Query

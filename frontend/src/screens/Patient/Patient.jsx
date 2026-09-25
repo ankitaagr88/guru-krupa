@@ -11,6 +11,7 @@ import NewPatientModal from '../Queue/NewPatientModal';
 import useConfig from '../Queue/useConfig';
 import EditPatientModal from './EditPatientModal';
 import FamilyCard from './FamilyCard';
+import OwedBalances from '../Billing/OwedBalances';
 import { useRelations } from './familyParts';
 import './patient.css';
 
@@ -168,6 +169,14 @@ export default function Patient() {
         reloadKey={reloadKey}
         onAddMember={setAddingMember}
         onChanged={() => setReloadKey((k) => k + 1)}
+      />
+
+      {/* Money still owed from earlier visits, with "Receive payment" (lane M) */}
+      <OwedBalances
+        patientId={p.id}
+        excludeVisitId={todayVisit?.id ?? null}
+        refreshKey={reloadKey}
+        onPaid={() => setReloadKey((k) => k + 1)}
       />
 
       <div className="patient-grid">

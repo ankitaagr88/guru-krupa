@@ -58,6 +58,146 @@ def test_bill_upsert_and_pay(client, admin_headers, reception_headers):
     r = client.post(f"/api/visits/{vid}/bill/pay", json={"paymentMode": "upi"}, headers=admin_headers)
     assert r.json()["receiptNo"] == receipt and r.json()["paymentMode"] == "upi"
     assert r.json()["patientName"] == "Bill Patient" and r.json()["token"].startswith("#")
+    # "pay" received the whole balance as one payment; the mode fix changed that payment's mode
+    b = r.json()
+    assert [(p["amount"], p["mode"]) for p in b["payments"]] == [(500, "upi")]
+    assert (b["paidAmount"], b["balance"], b["status"]) == (500, 0, "paid")
+
+
+# --------------------------------------------------------------------------- part payments
+def _bill(client, headers, vid, *amounts):
+    r = client.put(f"/api/visits/{vid}/bill", json={"items": [{"label": f"Line {i}", "amount": a}
+                                                              for i, a in enumerate(amounts)]}, headers=headers)
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def _receive(client, headers, vid, amount, mode="cash", **extra):
+    return client.post(f"/api/visits/{vid}/bill/payments", json={"amount": amount, "mode": mode, **extra},
+                       headers=headers)
+
+
+def test_part_payments_balance_and_receipt_number_once(client, admin_headers, reception_headers):
+    vid = _visit(client, admin_headers, "Part Payer")
+    assert _receive(client, reception_headers, vid, 100).status_code == 404  # no bill yet
+    b = _bill(client, reception_headers, vid, 500, 60)
+    assert (b["total"], b["paidAmount"], b["balance"], b["status"], b["paid"]) == (560, 0, 560, "unpaid", False)
+    assert b["receiptNo"] is None and b["payments"] == [] and b["patientId"]
+
+    r = _receive(client, reception_headers, vid, 500, "cash", note="first part")
+    assert r.status_code == 201, r.text
+    b = r.json()
+    assert (b["paidAmount"], b["balance"], b["status"], b["paid"], b["paidAt"]) == (500, 60, "part_paid", False, None)
+    receipt = b["receiptNo"]
+    assert receipt and receipt.startswith("GK-")
+    assert b["payments"][0]["byName"] == "Bill Reception" and b["payments"][0]["note"] == "first part"
+    # the patient page / billing drawer see the balance
+    owing = client.get(f"/api/patients/{b['patientId']}/owing", headers=reception_headers).json()
+    assert [(o["visitId"], o["balance"], o["paidAmount"]) for o in owing] == [(vid, 60, 500)]
+
+    # more than the balance, a bad mode, zero: refused
+    assert _receive(client, reception_headers, vid, 61).status_code == 422
+    assert _receive(client, reception_headers, vid, 10, "gold").status_code == 422
+    assert _receive(client, reception_headers, vid, 0).status_code == 422
+
+    b = _receive(client, reception_headers, vid, 60, "upi").json()
+    assert (b["balance"], b["status"], b["paid"], b["paymentMode"]) == (0, "paid", True, "upi")
+    assert b["paidAt"] and b["receiptNo"] == receipt  # the number was given once
+    assert [(p["amount"], p["mode"]) for p in b["payments"]] == [(500, "cash"), (60, "upi")]
+    assert _receive(client, reception_headers, vid, 1).status_code == 409  # nothing owed
+    assert client.get(f"/api/patients/{b['patientId']}/owing", headers=reception_headers).json() == []
+
+    # undo the UPI entry: owing again, the receipt number stays
+    pid = b["payments"][1]["id"]
+    r = client.delete(f"/api/visits/{vid}/bill/payments/{pid}", headers=reception_headers)
+    assert r.status_code == 200, r.text
+    b = r.json()
+    assert (b["balance"], b["status"], b["paidAt"], b["receiptNo"], b["paymentMode"]) == (
+        60, "part_paid", None, receipt, "cash")
+    assert client.delete(f"/api/visits/{vid}/bill/payments/{pid}", headers=reception_headers).status_code == 404
+
+    # "pay" (older callers) receives whatever is left
+    b = client.post(f"/api/visits/{vid}/bill/pay", json={"paymentMode": "card"}, headers=reception_headers).json()
+    assert (b["balance"], b["paid"], [p["amount"] for p in b["payments"]]) == (0, True, [500, 60])
+
+
+def test_editing_items_after_payment_recomputes_the_balance(client, admin_headers, reception_headers, db):
+    from app.models.audit import AuditLog
+
+    vid = _visit(client, admin_headers, "Edited After Paying")
+    _bill(client, reception_headers, vid, 300)
+    b = client.post(f"/api/visits/{vid}/bill/pay", json={"paymentMode": "cash"}, headers=reception_headers).json()
+    assert b["paid"] is True
+    # a line added after paying: owing again
+    b = _bill(client, reception_headers, vid, 300, 150)
+    assert (b["balance"], b["status"], b["paid"], b["paidAt"]) == (150, "part_paid", False, None)
+    # a line taken off after paying: money to give back
+    b = _bill(client, reception_headers, vid, 250)
+    assert (b["balance"], b["status"], b["paid"]) == (-50, "overpaid", True)
+    b = _bill(client, reception_headers, vid, 300)
+    assert (b["balance"], b["status"], b["paid"]) == (0, "paid", True) and b["paidAt"]
+    # payments and undos are audited
+    actions = {a.action for a in db.query(AuditLog).filter(AuditLog.entity == "bill", AuditLog.entity_id == b["id"])}
+    assert "bill.payment" in actions
+
+
+def test_zero_bill_closes_as_no_charge_and_never_owes(client, admin_headers, reception_headers):
+    vid = _visit(client, admin_headers, "Free Follow Up")
+    b = client.put(f"/api/visits/{vid}/bill", json={"items": []}, headers=reception_headers).json()
+    assert (b["total"], b["balance"], b["status"], b["paid"]) == (0, 0, "unpaid", False)
+    assert client.get(f"/api/patients/{b['patientId']}/owing", headers=reception_headers).json() == []
+    assert _receive(client, reception_headers, vid, 1).status_code == 409
+
+    r = client.post(f"/api/visits/{vid}/bill/no-charge", headers=reception_headers)
+    assert r.status_code == 200, r.text
+    b = r.json()
+    assert (b["status"], b["paid"], b["receiptNo"], b["payments"]) == ("no_charge", True, None, [])
+    assert b["paidAt"]
+    # a bill with an amount can't be closed as no charge
+    v2 = _visit(client, admin_headers, "Not Free")
+    _bill(client, reception_headers, v2, 200)
+    assert client.post(f"/api/visits/{v2}/bill/no-charge", headers=reception_headers).status_code == 409
+    # no bill yet: no-charge creates it (a visit whose kind is free has no fee line)
+    v3 = _visit(client, admin_headers, "Free No Bill")
+    client.put(f"/api/visits/{v3}/bill", json={"items": []}, headers=reception_headers)
+    assert client.post(f"/api/visits/{v3}/bill/no-charge", headers=reception_headers).json()["status"] == "no_charge"
+    # "pay" on a ₹0 bill closes it too
+    v4 = _visit(client, admin_headers, "Free Pay")
+    client.put(f"/api/visits/{v4}/bill", json={"items": []}, headers=reception_headers)
+    b = client.post(f"/api/visits/{v4}/bill/pay", json={"paymentMode": "cash"}, headers=reception_headers).json()
+    assert b["status"] == "no_charge" and b["payments"] == []
+
+
+# --------------------------------------------------------------------------- day-book column on lines
+def test_bill_lines_get_their_day_book_column(client, admin_headers, reception_headers):
+    heads = {h["key"] for h in client.get("/api/account-heads", headers=reception_headers).json()}
+    assert {"opd", "med", "test", "glasses", "ot", "other"} <= heads
+    charges = {c["label"]: c for c in client.get("/api/standard-charges", headers=reception_headers).json()}
+    assert charges["Glasses"]["amount"] == 0 and charges["Glasses"]["accountHeadKey"] == "glasses"
+    assert charges["Perimetry"]["accountHeadKey"] == "test"
+
+    vid = _visit(client, admin_headers, "Column Patient")
+    r = client.put(f"/api/visits/{vid}/bill", json={"items": [
+        {"label": "Glasses", "amount": 1200, "kind": "charge", "standardChargeId": charges["Glasses"]["id"]},
+        {"label": "Eye patch", "amount": 40},
+        {"label": "Frame repair", "amount": 100, "accountHeadKey": "glasses"},
+        {"label": "Drops", "amount": 90, "kind": "medicine"},
+    ]}, headers=reception_headers)
+    assert r.status_code == 200, r.text
+    assert [i["accountHeadKey"] for i in r.json()["items"]] == ["glasses", "other", "glasses", "med"]
+    bad = {"items": [{"label": "X", "amount": 1, "accountHeadKey": "nope"}]}
+    assert client.put(f"/api/visits/{vid}/bill", json=bad, headers=reception_headers).status_code == 422
+
+    # a charge's column is set in Admin (unknown column refused)
+    cid = charges["Glasses"]["id"]
+    base = "/api/admin/standard-charges"
+    assert client.patch(f"{base}/{cid}", json={"accountHeadKey": "nope"}, headers=admin_headers).status_code == 422
+    assert client.patch(f"{base}/{cid}", json={"accountHeadKey": "other"},
+                        headers=admin_headers).json()["accountHeadKey"] == "other"
+    client.patch(f"{base}/{cid}", json={"accountHeadKey": "glasses"}, headers=admin_headers)
+    r = client.post(base, json={"label": "Contact lens fitting", "amount": 800, "accountHeadKey": "glasses"},
+                    headers=admin_headers)
+    assert r.status_code == 201 and r.json()["accountHeadKey"] == "glasses"
 
 
 # --------------------------------------------------------------------------- standard charges
