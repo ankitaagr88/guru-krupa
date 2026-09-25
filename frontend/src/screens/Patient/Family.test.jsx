@@ -43,7 +43,7 @@ describe('New patient: "Add as a family member"', () => {
     await userEvent.type(screen.getByPlaceholderText('Full name'), 'Jay Patel');
     await userEvent.type(screen.getByPlaceholderText('10-digit mobile number'), '98250 12345');
 
-    const panel = await screen.findByTestId('family-join');
+    const panel = await screen.findByTestId('family-join', {}, { timeout: 4000 }); // after the number lookup
     expect(within(panel).getByRole('button', { name: 'Not related — separate patient' })).toBeInTheDocument();
     const join = screen.getByTestId('family-join');
     expect(join).toHaveTextContent('This number belongs to the family of Rasilaben Patel');
@@ -119,17 +119,59 @@ describe('Patient page: Family on this number', () => {
 
     // Add a new family member: the New patient form opens with the phone and the family chosen.
     await userEvent.click(within(card).getByTestId('family-add'));
-    expect(await screen.findByRole('heading', { name: 'Add family member' })).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('10-digit mobile number')).toHaveValue('9825012345');
+    expect(await screen.findByRole('heading', { name: 'New family member of Jay Patel' })).toBeInTheDocument();
     const join = screen.getByTestId('family-join');
-    expect(join).toHaveTextContent('New family member of Jay Patel');
-    await userEvent.type(screen.getByPlaceholderText('Full name'), 'Baby Patel');
+    expect(join).toHaveTextContent('+91 98250 12345'); // the family's number, fixed
+    expect(screen.queryByText('Not related — separate patient')).toBeNull();
+    expect(screen.queryByText("Open today's visit")).toBeNull();
+    expect(screen.getByLabelText('Full name')).toHaveFocus();
+    await userEvent.type(screen.getByLabelText('Full name'), 'Baby Patel');
     await within(join).findByRole('option', { name: 'बेटी (Daughter)' });
+    // the relation is required
+    const before = mockStore.state.patients.length;
+    await userEvent.click(screen.getByRole('button', { name: 'Save family member' }));
+    expect(await within(join).findByText('Choose their relation to Jay Patel.')).toBeInTheDocument();
+    expect(mockStore.state.patients.length).toBe(before);
     await userEvent.selectOptions(within(join).getByLabelText('Their relation to Jay Patel'), 'daughter');
     await userEvent.click(screen.getByRole('button', { name: 'Save family member' }));
     await waitFor(() => expect(byName('Baby Patel')).toBeTruthy());
     expect(byName('Baby Patel')).toMatchObject({ familyOwnerId: jay.id, relationKey: 'daughter' });
     await within(card).findByTestId(`family-member-${byName('Baby Patel').id}`);
+    // saved without "Also add to today's queue": not in the queue
+    expect(byName('Baby Patel').stage ?? null).toBeNull();
+  }, SLOW);
+
+  it('"Add family member" fills in only what the family shares, and can also add them to today\'s queue', async () => {
+    renderShell({
+      route: '/patients/1', // Rasilaben Patel: Vesu, Surat · Gujarati · referred by a doctor
+      child: (
+        <Routes>
+          <Route path="/patients/:id" element={<Patient />} />
+        </Routes>
+      ),
+    });
+    const card = await screen.findByTestId('family-card');
+    await userEvent.click(within(card).getByTestId('family-add'));
+    const form = await screen.findByRole('dialog', { name: 'New family member of Rasilaben Patel' });
+    expect(within(form).getByLabelText('Address / area')).toHaveValue('Vesu, Surat');
+    expect(within(form).getByRole('button', { name: 'ગુજરાતી' })).toHaveClass('active');
+    expect(within(form).getByLabelText('How did they hear about us?')).toHaveValue('doctor');
+    // not copied: name, age, occupation, sex
+    expect(within(form).getByLabelText('Full name')).toHaveValue('');
+    expect(within(form).getByLabelText('Occupation')).toHaveValue('');
+    expect(within(form).getByLabelText('Age (if DOB not known)')).toHaveValue('');
+    expect(form.querySelector('[data-sex].active')).toBeNull();
+
+    await userEvent.type(within(form).getByLabelText('Full name'), 'Mitesh Patel');
+    await within(form).findByRole('option', { name: 'बेटा (Son)' });
+    await userEvent.selectOptions(within(form).getByLabelText('Their relation to Rasilaben Patel'), 'son');
+    await userEvent.click(within(form).getByTestId('np-add-to-queue'));
+    await userEvent.type(within(form).getByLabelText('Reason for visit'), 'Watery eyes');
+    await userEvent.keyboard('{Enter}'); // Enter saves the form
+    await waitFor(() => expect(byName('Mitesh Patel')?.stage).toBe('reg'));
+    const m = byName('Mitesh Patel');
+    expect(m).toMatchObject({ familyOwnerId: 1, relationKey: 'son', address: 'Vesu, Surat', stage: 'reg', note: 'Watery eyes' });
+    expect(m.token).toMatch(/^#\d{3}$/);
   }, SLOW);
 });
 

@@ -10,10 +10,14 @@ describe('mock adapters', () => {
     });
   });
 
-  it('creates a patient with the next token and moves it through stages', async () => {
-    const p = await patients.create({ name: 'Test Person', phone: '90000 00000' });
+  it('creates a patient (not queued, like the server), registers the visit with the next token, moves it', async () => {
+    const created = await patients.create({ name: 'Test Person', phone: '90000 00000' });
+    expect(created.stage).toBeNull();
+    expect((await visits.today()).some((v) => v.id === created.id)).toBe(false);
+    const p = await visits.create({ patientId: created.id, note: 'Itchy eyes' });
     expect(p.token).toBe('#016');
     expect(p.stage).toBe('reg');
+    expect(p.note).toBe('Itchy eyes');
     const moved = await visits.move(p.id, 'pretest');
     expect(moved.stage).toBe('pretest');
     const counts = await visits.counts();

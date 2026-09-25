@@ -4,13 +4,15 @@ import Modal from './Modal';
 import { IconSearch } from './Icons';
 import { patients as patientsApi } from '../api';
 import { familyLine } from '../screens/Patient/familyParts';
+import AddToTodayModal from '../screens/Patient/AddToToday';
 
 /* Global patient search (mockup `openSearchModal` / `renderSearchResults` /
    `jumpToPatient`). Desktop/tablet: the always-visible box in the top bar
    (`TopbarSearch`, focused with "/" or Ctrl+K) drops the results under it.
    Phone: the magnifier opens this modal. Picking someone in today's queue
    navigates to /queue/:stage?patient=:id (the Queue screen reads `?patient=`
-   and opens their drawer); anyone else opens their record, /patients/:id. */
+   and opens their drawer); anyone else opens their record, /patients/:id. Someone who is not in
+   today's queue also gets "Add to today" (optional reason for visit → queued, drawer opens). */
 
 export const SEARCH_PLACEHOLDER = 'Search patients by name, phone or token';
 
@@ -62,7 +64,7 @@ function useResultKeys(results, onPick) {
   return [focus, setFocus, onKeyDown];
 }
 
-function SearchResults({ query, results, focus, setFocus, onPick, stages, id }) {
+function SearchResults({ query, results, focus, setFocus, onPick, onAddToday, stages, id }) {
   const stageLabel = (key) => stages.find((s) => s.key === key)?.label || key;
   return (
     <div id={id} className="search-results" role="listbox" aria-label="Matching patients">
@@ -93,7 +95,25 @@ function SearchResults({ query, results, focus, setFocus, onPick, stages, id }) 
           {p.stage ? (
             <span className={`status-pill stage-${p.stage}`}>{stageLabel(p.stage)}</span>
           ) : (
-            <span className="sr-record">Patient record</span>
+            <span className="sr-actions">
+              <span className="sr-record">Patient record</span>
+              {onAddToday && (
+                <button
+                  type="button"
+                  className="btn-primary sm sr-add"
+                  // mousedown: keep the top-bar box from closing the list before the click lands
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onAddToday(p);
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  data-testid={`search-add-${p.id}`}
+                >
+                  Add to today
+                </button>
+              )}
+            </span>
           )}
         </div>
       ))}
@@ -105,6 +125,7 @@ function SearchResults({ query, results, focus, setFocus, onPick, stages, id }) 
 export const TopbarSearch = forwardRef(function TopbarSearch({ stages = [] }, ref) {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
+  const [adding, setAdding] = useState(null); // patient being added to today's queue
   const inputRef = useRef(null);
   const navigate = useNavigate();
   useImperativeHandle(ref, () => ({ focus: () => inputRef.current?.focus() }), []);
@@ -158,16 +179,24 @@ export const TopbarSearch = forwardRef(function TopbarSearch({ stages = [] }, re
             focus={focus}
             setFocus={setFocus}
             onPick={jump}
+            onAddToday={(p) => {
+              setQ('');
+              setOpen(false);
+              inputRef.current?.blur();
+              setAdding(p);
+            }}
             stages={stages}
           />
         </div>
       )}
+      <AddToTodayModal patient={adding} firstStage={stages[0]?.key} onClose={() => setAdding(null)} />
     </div>
   );
 });
 
 export default function SearchModal({ open, onClose, stages = [] }) {
   const [q, setQ] = useState('');
+  const [adding, setAdding] = useState(null); // patient being added to today's queue
   const inputRef = useRef(null);
   const navigate = useNavigate();
 
@@ -185,6 +214,18 @@ export default function SearchModal({ open, onClose, stages = [] }) {
     navigate(jumpToPatientPath(p));
   };
   const [focus, setFocus, onKeyDown] = useResultKeys(results, jump);
+
+  if (adding)
+    return (
+      <AddToTodayModal
+        patient={adding}
+        firstStage={stages[0]?.key}
+        onClose={() => {
+          setAdding(null);
+          onClose?.();
+        }}
+      />
+    );
 
   return (
     <Modal
@@ -218,6 +259,7 @@ export default function SearchModal({ open, onClose, stages = [] }) {
           focus={focus}
           setFocus={setFocus}
           onPick={jump}
+          onAddToday={setAdding}
           stages={stages}
         />
       </div>

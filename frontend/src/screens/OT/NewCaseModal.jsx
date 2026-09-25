@@ -39,8 +39,9 @@ export function SlotPicker({ slots, value, onChange, loading }) {
 
 /* Mockup `openOtModal` / `addOtCase`, extended: pick an existing patient by
    search or type name/age/sex, then a free slot and the procedure. A 409 from
-   the server (slot taken meanwhile) is shown inline and the slots reload. */
-export default function NewCaseModal({ open, date: initialDate, onClose, onCreated }) {
+   the server (slot taken meanwhile) is shown inline and the slots reload.
+   `presetPatient` (from /ot?patient=<id>) opens it with that patient already picked. */
+export default function NewCaseModal({ open, date: initialDate, onClose, onCreated, presetPatient = null }) {
   const [date, setDate] = useState(initialDate);
   const [q, setQ] = useState('');
   const [results, setResults] = useState([]);
@@ -61,7 +62,7 @@ export default function NewCaseModal({ open, date: initialDate, onClose, onCreat
     setDate(initialDate);
     setQ('');
     setResults([]);
-    setPatient(null);
+    setPatient(presetPatient || null);
     setName('');
     setAge('');
     setSex('');
@@ -84,7 +85,7 @@ export default function NewCaseModal({ open, date: initialDate, onClose, onCreat
     return () => {
       cancelled = true;
     };
-  }, [open, initialDate]);
+  }, [open, initialDate, presetPatient]);
 
   const loadSlots = (ds) => {
     setSlotsLoading(true);

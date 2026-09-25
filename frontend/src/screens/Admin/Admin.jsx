@@ -42,7 +42,7 @@ export default function Admin() {
   const [staffModal, setStaffModal] = useState(false);
   const [pwFor, setPwFor] = useState(null);
 
-  useTopbar({ sub: 'Process stages, dilation drops, referral sources, lens prices, OT slots, medicines, treatment standards and staff' });
+  useTopbar({ sub: '' });
 
   const load = useCallback(async () => {
     const safe = (p, fb = []) => p.catch(() => fb);
@@ -759,7 +759,9 @@ function AdminIndex() {
     const section = el.closest('section') || el;
     const barH = document.querySelector('.admin-index')?.offsetHeight || 0;
     const y = section.getBoundingClientRect().top + window.scrollY - top - barH - 12;
-    window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+    // Jump straight there. A long smooth scroll (this page is ~12,000 px) left the sticky top bar and
+    // side menu drawn out of place for a moment — the "whole app shifted down" band.
+    window.scrollTo({ top: Math.max(0, y), behavior: 'auto' });
     setActive(id);
     try {
       window.history.replaceState(null, '', `#${id}`);

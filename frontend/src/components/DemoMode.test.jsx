@@ -28,6 +28,6 @@ describe('Outside demo mode', () => {
     renderShell({ route: '/machines', child: <Machines /> });
     await screen.findByText('Which machine are you using?');
     expect(screen.queryByTestId('offline-toggle')).toBeNull();
-    expect(document.querySelector('#topSub')).not.toHaveTextContent('demo data');
+    expect(document.querySelector('#topSub')?.textContent || '').not.toContain('demo data');
   });
 });

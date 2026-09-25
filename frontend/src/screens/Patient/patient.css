@@ -131,3 +131,26 @@ a.family-name:hover { color: var(--sapphire-deep); }
 .reg-family-row .family-field { flex: 1 1 160px; }
 .reg-family-row .btn-primary, .reg-family-row .btn-ghost { flex: none; padding: 9px 14px; font-size: 13px; }
 .reg-family-q { font-family: var(--font-ui); font-size: 13px; font-weight: 600; color: var(--ink); margin: 0; }
+
+/* Shortcut bar: everything staff do for this patient, one tap away. Desktop: labelled pills in a
+   row; phone: a grid of icon + short label tiles. */
+.patient-shortcuts { display: flex; flex-wrap: wrap; gap: 8px; margin: -4px 0 16px; }
+.patient-shortcut { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); font-family: var(--font-ui); font-weight: 600; font-size: 13px; line-height: 18px; text-decoration: none; cursor: pointer; transition: border-color 0.15s, background 0.15s, color 0.15s; }
+.patient-shortcut svg { width: 17px; height: 17px; flex-shrink: 0; color: var(--sapphire); }
+.patient-shortcut:hover { border-color: var(--sapphire); background: var(--sapphire-wash); color: var(--sapphire-deep); }
+.patient-shortcut:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.patient-shortcut.primary { background: var(--sapphire); border-color: var(--sapphire); color: var(--on-sapphire); }
+.patient-shortcut.primary svg { color: var(--on-sapphire); }
+.patient-shortcut.primary:hover { background: var(--sapphire-deep); border-color: var(--sapphire-deep); color: var(--on-sapphire); }
+.patient-shortcut .ps-short { display: none; }
+body.mobile-mode .patient-shortcuts { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+body.mobile-mode .patient-shortcut { flex-direction: column; justify-content: center; gap: 5px; padding: 10px 6px; min-height: 68px; text-align: center; font-size: 12px; line-height: 15px; }
+body.mobile-mode .patient-shortcut svg { width: 20px; height: 20px; }
+body.mobile-mode .patient-shortcut .ps-long { display: none; }
+body.mobile-mode .patient-shortcut .ps-short { display: block; }
+/* Jump targets (Family, Receive payment) land below the sticky top bar. */
+.patient-anchor { scroll-margin-top: 110px; }
+
+/* Search results: "Patient record" + "Add to today" for someone not in today's queue. */
+.search-result-row .sr-actions { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.search-result-row .sr-add { padding: 6px 11px; font-size: 12px; line-height: 16px; }

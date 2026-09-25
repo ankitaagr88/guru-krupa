@@ -104,4 +104,17 @@ describe('Appointments', () => {
     expect(row).toHaveTextContent('Bharat Oza');
     expect(row).toHaveTextContent('IOP check');
   });
+
+  it('?date= opens on that day; ?patient= opens "New appointment" filled in and linked to the record', async () => {
+    const day = dateStr(1);
+    renderAppts(`/appointments?patient=5&date=${day}`);
+    const name = await screen.findByPlaceholderText('Patient name');
+    expect(name).toHaveValue('Bharat Oza');
+    expect(document.querySelector('#apptDate')).toHaveValue(day);
+    expect(document.querySelector(`.date-pill[data-date="${day}"]`)).toHaveClass('active');
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Book appointment' }));
+    await waitFor(async () =>
+      expect((await appointments.list({ date: day })).find((a) => a.name === 'Bharat Oza')?.patientId).toBe(5)
+    );
+  });
 });

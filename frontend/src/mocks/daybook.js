@@ -152,6 +152,7 @@ function sheetRows(date) {
   if (date === today) {
     EARLIER_TODAY.receipts.forEach((r) => rows.push(madeUpRow(r, { ...r.heads })));
     S.patients.forEach((p) => {
+      if (!p.stage) return; // a returning patient who hasn't come in today
       const b = billOut(p);
       const amounts = {};
       (p.bill?.items || []).forEach((it) => {
@@ -176,6 +177,7 @@ function sheetRows(date) {
         modes: [...new Set(todays.map((x) => x.mode))],
         left: b.balance,
         status: (p.bill?.items || []).length || p.bill?.paidAt ? b.status : '',
+        inClinic: p.stage !== 'done', // still in the clinic: the bill may not be made yet
         note: '',
       });
     });

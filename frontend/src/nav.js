@@ -7,15 +7,16 @@ import {
   IconStock,
   IconAdmin,
   IconToday,
+  IconLedger,
 } from './components/Icons';
 import IconRx from './screens/Prescription/IconRx';
 
 /* Navigation model shared by the desktop SideNav, the mobile overflow sheet and
    the BottomTabBar. `roles` = who can see it (omit = everyone).
    `label` is the short tab label; `fullLabel` is what the labelled SideNav shows.
-   Two groups, "Today" and "Manage" (design-system/navigation.md). */
+   Two groups, "Today" and "Manage" (design-system/navigation.md). Appointments comes first (the
+   owner's order: the day starts from who is booked); the app still opens on the Queue. */
 export const NAV_ITEMS = [
-  { key: 'queue', label: 'Queue', fullLabel: 'Queue', path: '/queue', section: 'today', icon: IconQueue },
   {
     key: 'appointments',
     label: 'Appts',
@@ -24,6 +25,7 @@ export const NAV_ITEMS = [
     section: 'today',
     icon: IconAppts,
   },
+  { key: 'queue', label: 'Queue', fullLabel: 'Queue', path: '/queue', section: 'today', icon: IconQueue },
   {
     key: 'ot',
     label: 'OT',
@@ -65,7 +67,7 @@ export const NAV_ITEMS = [
     fullLabel: 'Day book',
     path: '/daybook',
     section: 'today',
-    icon: IconToday,
+    icon: IconLedger,
     roles: ['admin', 'doctor', 'reception'],
   },
   {
@@ -97,7 +99,7 @@ export const NAV_ITEMS = [
 ];
 
 // BottomTabBar (mobile): the destinations reception uses all day, plus "More".
-export const BOTTOM_NAV_KEYS = ['queue', 'appointments', 'ot', 'machines'];
+export const BOTTOM_NAV_KEYS = ['appointments', 'queue', 'ot', 'machines'];
 
 export function navItemsForRole(role) {
   return NAV_ITEMS.filter((it) => !it.roles || it.roles.includes(role));

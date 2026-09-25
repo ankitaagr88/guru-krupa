@@ -24,6 +24,23 @@
   overflow-y: auto;
   z-index: 20;
 }
+/* Opens upward when there is no room below (the bottom of a pop-up). */
+.med-picker-list.up {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+/* "Add 'moxi' as typed" — the explicit free-text row at the end of the list. */
+.med-picker-typed {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--ink-soft);
+  border-top: 1px solid var(--line);
+  margin-top: 2px;
+}
+.med-picker-typed .med-picker-sub {
+  display: block;
+  color: var(--ink-faint);
+}
 .med-picker-opt {
   padding: 8px 10px;
   border-radius: 7px;

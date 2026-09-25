@@ -13,9 +13,9 @@ import Machines from './Machines';
 
 const file = () => new File(['printout'], 'printout.jpg', { type: 'image/jpeg' });
 
-function renderMachines({ device = 'mobile' } = {}) {
+function renderMachines({ device = 'mobile', route = '/machines' } = {}) {
   sessionStorage.setItem('gk_device', device); // the capture flows are the phone's; desktop only intakes images
-  return renderShell({ route: '/machines', child: <Machines /> });
+  return renderShell({ route, child: <Machines /> });
 }
 
 // Step 1: the machine, step 2: the patient.
@@ -81,7 +81,7 @@ describe('Machines screen (F5) — machine first, then the patient', () => {
     expect(screen.queryByText(/Photograph the printout/)).toBeNull();
     await userEvent.click(screen.getByTestId('intake-add'));
     fireEvent.change(screen.getByTestId('capture-input'), { target: { files: [file()] } });
-    await waitFor(() => expect(screen.getByTestId('reading-status')).toHaveTextContent('Done'), { timeout: 4000 });
+    await waitFor(() => expect(screen.getByTestId('reading-status')).toHaveTextContent('Needs approval'), { timeout: 4000 });
     const card = screen.getByTestId('reading-status').closest('.reading-card');
     expect(within(card).getByLabelText('IOP (R)')).toHaveValue('13');
     expect(within(card).getByTestId('approve-reading')).toBeInTheDocument();
@@ -97,7 +97,7 @@ describe('Machines screen (F5) — machine first, then the patient', () => {
 
     const status = await screen.findByTestId('reading-status', {}, { timeout: 3000 });
     expect(['Pending', 'Processing']).toContain(status.textContent);
-    await waitFor(() => expect(screen.getByTestId('reading-status')).toHaveTextContent('Done'), { timeout: 4000 });
+    await waitFor(() => expect(screen.getByTestId('reading-status')).toHaveTextContent('Needs approval'), { timeout: 4000 });
 
     const card = screen.getByTestId('reading-status').closest('.reading-card');
     expect(within(card).getByLabelText('IOP (R)')).toHaveValue('13');
@@ -141,8 +141,37 @@ describe('Machines screen (F5) — machine first, then the patient', () => {
     expect(spy.mock.calls[0][0].clientUuid).toBe(queued.uuid);
     expect(spy.mock.calls[0][0].machineKey).toBe('hrk8000a_ref');
     await waitFor(async () => expect(await listPending()).toHaveLength(0));
-    await waitFor(() => expect(screen.getByTestId('reading-status')).toHaveTextContent('Done'), { timeout: 4000 });
+    await waitFor(() => expect(screen.getByTestId('reading-status')).toHaveTextContent('Needs approval'), { timeout: 4000 });
     spy.mockRestore();
+  });
+
+  it('/machines?visit=<id> with a remembered machine goes straight to the capture for that patient', async () => {
+    localStorage.setItem('gk_machine', 'hnt1p_tono');
+    renderMachines({ route: '/machines?visit=2' }); // Kiran Vaghela's visit
+    expect(await screen.findByTestId('capture-machine')).toHaveTextContent('HNT-1P');
+    expect(screen.getByText('Kiran Vaghela')).toBeInTheDocument();
+    // "Next patient" is a free pick again (the link is used once)
+    await userEvent.click(screen.getByTestId('next-patient'));
+    expect(await screen.findByPlaceholderText('Search by name or token…')).toBeInTheDocument();
+  });
+
+  it('/machines?visit=<id> with no machine remembered asks the machine, then captures for that patient', async () => {
+    renderMachines({ route: '/machines?visit=4', device: 'desktop' }); // Falguni Shah
+    expect(await screen.findByTestId('machine-for-patient')).toHaveTextContent('Reading for Falguni Shah');
+    await userEvent.click(await screen.findByTestId('machine-hrk8000a_ref'));
+    expect(await screen.findByTestId('capture-machine')).toHaveTextContent('HRK-8000A');
+    expect(screen.getAllByText('Falguni Shah').length).toBeGreaterThan(0);
+    expect(localStorage.getItem('gk_machine')).toBe('hrk8000a_ref');
+  });
+
+  it('desktop: "Printout unreadable? Type the values instead" opens the typed-entry form', async () => {
+    renderMachines({ device: 'desktop' });
+    await pick('hnt1p_tono', 'Kiran Vaghela');
+    await userEvent.click(await screen.findByText('Printout unreadable? Type the values instead'));
+    const form = await screen.findByTestId('manual-form');
+    await userEvent.type(within(form).getByLabelText('IOP (R)'), '15');
+    await userEvent.click(within(form).getByText('Save values'));
+    await waitFor(() => expect(screen.getByTestId('reading-status')).toHaveTextContent('Needs approval'));
   });
 
   it('a typed-in machine opens the typed-entry form straight away and saves a done reading', async () => {
@@ -151,7 +180,7 @@ describe('Machines screen (F5) — machine first, then the patient', () => {
     const form = await screen.findByTestId('manual-form');
     await userEvent.type(within(form).getByLabelText('TBUT (R)'), '8s');
     await userEvent.click(within(form).getByText('Save values'));
-    await waitFor(() => expect(screen.getByTestId('reading-status')).toHaveTextContent('Done'));
+    await waitFor(() => expect(screen.getByTestId('reading-status')).toHaveTextContent('Needs approval'));
     expect(screen.getByLabelText('TBUT (R)')).toHaveValue('8s');
   });
 });

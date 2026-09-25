@@ -162,3 +162,34 @@ export const IconWifiOff = () => (
     <path d="M8.5 16.5a5 5 0 017 0M5 13a10 10 0 015.2-2.8M12 20h.01M19 13a10 10 0 00-2.3-1.7M2 9a15 15 0 013.6-2.4M22 9a15 15 0 00-9-3.9" />
   </svg>
 );
+/* Day book: an open ledger (lines of entries), not the chart used by "Today's summary". */
+export const IconLedger = () => (
+  <svg {...base}>
+    <path d="M4 4h11a3 3 0 013 3v13H7a3 3 0 01-3-3V4z" />
+    <path d="M4 17a3 3 0 013-3h11" />
+    <path d="M8 8h6M8 11h4" />
+  </svg>
+);
+/* Bill / payment: a rupee sign. */
+export const IconRupee = () => (
+  <svg {...base}>
+    <path d="M6 4h12M6 9h12M9 4c6 0 6 10 0 10H6l8 7" />
+  </svg>
+);
+/* Family: two people. */
+export const IconFamily = () => (
+  <svg {...base}>
+    <circle cx="9" cy="7" r="3" />
+    <path d="M3 20c0-3 2.7-5 6-5s6 2 6 5" />
+    <circle cx="17" cy="9" r="2.5" />
+    <path d="M16 14.2c2.9.3 5 2 5 4.8" />
+  </svg>
+);
+/* Queue: add someone (a person with a plus). */
+export const IconPersonAdd = () => (
+  <svg {...base}>
+    <circle cx="9" cy="8" r="3.5" />
+    <path d="M2 20c0-3.3 3.1-5.5 7-5.5s7 2.2 7 5.5" />
+    <path d="M19 8v6M16 11h6" />
+  </svg>
+);

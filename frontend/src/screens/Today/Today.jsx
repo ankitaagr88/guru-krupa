@@ -55,7 +55,7 @@ export default function Today() {
     };
   }, [load, date, today]);
 
-  useTopbar({ sub: `Summary · ${fmtDateLabel(date, true)}` });
+  useTopbar({ sub: fmtDateLabel(date, true) });
 
   const reprint = async (visitId) => {
     try {
@@ -123,18 +123,14 @@ export default function Today() {
           <div className="today-grid">
             <section className="today-card" aria-labelledby="h-stage-time">
               <h3 id="h-stage-time">Time spent in each stage</h3>
-              <p className="today-note">
-                Average minutes per patient, from entering a stage to leaving it. Patients still in a stage
-                are shown as waiting and are not in the average.
-              </p>
+              <p className="today-note">Average minutes per patient.</p>
               <StageBars stages={rep.stages} />
             </section>
 
             <section className="today-card" aria-labelledby="h-collections">
               <h3 id="h-collections">Money collected by payment mode</h3>
               <p className="today-note">
-                Counted on the day the money came in. The <Link to="/daybook">day book</Link> has the full sheet and the
-                cash drawer.
+                Full sheet: <Link to="/daybook">Day book</Link>
               </p>
               <table className="today-table" data-testid="collections">
                 <thead>
@@ -169,16 +165,24 @@ export default function Today() {
                   <ul>
                     {money.unpaid.map((u) => (
                       <li key={u.visitId} data-testid="owed">
-                        <span className="mono">{u.token}</span>
+                        {/* An earlier visit's token means nothing today: show the visit's date instead. */}
+                        <span className="mono">
+                          {u.visitDate && u.visitDate !== date ? shortDate(u.visitDate) : u.token}
+                        </span>
                         <b>
                           {u.patientId != null ? <Link to={`/patients/${u.patientId}`}>{u.name}</Link> : u.name}
                           {u.visitDate && u.visitDate !== date && (
-                            <small className="today-owed-date"> · from {shortDate(u.visitDate)}</small>
+                            <small className="today-owed-date"> · earlier visit</small>
                           )}
                         </b>
                         <span className="mono" title={`Bill ${rupees(u.total)}, paid ${rupees(u.paidAmount)}`}>
                           {rupees(u.balance ?? u.total)}
                         </span>
+                        {u.patientId != null && (
+                          <Link className="link-btn" to={`/patients/${u.patientId}?pay=1`} data-testid="owed-receive">
+                            Receive
+                          </Link>
+                        )}
                       </li>
                     ))}
                   </ul>

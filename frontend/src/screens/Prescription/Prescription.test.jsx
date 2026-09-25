@@ -29,7 +29,7 @@ describe('PrescriptionModal', () => {
 
     await addMed(LATANO);
     const row = (await screen.findAllByTestId('med-row'))[0];
-    expect(within(row).getByText('in list')).toBeInTheDocument();
+    expect(within(row).getByText('From our medicine list')).toBeInTheDocument();
     expect(within(row).getByText(/4 bottles in stock · low/)).toBeInTheDocument();
 
     fireEvent.change(within(row).getByLabelText(`Dosage for ${LATANO}`), {
@@ -93,12 +93,28 @@ describe('PrescriptionModal', () => {
     expect((await prescriptions.get(3)).printLanguage).toBe('hinglish');
   });
 
-  it('loads an existing prescription and unmatched lines render as free text', async () => {
+  it('loads an existing prescription; seeded lines on the medicine list read so, with their stock', async () => {
     renderWithProviders(<PrescriptionModal visit={{ id: 5, name: 'Bharat Oza' }} onClose={() => {}} />);
     const rows = await screen.findAllByTestId('med-row');
     expect(rows).toHaveLength(2);
     expect(screen.getByDisplayValue('1 drop both eyes, twice daily')).toBeInTheDocument();
-    expect(rows[1]).toHaveClass('manual');
+    // Latanoprost is on the list: no "typed by hand" next to a stock line any more
+    expect(within(rows[1]).getByText('From our medicine list')).toBeInTheDocument();
+    expect(within(rows[1]).queryByText('Typed by hand')).toBeNull();
+    expect(within(rows[1]).getByText(/in stock/)).toBeInTheDocument();
+    // the seeded lines have ids, so the front desk's "Bought here" finds them
+    const rx = await prescriptions.get(5);
+    const after = await prescriptions.dispense(5, rx.lines[1].id, 1);
+    expect(after.lines[1].dispensedQty).toBe(1);
+  });
+
+  it('opens wide with the medicine search focused; Print is the main button and Save the second', async () => {
+    renderWithProviders(<PrescriptionModal visit={KIRAN} onClose={() => {}} />);
+    const search = await screen.findByLabelText('Medicine name');
+    await waitFor(() => expect(search).toHaveFocus());
+    expect(screen.getByRole('button', { name: 'Print' })).toHaveClass('btn-primary');
+    expect(screen.getByRole('button', { name: /^Save/ })).toHaveClass('btn-ghost');
+    expect(screen.getByRole('heading', { name: 'Prescription' })).toBeInTheDocument();
   });
 });
 
@@ -107,7 +123,7 @@ describe('Medicine picker & brand/composition (F12)', () => {
     window.print = vi.fn();
   });
 
-  it('picker shows the medicine name only and a picked line is "in list"', async () => {
+  it('picker shows the medicine name only and a picked line is "From our medicine list"', async () => {
     renderWithProviders(<PrescriptionModal visit={{ id: 7, name: 'Ilaben Chauhan' }} onClose={() => {}} />);
     const search = await screen.findByLabelText('Medicine name');
     await userEvent.type(search, 'aquaray');
@@ -122,7 +138,7 @@ describe('Medicine picker & brand/composition (F12)', () => {
     await userEvent.click(aquaray);
     const row = (await screen.findAllByTestId('med-row'))[0];
     expect(within(row).getByText('Aquaray Gel')).toBeInTheDocument();
-    expect(within(row).getByText('in list')).toBeInTheDocument();
+    expect(within(row).getByText('From our medicine list')).toBeInTheDocument();
     expect(row.querySelector('.med-type-chip')).toBeNull();
     expect(within(row).queryByText(/Carboxymethylcellulose/)).toBeNull();
 
@@ -130,7 +146,31 @@ describe('Medicine picker & brand/composition (F12)', () => {
     await addMed('mosi lp');
     const rows = await screen.findAllByTestId('med-row');
     expect(within(rows[1]).getByText('MOSI LP')).toBeInTheDocument();
-    expect(within(rows[1]).getByText('in list')).toBeInTheDocument();
+    expect(within(rows[1]).getByText('From our medicine list')).toBeInTheDocument();
+  });
+
+  it('typing part of a name + Enter picks the highlighted suggestion, not the typed text', async () => {
+    renderWithProviders(<PrescriptionModal visit={{ id: 7, name: 'Ilaben Chauhan' }} onClose={() => {}} />);
+    const search = await screen.findByLabelText('Medicine name');
+    await userEvent.type(search, 'moxi{Enter}'); // Enter before the suggestions arrive still waits for them
+    const row = (await screen.findAllByTestId('med-row'))[0];
+    expect(within(row).getByText('Moxifloxacin 0.5% eye drops')).toBeInTheDocument();
+    expect(within(row).getByText('From our medicine list')).toBeInTheDocument();
+    expect(search).toHaveValue('');
+
+    // arrow keys move the highlight; the list ends with an explicit "as typed" row
+    await userEvent.type(search, 'tim');
+    const first = (await screen.findAllByTestId('med-option'))[0];
+    expect(first).toHaveAttribute('aria-selected', 'true');
+    const typed = screen.getByTestId('med-option-typed');
+    expect(typed).toHaveTextContent('Add “tim” as typed');
+    await userEvent.keyboard('{ArrowUp}'); // wraps round to the last row: "as typed"
+    expect(typed).toHaveAttribute('aria-selected', 'true');
+    await userEvent.keyboard('{Enter}');
+    const rows = await screen.findAllByTestId('med-row');
+    expect(rows).toHaveLength(2);
+    expect(within(rows[1]).getByText('tim')).toBeInTheDocument();
+    expect(within(rows[1]).getByText('Typed by hand')).toBeInTheDocument();
   });
 
   it('print sheet: medicine name bold and the dosage, nothing else', async () => {
@@ -153,16 +193,17 @@ describe('Medicine picker & brand/composition (F12)', () => {
     await waitFor(() => expect(window.print).toHaveBeenCalled());
   });
 
-  it('free text shows "not in list"; an admin can add it to the medicine list and the line re-matches', async () => {
+  it('free text shows "Typed by hand" (no stock line); an admin can add it to the medicine list and the line re-matches', async () => {
     renderWithProviders(<PrescriptionModal visit={{ id: 1, name: 'Rasilaben Patel' }} onClose={() => {}} />);
     await addMed('Lubrex Plus');
     const row = (await screen.findAllByTestId('med-row'))[0];
-    expect(within(row).getByText('not in list')).toBeInTheDocument();
+    expect(within(row).getByText('Typed by hand')).toBeInTheDocument();
+    expect(within(row).queryByText(/in stock|not stocked/)).toBeNull();
     await userEvent.click(within(row).getByRole('button', { name: 'Add Lubrex Plus to medicine list' }));
     const form = within(row).getByTestId('medicine-form');
     expect(within(form).getByLabelText('Medicine name')).toHaveValue('Lubrex Plus');
     await userEvent.click(within(form).getByRole('button', { name: 'Add to list' }));
-    await waitFor(() => expect(within(row).getByText('in list')).toBeInTheDocument());
+    await waitFor(() => expect(within(row).getByText('From our medicine list')).toBeInTheDocument());
     const meds = await prescriptions.medicines({ q: 'lubrex' });
     expect(meds[0]).toMatchObject({ name: 'Lubrex Plus' });
   });
@@ -175,7 +216,7 @@ describe('Medicine picker & brand/composition (F12)', () => {
     const row = (await screen.findAllByTestId('med-row')).find((r) =>
       within(r).queryByText('Some Unknown Drops')
     );
-    expect(within(row).getByText('not in list')).toBeInTheDocument();
+    expect(within(row).getByText('Typed by hand')).toBeInTheDocument();
     expect(within(row).queryByRole('button', { name: /to medicine list/ })).toBeNull();
   });
 });
@@ -209,7 +250,7 @@ describe('Diagnosis auto-fill (B15/F17)', () => {
     expect((await treatments.standard(glaucoma.id)).historyCount).toBe(2);
   });
 
-  it("an admin-set standard wins over history; a diagnosis with nothing says so; existing lines need a confirm", async () => {
+  it('an admin-set standard wins over history; a diagnosis with nothing says so; existing lines: "Replace medicines / Keep mine"', async () => {
     const dry = (await treatments.diagnoses()).find((d) => d.name === 'Dry eye');
     await treatments.admin.saveStandard(dry.id, [{ name: LATANO, dosage: '1 drop at night' }]);
     const cataract = (await treatments.diagnoses()).find((d) => d.name === 'Cataract');
@@ -223,13 +264,23 @@ describe('Diagnosis auto-fill (B15/F17)', () => {
     expect(await screen.findByTestId('rx-fill-note')).toHaveTextContent("Filled 1 medicine from Dr Anu's standard treatment");
     expect(within((await screen.findAllByTestId('med-row'))[0]).getByText(LATANO)).toBeInTheDocument();
 
-    // switching diagnosis with lines present asks first; declining keeps them
+    // switching diagnosis with lines present asks in the page (no browser pop-up); "Keep mine" keeps them
     window.confirm = vi.fn(() => false);
     const glaucoma = (await treatments.diagnoses()).find((d) => d.name === 'Glaucoma');
     await userEvent.selectOptions(select, String(glaucoma.id));
+    const ask = await screen.findByTestId('rx-replace-ask');
+    expect(ask).toHaveTextContent('Replace the 1 medicine already listed with the usual treatment for Glaucoma');
+    await userEvent.click(within(ask).getByRole('button', { name: 'Keep mine' }));
     expect(await screen.findByTestId('rx-fill-note')).toHaveTextContent('Kept the medicines already listed');
-    expect(window.confirm).toHaveBeenCalled();
+    expect(window.confirm).not.toHaveBeenCalled();
     expect(screen.getAllByTestId('med-row')).toHaveLength(1);
+
+    // …and "Replace medicines" puts in the usual treatment
+    const dryAgain = (await treatments.diagnoses()).find((d) => d.name === 'Dry eye');
+    await userEvent.selectOptions(select, String(dryAgain.id)); // back to Dry eye (1 line listed)
+    await userEvent.click(within(await screen.findByTestId('rx-replace-ask')).getByRole('button', { name: 'Replace medicines' }));
+    expect(await screen.findByTestId('rx-fill-note')).toHaveTextContent("Dr Anu's standard treatment");
+    expect(screen.queryByTestId('rx-replace-ask')).toBeNull();
   });
 });
 

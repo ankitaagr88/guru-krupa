@@ -274,3 +274,22 @@ def test_ot_row_counts_lens_plus_team_fees(client, admin_headers, db):
     assert (o["amounts"], o["total"], o["received"], o["left"], o["status"]) == ({"ot": 1500}, 1500, 0, 1500, "unpaid")
     assert book["totals"]["amounts"]["ot"] == tier.price + 2500 + 1500
     assert book["cash"]["cashReceived"] == tier.price + 2500
+
+
+def test_visit_rows_say_when_the_patient_is_still_in_the_clinic(client, admin_headers, db):
+    """A visit that is not completed yet is flagged `inClinic` (the screen shows "in clinic" instead of
+    a ₹0 that looks like a free visit); completed ones are not."""
+    from app.models.patients import Patient, Visit
+
+    day = date(2024, 3, 27)
+    here = Patient(name="Daybook Waiting", phone="9876500031", age=50, sex="F")
+    gone = Patient(name="Daybook Gone", phone="9876500032", age=51, sex="M")
+    db.add_all([here, gone])
+    db.flush()
+    db.add_all([Visit(patient_id=here.id, date=day, token="#901", stage_key="doctor", status="active"),
+                Visit(patient_id=gone.id, date=day, token="#902", stage_key="done", status="completed")])
+    db.commit()
+
+    rows = {r["name"]: r for r in _book(client, admin_headers, day)["rows"] if r["kind"] == "visit"}
+    assert rows["Daybook Waiting"]["inClinic"] is True
+    assert rows["Daybook Gone"]["inClinic"] is False
