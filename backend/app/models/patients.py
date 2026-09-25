@@ -90,6 +90,12 @@ class Visit(Base):
     # suggested at registration from the clinic's fee rules, changeable by reception; drives the fee.
     visit_kind_key: Mapped[str | None] = mapped_column(String(30))
     emergency: Mapped[bool] = mapped_column(Boolean, default=False)  # night / Sunday emergency fee applies
+    # Glasses prescription printed on the prescription sheet (lane R owns the shape):
+    # {"r": {"dist": {"sph","cyl","axis","va"}, "near": {...}}, "l": {...}, "lensTypes": [keys], "ipd": "66",
+    #  "note": ""}. None = no glasses prescribed this visit.
+    glasses: Mapped[dict | None] = mapped_column(nullable=True)
+    # Examination findings, one row per ExamFinding: [{"key": "fundus", "r": "Normal", "l": "Normal"}].
+    exam: Mapped[list] = mapped_column(default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 

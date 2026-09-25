@@ -12,6 +12,8 @@ import { ChargesSection } from './ChargesAdmin';
 import { VisitFeesSection } from './VisitFeesAdmin';
 import { RelationsSection } from './FamilyAdmin';
 import { IntakeSection } from './IntakeAdmin';
+import { DayBookAdminSections } from './DayBookAdmin';
+import { RxPrintAdminSections } from './RxPrintAdmin';
 import { EditableText, ReorderBtns } from './pieces';
 import './admin.css';
 
@@ -437,11 +439,17 @@ export default function Admin() {
       {/* ---------------- standard charges (lane B) ---------------- */}
       <ChargesSection run={run} />
 
+      {/* ---------------- day-book columns (lane M) ---------------- */}
+      <DayBookAdminSections run={run} />
+
       {/* ---------------- visit types & fee rules (lane E2) ---------------- */}
       <VisitFeesSection run={run} />
 
       {/* ---------------- diagnoses & treatment standards (B15/F17) ---------------- */}
       <TreatmentsSection run={run} />
+
+      {/* ---------------- printed prescription: settings, exam findings, lens types (lane R) ---------------- */}
+      <RxPrintAdminSections run={run} />
 
       {/* ---------------- import from KiviHealth (B13/F15) ---------------- */}
       <ImportSection />
@@ -710,8 +718,12 @@ const ADMIN_SECTIONS = [
   ['h-otprocs', 'OT procedures'],
   ['h-medicines', 'Medicines'],
   ['h-charges', 'Standard charges'],
+  ['h-heads', 'Day book columns'],
   ['h-visitfees', 'Visit types & fees'],
   ['h-treatments', 'Treatment standards'],
+  ['h-rxprint', 'Prescription print'],
+  ['h-exam', 'Exam findings'],
+  ['h-lenstypes', 'Glass lens types'],
   ['h-import', 'Import from KiviHealth'],
   ['h-intake', 'New patient form'],
   ['h-relations', 'Family relations'],

@@ -14,6 +14,7 @@ import MRs from './screens/MRs';
 import PrescriptionsToday from './screens/Prescription';
 import Patient from './screens/Patient';
 import Today from './screens/Today';
+import DayBook from './screens/DayBook';
 import Register from './screens/Register';
 
 /* Route table. AppShell is the layout route: rail/topbar/mobile nav wrap every
@@ -53,6 +54,14 @@ export function AppRoutes() {
           element={
             <RequireRole roles={['admin', 'doctor', 'reception']}>
               <Today />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/daybook"
+          element={
+            <RequireRole roles={['admin', 'doctor', 'reception']}>
+              <DayBook />
             </RequireRole>
           }
         />

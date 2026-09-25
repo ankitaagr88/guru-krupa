@@ -2,9 +2,10 @@
 from app.db import Base  # noqa: F401
 from app.models.appointments import Appointment  # noqa: F401
 from app.models.audit import AuditLog  # noqa: F401
-from app.models.billing import Bill, BillItem, StandardCharge  # noqa: F401
-from app.models.config import (ClinicSetting, LensTier, ProtocolStep, ReferralSource, Relation, Stage,  # noqa: F401
-                               VisitKind)
+from app.models.billing import (AccountHead, Bill, BillItem, BillPayment, CashDay, CashMovement,  # noqa: F401
+                                StandardCharge)
+from app.models.config import (ClinicSetting, ExamFinding, LensTier, LensType, ProtocolStep,  # noqa: F401
+                               ReferralSource, Relation, Stage, VisitKind)
 from app.models.dilation import DilationRun, DilationStep  # noqa: F401
 from app.models.mr import MrVisit  # noqa: F401
 from app.models.ot import OtCase, OtConsentPhoto, OtProcedure, OtSlot  # noqa: F401

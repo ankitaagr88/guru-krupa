@@ -175,11 +175,15 @@ def seed_reference(db: Session) -> None:
             db.add(StandardCharge(label=label, amount=0, active=True, sort_order=i))
     db.flush()
     # Families (relations list) and visit fees (fee list, visit kinds, rules) seed themselves.
+    from app.seed.daybook import seed_daybook
     from app.seed.family import seed_family
     from app.seed.fees import seed_fees
+    from app.seed.rx import seed_rx
 
     seed_family(db)
     seed_fees(db)
+    seed_daybook(db)  # after the fee list: gives each charge its day-book column
+    seed_rx(db)
     medicines = {}
     for row in medicine_rows():
         name = row.pop("name")

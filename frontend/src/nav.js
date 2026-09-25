@@ -60,6 +60,15 @@ export const NAV_ITEMS = [
     roles: ['admin', 'doctor', 'reception'],
   },
   {
+    key: 'daybook',
+    label: 'Day book',
+    fullLabel: 'Day book',
+    path: '/daybook',
+    section: 'today',
+    icon: IconToday,
+    roles: ['admin', 'doctor', 'reception'],
+  },
+  {
     key: 'mrs',
     label: 'MRs',
     fullLabel: 'MR visits',

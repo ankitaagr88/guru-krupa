@@ -30,6 +30,8 @@ export const doctor = pick('doctor');
 export const family = pick('family');
 export const fees = pick('fees');
 export const intake = pick('intake');
+export const daybook = pick('daybook');
+export const rxPrint = pick('rxPrint');
 
 export { errorMessage, session } from './client';
 export { default as client } from './client';

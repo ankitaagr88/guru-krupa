@@ -24,6 +24,8 @@ export { doctor } from './doctor';
 export { family } from './family';
 export { fees } from './fees';
 export { intake } from './intake';
+export { daybook } from './daybook';
+export { rxPrint } from './rxPrint';
 import { doctor as doctorMock } from './doctor';
 import { applySuggestion, feeVisitOut } from './fees';
 

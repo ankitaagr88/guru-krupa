@@ -371,3 +371,10 @@ export const mr = {
   update: (id, patch) => data(client.patch(`/mr-visits/${id}`, patch)),
   remove: (id) => data(client.delete(`/mr-visits/${id}`)),
 };
+
+/* Day book, part payments and the cash drawer (lane M owns this block). Filled in session 4. */
+export const daybook = {};
+
+/* Printed-prescription extras: glasses prescription, exam findings, print settings (lane R owns
+   this block). Filled in session 4. */
+export const rxPrint = {};

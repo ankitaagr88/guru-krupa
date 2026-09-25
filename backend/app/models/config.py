@@ -69,6 +69,32 @@ class VisitKind(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
+class ExamFinding(Base):
+    """Admin-configurable examination row on the doctor's panel and the printed prescription
+    (Fundus, Anterior segment, IOP...), each with a right-eye and a left-eye value."""
+
+    __tablename__ = "exam_findings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    key: Mapped[str] = mapped_column(String(30), unique=True)
+    label: Mapped[str] = mapped_column(String(80))
+    default_value: Mapped[str] = mapped_column(String(80), default="")  # one-tap fill, e.g. "Normal"
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class LensType(Base):
+    """Admin-configurable spectacle lens type printed with the glasses prescription (ARC, Blue cut...)."""
+
+    __tablename__ = "lens_types"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    key: Mapped[str] = mapped_column(String(30), unique=True)
+    label: Mapped[str] = mapped_column(String(80))
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
 class ClinicSetting(Base):
     """Admin-editable clinic rules as key -> JSON value (fee day-limits, emergency hours...)."""
 
