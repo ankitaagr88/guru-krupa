@@ -5,6 +5,12 @@
      IPD       — millimetres, 40–85
    Each formatter returns the tidy text, or throws an Error whose message names the problem. */
 
+/* Visits whose Examination / Glasses block has unsaved edits on screen, so Print can warn that
+   the sheet will carry the last saved values. */
+const unsaved = new Set();
+export const markExamGlassesUnsaved = (visitId, on) => (on ? unsaved.add(Number(visitId)) : unsaved.delete(Number(visitId)));
+export const hasUnsavedExamGlasses = (visitId) => unsaved.has(Number(visitId));
+
 export const EYES = [
   ['r', 'R'],
   ['l', 'L'],

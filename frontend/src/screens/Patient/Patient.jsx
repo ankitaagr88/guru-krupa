@@ -12,6 +12,7 @@ import useConfig from '../Queue/useConfig';
 import EditPatientModal from './EditPatientModal';
 import FamilyCard from './FamilyCard';
 import OwedBalances from '../Billing/OwedBalances';
+import ExamGlassesBlock from './ExamGlassesBlock';
 import { useRelations } from './familyParts';
 import './patient.css';
 
@@ -302,6 +303,8 @@ export default function Patient() {
                 ))}
               </div>
             )}
+
+            {(v.exam?.length > 0 || v.glasses) && <ExamGlassesBlock exam={v.exam} glasses={v.glasses} />}
 
             {v.prescription && (
               <div className="patient-block">

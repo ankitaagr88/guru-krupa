@@ -170,6 +170,7 @@ def patient_history(db: Session, patient: Patient, today: date):
     from app.services import ot as ot_svc
     from app.services import billing as billing_svc, pharmacy as pharmacy_svc
     from app.services import readings as readings_svc
+    from app.services import rx_print as rx_print_svc
 
     base = patients_out(db, [patient], today)[0]
     visits = list(db.scalars(select(Visit).where(Visit.patient_id == patient.id)
@@ -188,7 +189,8 @@ def patient_history(db: Session, patient: Patient, today: date):
             readings=[readings_svc.reading_out(db, r) for r in v.readings],
             prescription=pharmacy_svc.prescription_out(db, rx) if rx else None,
             bill=billing_svc.bill_out(v.bill) if v.bill is not None else None,
-            exam_photos=[readings_svc.exam_photo_out(p) for p in v.exam_photos]))
+            exam_photos=[readings_svc.exam_photo_out(p) for p in v.exam_photos],
+            exam=rx_print_svc.exam_rows(db, v.exam), glasses=pharmacy_svc.print_glasses(db, v.glasses)))
     cases = list(db.scalars(select(OtCase).where(OtCase.patient_id == patient.id)
                             .order_by(OtCase.date.desc(), OtCase.id.desc())))
     appts = list(db.scalars(select(Appointment).where(Appointment.patient_id == patient.id)))

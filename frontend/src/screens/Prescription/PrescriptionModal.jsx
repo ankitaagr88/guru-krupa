@@ -15,6 +15,7 @@ import MedicineForm from '../Admin/MedicineForm';
 import { HOSPITAL_NAME, DOCTOR_NAME } from '../../nav';
 import { RX_LANGUAGES, visitInfo } from './hospital';
 import PrescriptionPrint from './PrescriptionPrint';
+import { hasUnsavedExamGlasses } from '../Queue/glasses';
 import './prescription.css';
 
 /* Prescription modal (mockup `openPrescriptionModal` + the drawer's medicine
@@ -327,6 +328,13 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved, onVis
   };
 
   const print = async () => {
+    if (
+      hasUnsavedExamGlasses(info.id) &&
+      !window.confirm(
+        'Examination / glasses have unsaved changes and will print as last saved. Print anyway? (Cancel, then press "Save exam & glasses" first.)'
+      )
+    )
+      return;
     if (dirty || lines.length === 0) {
       const ok = await save();
       if (!ok && dirty) return;

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useToast } from '../../components/Toast';
 import { rxPrint as rxPrintApi, errorMessage } from '../../api';
 import {
+  markExamGlassesUnsaved,
   EYES,
   LENS_FIELDS,
   LENS_ROWS,
@@ -51,6 +52,11 @@ export default function ExamGlassesPanel({ visitId, disabled }) {
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
   const [filledFrom, setFilledFrom] = useState('');
+
+  useEffect(() => {
+    markExamGlassesUnsaved(visitId, dirty);
+    return () => markExamGlassesUnsaved(visitId, false);
+  }, [visitId, dirty]);
 
   const apply = (res) => {
     setSaved(res);

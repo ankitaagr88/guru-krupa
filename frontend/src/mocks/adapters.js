@@ -132,6 +132,7 @@ export const patients = {
         readings: S.readings.filter((r) => r.visitId === p.id).map((r) => c(r)),
         prescription: rx, bill: p.bill && p.bill.items?.length ? billOut(p) : null,
         examPhotos: c(p.examPhotos || []),
+        ...(({ exam, glasses }) => ({ exam, glasses }))(rxPrintExtras(p)),
       });
     }
     (p.history || []).forEach((h, i) => {

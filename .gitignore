@@ -7,3 +7,4 @@ uploads/
 node_modules/
 dist/
 .pytest_cache/
+.claude/worktrees/

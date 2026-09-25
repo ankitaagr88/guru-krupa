@@ -6,7 +6,7 @@ from app.schemas.common import CamelModel
 from app.schemas.ot import OtCaseOut
 from app.schemas.patients import PatientOut
 from app.schemas.billing import BillOut
-from app.schemas.pharmacy import PrescriptionOut
+from app.schemas.pharmacy import PrescriptionOut, PrintExamRow, PrintGlasses
 from app.schemas.readings import ExamPhotoOut, ReadingOut
 
 
@@ -27,6 +27,9 @@ class VisitHistoryOut(CamelModel):
     prescription: PrescriptionOut | None = None
     bill: BillOut | None = None
     exam_photos: list[ExamPhotoOut] = []
+    # As printed on the prescription: filled exam rows, and the glasses block (None = no glasses).
+    exam: list[PrintExamRow] = []
+    glasses: PrintGlasses | None = None
 
 
 class PatientHistoryOut(CamelModel):

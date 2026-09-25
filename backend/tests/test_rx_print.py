@@ -290,3 +290,19 @@ def test_switched_off_finding_still_prints_on_old_visit(client, admin_headers, d
     p = client.get(f"/api/visits/{vid}/prescription/print", headers=admin_headers).json()
     assert p["exam"] == [{"label": "T Gonioscopy", "r": "Open", "l": "Open"}]
 
+
+
+# --------------------------------------------------------------------------- patient page history
+def test_patient_history_carries_exam_and_glasses(client, admin_headers, doctor_headers):
+    vid = _visit(client, admin_headers, name="History Glasses")
+    pid = client.get("/api/patients?q=History Glasses", headers=admin_headers).json()[0]["id"]
+    v = client.get(f"/api/patients/{pid}/history", headers=admin_headers).json()["visits"][0]
+    assert v["exam"] == [] and v["glasses"] is None
+
+    client.put(f"/api/visits/{vid}/exam-glasses", json={"exam": [{"key": "fundus", "r": "Normal", "l": "Normal"}],
+                                                        "glasses": GLASSES}, headers=doctor_headers)
+    v = client.get(f"/api/patients/{pid}/history", headers=admin_headers).json()["visits"][0]
+    assert v["exam"] == [{"label": "Fundus", "r": "Normal", "l": "Normal"}]
+    assert [row["key"] for row in v["glasses"]["rows"]] == ["dist", "near"]
+    assert v["glasses"]["rows"][0]["l"]["axis"] == "90" and v["glasses"]["ipd"] == "66"
+    assert "ARC" in v["glasses"]["lensTypes"]

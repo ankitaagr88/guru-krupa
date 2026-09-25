@@ -353,10 +353,11 @@ def fee_note(db: Session, visit: Visit, rules: FeeRules | None = None) -> str:
 
 
 def sync_bill(db: Session, visit: Visit) -> None:
-    """The kind / emergency flag changed: swap the suggested lines on an unpaid bill. The visit-fee
-    line is updated in place (one line, never two); lines reception typed are left alone. No commit."""
+    """The kind / emergency flag changed: swap the suggested lines on a bill nobody has paid anything
+    on yet (a part-paid bill keeps its fee: money was taken against it). The visit-fee line is updated
+    in place (one line, never two); lines reception typed are left alone. No commit."""
     bill: Bill | None = visit.bill
-    if bill is None or bill.paid_at is not None:
+    if bill is None or bill.paid_at is not None or bill.payments:
         return
     rules = get_rules(db)
     kind_ids, emergency_id = fee_charge_ids(db, rules)

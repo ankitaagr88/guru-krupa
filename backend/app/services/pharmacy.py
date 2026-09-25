@@ -410,11 +410,11 @@ def print_payload(db: Session, rx: Prescription, lang: str | None) -> PrintPaylo
                  "area": (patient.address or "").strip()},
         language=LANGUAGE_NAMES.get(code, "english"), lines=lines,
         exam=[PrintExamRow(label=r["label"], r=r["r"], l=r["l"]) for r in rx_print_svc.exam_rows(db, visit.exam)],
-        glasses=_print_glasses(db, visit.glasses), doctor=doctor,
+        glasses=print_glasses(db, visit.glasses), doctor=doctor,
         footer_note=rx_print_svc.footer_for(settings, code))
 
 
-def _print_glasses(db: Session, glasses: dict | None) -> PrintGlasses | None:
+def print_glasses(db: Session, glasses: dict | None) -> PrintGlasses | None:
     """The glasses block of the sheet: only the Dist / Near rows that have a value; None when the
     visit has no glasses prescription."""
     if not rx_print_svc.glasses_filled(glasses):
