@@ -376,5 +376,37 @@ export const mr = {
 export const daybook = {};
 
 /* Printed-prescription extras: glasses prescription, exam findings, print settings (lane R owns
-   this block). Filled in session 4. */
-export const rxPrint = {};
+   this block). Shapes:
+     ExamGlasses = {visitId, exam:[{key, label, r, l}], glasses: Glasses|null,
+                    fromReading: {readingId, machine, capturedAt, r:{sph,cyl,axis}, l:{…}, ipd}|null,
+                    va:{r, l}}                       (fromReading = latest approved refraction reading)
+     Glasses     = {r:{dist:{sph,cyl,axis,va}, near:{…}}, l:{…}, lensTypes:[keys], ipd:'66', note}
+                   Sph/Cyl come back tidied ('-2.5' → '-2.50', '1' → '+1.00', '0' → 'Plano'); axis 0–180.
+                   null = no glasses this visit (nothing prints).
+     Settings    = {doctorName, degrees, regNo, footerNote:{english, hindi, gujarati}}
+     ExamFinding = {id, key, label, defaultValue, sortOrder, active}; LensType = {id, key, label, sortOrder, active}
+   The print payload (prescriptions.printPayload) carries the printed forms: exam [{label, r, l}],
+   glasses {rows:[{key, label, r, l}], lensTypes:[labels], ipd, note}|null, doctor {name, degrees, regNo},
+   footerNote, patient.patientId / patient.area. */
+export const rxPrint = {
+  get: (visitId) => data(client.get(`/visits/${visitId}/exam-glasses`)),
+  // body {exam:[{key, r, l}], glasses: Glasses|null} → ExamGlasses; doctor / admin only; 422 names the bad value
+  save: (visitId, body) => data(client.put(`/visits/${visitId}/exam-glasses`, body)),
+  // → {examFindings:[ExamFinding], lensTypes:[LensType]} — switched-on rows, in order
+  lists: () => data(client.get('/rx-print/lists')),
+  settings: () => data(client.get('/rx-print/settings')),
+  admin: {
+    saveSettings: (settings) => data(client.put('/admin/rx-print/settings', settings)),
+    // all rows, switched-off too
+    examFindings: () => data(client.get('/admin/exam-findings')),
+    createExamFinding: (label, defaultValue = '') => data(client.post('/admin/exam-findings', { label, defaultValue })),
+    // patch {label?, defaultValue?, active?}
+    updateExamFinding: (key, patch) => data(client.patch(`/admin/exam-findings/${key}`, patch)),
+    reorderExamFindings: (keys) => data(client.put('/admin/exam-findings/order', { keys })),
+    lensTypes: () => data(client.get('/admin/lens-types')),
+    createLensType: (label) => data(client.post('/admin/lens-types', { label })),
+    // patch {label?, active?}
+    updateLensType: (key, patch) => data(client.patch(`/admin/lens-types/${key}`, patch)),
+    reorderLensTypes: (keys) => data(client.put('/admin/lens-types/order', { keys })),
+  },
+};

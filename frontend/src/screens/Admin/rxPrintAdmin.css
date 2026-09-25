@@ -1,0 +1,32 @@
+/* Admin › Prescription print (lane R): settings form beside a small preview of the sheet's
+   doctor block, footer note and signature. */
+.rxp-settings { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 18px; align-items: start; }
+.rxp-fields { display: flex; flex-direction: column; gap: 10px; }
+.rxp-fields label { display: flex; flex-direction: column; gap: 4px; }
+.rxp-fields label > span { font-family: var(--font-ui); font-size: 12px; font-weight: 600; color: var(--ink-soft); }
+.rxp-save-row { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+.rxp-unsaved { font-family: var(--font-ui); font-size: 12px; font-weight: 600; color: var(--alert-ink); }
+
+.rxp-preview { position: sticky; top: 12px; }
+.rxp-preview-langs { display: flex; gap: 4px; margin-bottom: 6px; }
+.rxp-preview-langs button {
+  flex: 1; border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius-pill);
+  padding: 4px 6px; font-family: var(--font-ui); font-size: 11px; color: var(--ink-soft); cursor: pointer;
+}
+.rxp-preview-langs button.active { background: var(--sapphire-wash); border-color: var(--sapphire); color: var(--sapphire-deep); font-weight: 600; }
+.rxp-sheet {
+  background: #fff; color: #222; border: 1px solid var(--line-strong); border-radius: 6px; padding: 12px 14px;
+  box-shadow: var(--shadow-sm); font-family: var(--font-ui); font-size: 11px; min-height: 220px;
+  display: flex; flex-direction: column;
+}
+.rxp-sheet-doc { display: flex; flex-direction: column; align-items: flex-end; text-align: right; border-bottom: 2px solid var(--sapphire-ink); padding-bottom: 6px; }
+.rxp-sheet-doc b, .rxp-sheet-sign { font-family: var(--font-serif); color: var(--sapphire-ink); }
+.rxp-sheet-body { font-family: var(--font-serif); font-size: 18px; color: var(--sapphire-ink); margin: 8px 0; flex: 1; }
+.rxp-sheet-note { font-weight: 600; margin-bottom: 14px; }
+.rxp-sheet-sign { align-self: flex-start; display: flex; flex-direction: column; align-items: center; font-size: 11px; }
+.rxp-sheet-sign small { font-family: var(--font-ui); color: #444; font-size: 10px; }
+.rxp-sheet-line { width: 120px; border-top: 1px solid #333; margin-bottom: 3px; }
+.rxp-sheet .mono { font-family: var(--font-mono); }
+
+body.mobile-mode .rxp-settings { grid-template-columns: 1fr; }
+body.mobile-mode .rxp-preview { position: static; }

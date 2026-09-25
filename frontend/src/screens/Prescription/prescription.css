@@ -397,6 +397,90 @@
   color: #777;
   max-width: 55%;
 }
+/* Lane R: doctor's degrees + Reg. No., patient ID / area, Examination and Glass details blocks,
+   footer note. Compact enough for A5 (about 128 mm of printable width). */
+.rx-print-reg,
+.rx-print-id,
+.rx-print-date,
+.rx-print-token {
+  font-family: var(--font-mono), monospace;
+}
+.rx-print-id,
+.rx-print-token {
+  font-size: 11.5px;
+  color: #444;
+}
+.rx-print-block {
+  margin-top: 10px;
+  page-break-inside: avoid;
+}
+.rx-print-block h2 {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sapphire-ink);
+  margin: 0 0 4px;
+}
+.rx-print-lens {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+}
+.rx-print-grid {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+}
+.rx-print-grid th,
+.rx-print-grid td {
+  border: 1px solid #bbb;
+  padding: 3px 5px;
+  text-align: center;
+}
+.rx-print-grid thead th {
+  font-size: 10.5px;
+  color: #444;
+  font-weight: 600;
+  background: #f3f3f3;
+}
+.rx-print-grid tbody th {
+  text-align: left;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.rx-print-exam td {
+  width: 36%;
+}
+.rx-print-glass td {
+  font-family: var(--font-mono), monospace;
+  white-space: nowrap;
+}
+.rx-print-grid .rx-print-l {
+  border-left: 2px solid #777;
+}
+.rx-print-glass-extra {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+  font-size: 11.5px;
+}
+.rx-print-glass-extra b {
+  font-family: var(--font-mono), monospace;
+  font-weight: 600;
+}
+.rx-print-footnote {
+  margin-top: 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #222;
+}
+.rx-print-sign-sub {
+  font-size: 10.5px;
+  color: #444;
+}
 
 /* ---- Prescriptions (today) list ---- */
 .rx-list-filters {

@@ -15,7 +15,7 @@ import BillingPanel from './BillingPanel';
 import VisitKindPanel from './VisitKindPanel';
 import RegistrationDetails from './RegistrationDetails';
 import DispensePanel from './DispensePanel';
-import { DiagnosisPicker, FollowUpPicker, fmtFollowUp } from './DoctorPanel';
+import { DiagnosisPicker, ExamGlassesPanel, FollowUpPicker, fmtFollowUp } from './DoctorPanel';
 import {
   dilationComplete,
   normalizeExamPhoto,
@@ -319,6 +319,7 @@ export default function PatientDrawer({
             fields. Attach them from the <b>Machines</b> screen (mobile camera).
           </p>
           <ExamPhotoList photos={allPhotos} />
+          <ExamGlassesPanel visitId={row.id} disabled={busy} />
           <RxSection lines={rxLines ?? row.medicines} onOpen={() => setRxOpen(true)} />
           <FollowUpPicker
             visitId={row.id}

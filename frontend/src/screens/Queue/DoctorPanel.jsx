@@ -14,7 +14,10 @@ import {
                        after the doctor confirms.
      FollowUpPicker  — "come back in…": storing the date books (or moves) the patient's
                        appointment for that day; "No follow-up" removes it.
-   Both report the updated visit (VisitOut) through `onVisit`. */
+   Both report the updated visit (VisitOut) through `onVisit`.
+     ExamGlassesPanel — the Examination and Glasses blocks printed on the prescription
+                        (lane R, ./ExamGlassesPanel.jsx); saves on its own button. */
+export { default as ExamGlassesPanel } from './ExamGlassesPanel';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

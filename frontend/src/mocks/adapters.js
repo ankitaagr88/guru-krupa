@@ -28,6 +28,7 @@ export { daybook } from './daybook';
 export { rxPrint } from './rxPrint';
 import { doctor as doctorMock } from './doctor';
 import { applySuggestion, feeVisitOut } from './fees';
+import { printExtras as rxPrintExtras } from './rxPrint';
 
 const S = store.state;
 const c = store.clone;
@@ -1061,18 +1062,29 @@ export const prescriptions = {
       diagnosisName: S.diagnoses.find((d) => d.id === p.diagnosisId)?.name ?? null, lines: out, medicines: out, lowStock: [] };
   },
   // Real: GET /visits/{id}/prescription/print?lang= → {hospital, patient, language,
-  //   lines[{name, dosage, dosageLocal, qtyGiven, brand, composition, form, formLabel, packSize}]}
+  //   lines[{name, dosage, dosageLocal, qtyGiven, brand, composition, form, formLabel, packSize}],
+  //   exam, glasses, doctor, footerNote}  (the extra blocks: lane R, src/mocks/rxPrint.js)
   async printPayload(patientId, lang = 'english') {
     const p = S.patients.find((x) => x.id === Number(patientId));
     if (!p) throw httpError(404, 'Patient not found');
+    const extras = rxPrintExtras(p, lang);
     return {
+      ...extras,
       hospital: {
         name: 'Guru Krupa Eye Hospital & Laser Center',
         address: '201/320, The Grand Plaza, Opp. Fire Station, VIP Road, Vesu, Surat',
         phone: '9328621216, 7574998502',
-        doctor: 'Dr. Anu Juneja Pathak, M.S. Ophthalmology',
+        doctor: extras.doctor.name,
       },
-      patient: { name: p.name, age: p.age, sex: p.sex, token: p.token, date: dateStr(0) },
+      patient: {
+        name: p.name,
+        age: p.age,
+        sex: p.sex,
+        token: p.token,
+        date: dateStr(0),
+        patientId: p.externalId || String(p.patientId ?? p.id),
+        area: (p.address || '').trim(),
+      },
       language: lang,
       lines: (p.medicines || []).map((m) => {
         const med = medById(m.medicineId) || medByText(m.name);
