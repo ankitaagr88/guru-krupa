@@ -216,22 +216,13 @@ export default function Queue() {
   const count = rows.length;
   const actions = useMemo(
     () => (
-      <>
-        {/* The patient-facing form (/register), for filling it in with a patient at the desk. */}
-        <button
-          className="btn-ghost"
-          id="newPatientFormBtn"
-          style={{ flex: '0 0 auto' }}
-          onClick={() => navigate('/register')}
-        >
-          New patient form
-        </button>
-        <button className="btn-primary" id="newPatientBtn" onClick={() => setNpOpen(true)}>
-          + New patient
-        </button>
-      </>
+      // One way in for staff. The patient-facing form (/register) is reached from the QR poster;
+      // its link lives in Admin › New patient form.
+      <button className="btn-primary" id="newPatientBtn" onClick={() => setNpOpen(true)}>
+        + New patient
+      </button>
     ),
-    [navigate]
+    []
   );
   useTopbar({
     sub: stage ? `${stage.label} · ${count} ${count === 1 ? 'patient' : 'patients'}` : 'Queue',
