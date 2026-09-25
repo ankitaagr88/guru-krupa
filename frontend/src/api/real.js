@@ -468,6 +468,8 @@ export const daybook = {
    glasses {rows:[{key, label, r, l}], lensTypes:[labels], ipd, note}|null, doctor {name, degrees, regNo},
    footerNote, patient.patientId / patient.area. */
 export const rxPrint = {
+  // → {visitId, exam, glasses, fromReading (approved refraction), iop ({readingId, machine, r, l} from
+  //    the approved tonometer reading, or null), va}
   get: (visitId) => data(client.get(`/visits/${visitId}/exam-glasses`)),
   // body {exam:[{key, r, l}], glasses: Glasses|null} → ExamGlasses; doctor / admin only; 422 names the bad value
   save: (visitId, body) => data(client.put(`/visits/${visitId}/exam-glasses`, body)),

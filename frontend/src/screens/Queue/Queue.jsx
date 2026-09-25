@@ -301,7 +301,7 @@ export default function Queue() {
             <th>Name</th>
             <th>Age/Sex</th>
             <th>Phone</th>
-            <th>Waiting</th>
+            <th>{stage?.key === 'done' ? 'Time' : 'Waiting'}</th>
             <th>Status</th>
             <th aria-label="Patient record" />
           </tr>
