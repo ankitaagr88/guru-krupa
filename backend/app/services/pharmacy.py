@@ -17,9 +17,11 @@ from app.models.patients import Visit
 from app.models.pharmacy import (INVENTORY_UNITS, STOCK_REASONS, Diagnosis, InventoryItem, Medicine, MedicineForm,
                                  Prescription, PrescriptionLine, StockMovement)
 from app.models.staff import Staff
-from app.schemas.pharmacy import (InventoryItemOut, MedicineOut, MovementOut,
-                                  PrescriptionLineIn, PrescriptionLineOut, PrescriptionOut, PrintLine, PrintPayload)
+from app.schemas.pharmacy import (InventoryItemOut, MedicineOut, MovementOut, PrescriptionLineIn, PrescriptionLineOut,
+                                  PrescriptionOut, PrintDoctor, PrintExamRow, PrintGlasses, PrintGlassesRow, PrintLine,
+                                  PrintPayload)
 from app.services import billing as billing_svc
+from app.services import rx_print as rx_print_svc
 
 HOSPITAL = {
     "name": "Guru Krupa Eye Hospital & Laser Center",
@@ -379,7 +381,9 @@ def print_payload(db: Session, rx: Prescription, lang: str | None) -> PrintPaylo
     """`openPrescriptionModal` + `setLanguage`: the sheet the client renders / prints.
 
     Each line carries the brand (bold), the generic composition (under it) and the type so the
-    chemist can dispense the exact pack.
+    chemist can dispense the exact pack. Also the patient ID (KiviHealth id, else ours) and area,
+    the visit's exam findings and glasses (only what is filled in), the doctor's degrees and
+    registration number, and the footer note in the sheet's language (English when it has none).
     """
     visit = rx.visit
     patient = visit.patient
@@ -396,11 +400,29 @@ def print_payload(db: Session, rx: Prescription, lang: str | None) -> PrintPaylo
                                qty_given=ln.qty_given, brand=med.brand if med else None,
                                composition=med.composition if med else None, form=form, form_label=form_label,
                                pack_size=med.pack_size if med else None))
+    settings = rx_print_svc.get_settings(db)
+    doctor = PrintDoctor(name=settings["doctorName"] or HOSPITAL["doctor"], degrees=settings["degrees"],
+                         reg_no=settings["regNo"])
     return PrintPayload(
-        hospital=HOSPITAL,
+        hospital={**HOSPITAL, "doctor": doctor.name},
         patient={"name": patient.name, "age": patient.age, "sex": patient.sex, "token": visit.token,
-                 "date": visit.date.isoformat()},
-        language=LANGUAGE_NAMES.get(code, "english"), lines=lines)
+                 "date": visit.date.isoformat(), "patientId": patient.external_id or str(patient.id),
+                 "area": (patient.address or "").strip()},
+        language=LANGUAGE_NAMES.get(code, "english"), lines=lines,
+        exam=[PrintExamRow(label=r["label"], r=r["r"], l=r["l"]) for r in rx_print_svc.exam_rows(db, visit.exam)],
+        glasses=_print_glasses(db, visit.glasses), doctor=doctor,
+        footer_note=rx_print_svc.footer_for(settings, code))
+
+
+def _print_glasses(db: Session, glasses: dict | None) -> PrintGlasses | None:
+    """The glasses block of the sheet: only the Dist / Near rows that have a value; None when the
+    visit has no glasses prescription."""
+    if not rx_print_svc.glasses_filled(glasses):
+        return None
+    rows = [PrintGlassesRow(key=row, label=label, r=glasses.get("r", {}).get(row, {}), l=glasses.get("l", {}).get(row, {}))
+            for row, label in rx_print_svc.ROWS if rx_print_svc.row_filled(glasses, row)]
+    return PrintGlasses(rows=rows, lens_types=rx_print_svc.lens_type_labels(db, glasses.get("lensTypes") or []),
+                        ipd=glasses.get("ipd") or "", note=glasses.get("note") or "")
 
 
 # --------------------------------------------------------------------------- inventory

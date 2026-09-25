@@ -242,7 +242,10 @@ def test_print_payload_localised(client, admin_headers, doctor_headers):
     p = r.json()
     assert p["hospital"] == {"name": "Guru Krupa Eye Hospital & Laser Center",
                              "address": "201/320, The Grand Plaza, Opp. Fire Station, VIP Road, Vesu, Surat",
-                             "phone": "9328621216, 7574998502", "doctor": "Dr. Anu Juneja"}
+                             "phone": "9328621216, 7574998502", "doctor": "Dr. Anu Juneja Pathak"}  # Admin's name
+    # the extra blocks print only when filled in (exam / glasses: none on this visit)
+    assert p["exam"] == [] and p["glasses"] is None and p["doctor"]["name"] == "Dr. Anu Juneja Pathak"
+    assert p["footerNote"].startswith("अगली")  # the Hindi footer note
     assert p["patient"]["name"] == "Print Patient" and p["patient"]["age"] == 61 and p["patient"]["sex"] == "F"
     assert p["patient"]["token"].startswith("#") and p["patient"]["date"]
     assert p["language"] == "hinglish"

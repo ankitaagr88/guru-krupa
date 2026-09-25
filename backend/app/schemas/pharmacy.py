@@ -3,6 +3,7 @@ from datetime import datetime
 from pydantic import Field
 
 from app.schemas.common import CamelModel
+from app.schemas.rx_print import LensValues
 
 
 # --------------------------------------------------------------------------- medicines
@@ -84,11 +85,41 @@ class PrintLine(CamelModel):
     pack_size: str | None = None
 
 
+class PrintExamRow(CamelModel):
+    label: str  # "Fundus"
+    r: str
+    l: str  # noqa: E741
+
+
+class PrintGlassesRow(CamelModel):
+    key: str  # dist | near
+    label: str  # Dist | Near
+    r: LensValues
+    l: LensValues  # noqa: E741
+
+
+class PrintGlasses(CamelModel):
+    rows: list[PrintGlassesRow]  # only rows with a value
+    lens_types: list[str] = []  # labels ("ARC", "Blue cut")
+    ipd: str = ""  # mm
+    note: str = ""
+
+
+class PrintDoctor(CamelModel):
+    name: str
+    degrees: str = ""
+    reg_no: str = ""
+
+
 class PrintPayload(CamelModel):
     hospital: dict[str, str]
-    patient: dict  # name, age, sex, token, date
+    patient: dict  # name, age, sex, token, date, patientId (KiviHealth id else ours), area
     language: str  # hinglish | gujlish | english
     lines: list[PrintLine]
+    exam: list[PrintExamRow] = []  # only rows with a value; empty = no Examination block
+    glasses: PrintGlasses | None = None  # None = no Glass details block
+    doctor: PrintDoctor | None = None
+    footer_note: str = ""  # in the sheet's language, English when that one is empty
 
 
 # --------------------------------------------------------------------------- inventory
