@@ -1,0 +1,125 @@
+/* Day book (lane M). Builds on the Today page's cards and tables (today.css): serif headings,
+   Plex Mono for money. Only the sheet scrolls sideways on a phone — never the page. */
+.daybook-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.daybook-card {
+  margin-bottom: 16px;
+}
+.daybook-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 -6px;
+  padding: 0 6px;
+  outline: none;
+}
+.daybook-scroll:focus-visible {
+  outline: 2px solid var(--focus);
+  border-radius: 6px;
+}
+.daybook-table {
+  min-width: 860px;
+}
+.daybook-table th {
+  white-space: nowrap;
+}
+.daybook-table td {
+  padding: 7px 6px;
+  vertical-align: top;
+}
+.daybook-head {
+  letter-spacing: 0.03em;
+}
+.daybook-name a {
+  color: var(--ink);
+  text-decoration: none;
+}
+.daybook-name a:hover {
+  color: var(--sapphire-deep);
+  text-decoration: underline;
+}
+.daybook-nowrap {
+  white-space: nowrap;
+}
+.daybook-total {
+  font-weight: 600;
+}
+.daybook-owed {
+  color: var(--alert-ink);
+  font-weight: 600;
+}
+.daybook-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 9999px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  vertical-align: 1px;
+}
+.daybook-tag.old {
+  background: var(--gold-wash);
+  color: var(--gold-deep);
+}
+.daybook-tag.ot {
+  background: var(--sapphire-wash);
+  color: var(--sapphire-deep);
+}
+.daybook-row.old_balance td {
+  background: color-mix(in srgb, var(--gold-wash) 45%, transparent);
+}
+
+/* ---- cash drawer ---- */
+.daybook-cash td:first-child {
+  line-height: 18px;
+}
+.daybook-sub {
+  display: block;
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+.daybook-sub .link-btn {
+  padding: 0 4px;
+  font-size: 12px;
+}
+.daybook-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.daybook-actions .btn-ghost {
+  flex: none;
+}
+.daybook-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--surface-sunk);
+}
+.daybook-form label {
+  display: grid;
+  gap: 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.daybook-form .fake-input {
+  margin: 0;
+}
+.daybook-form .seg-toggle button {
+  padding: 8px 6px;
+}
+
+@media (max-width: 520px) {
+  .daybook-head-actions {
+    width: 100%;
+  }
+}
