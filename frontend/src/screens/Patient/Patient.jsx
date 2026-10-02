@@ -550,7 +550,7 @@ export default function Patient() {
       />
 
       {/* "Add family member": the full New patient form in family mode — the family is fixed, and
-          only what a household shares (number, address, language, how they heard of us) comes over. */}
+          only what a household shares (number, address, language) comes over. */}
       <NewPatientModal
         open={!!addingMember}
         preset={
@@ -559,7 +559,6 @@ export default function Patient() {
             relatedName: p.name,
             address: p.address || '',
             language: p.language || null,
-            referralSource: p.referralSource || '',
           }
         }
         config={config}

@@ -155,8 +155,8 @@ describe('Patient page: Family on this number', () => {
     const form = await screen.findByRole('dialog', { name: 'New family member of Rasilaben Patel' });
     expect(within(form).getByLabelText('Address / area')).toHaveValue('Vesu, Surat');
     expect(within(form).getByRole('button', { name: 'ગુજરાતી' })).toHaveClass('active');
-    expect(within(form).getByLabelText('How did they hear about us?')).toHaveValue('doctor');
-    // not copied: name, age, occupation, sex
+    // not copied: how they heard of us (Rasilaben's doctor referral is hers), name, age, occupation, sex
+    expect(within(form).getByLabelText('How did they hear about us?')).toHaveValue('self');
     expect(within(form).getByLabelText('Full name')).toHaveValue('');
     expect(within(form).getByLabelText('Occupation')).toHaveValue('');
     expect(within(form).getByLabelText('Age (if DOB not known)')).toHaveValue('');

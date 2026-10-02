@@ -25,8 +25,8 @@ import PhoneInput, { tenDigits } from '../../components/PhoneInput';
    Family mode — `preset` = {phone, ownerId, ownerName, relatedName?, address?, language?,
    referralSource?} (patient page › "Add family member"): we already know the family, so there is no
    same-phone box. The relation to the owner is asked first and is required; the shared things are
-   filled in from the relative (phone — read-only with "Change", address, language, how they heard
-   of us); name, age, sex and the rest start empty. "Also add to today's queue" (off by default,
+   filled in from the relative (phone — read-only with "Change", address, language); name, age, sex,
+   how they heard of us and the rest start empty. "Also add to today's queue" (off by default,
    with a reason for visit) comes back as `extra = {addToQueue, note}`. */
 const EMPTY = {
   name: '',
