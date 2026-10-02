@@ -39,13 +39,16 @@ import './prescription.css';
                 desk confirms the line at billing (DispensePanel)
    The picker searches GET /medicines by name; a line
    is `matched` when the name equals a medicine's name, brand or composition.
-   Free-text lines get a "not in list" hint and, for admins, an inline
-   "Add to medicine list" form (POST /admin/medicines) that re-matches the line.
+   Lines read "From our medicine list" or "Typed by hand"; a typed line shows no stock (stock is
+   kept for medicines on the list only) and, for admins, an inline "Add to medicine list" form
+   (POST /admin/medicines) that re-matches the line.
 
    Diagnosis (B15/F17): picking one fills the lines with that diagnosis's
    treatment standard (Dr Anu's own, else the most common past prescription —
-   counted, not AI). The doctor edits the differences; the diagnosis is saved
-   with the prescription so it counts towards the history next time. */
+   counted, not AI). When medicines are already listed, an in-page choice asks
+   "Replace medicines / Keep mine". The doctor edits the differences; the diagnosis
+   is saved with the prescription so it counts towards the history next time.
+   Buttons: Print is the main one (it saves first); Save is secondary; both stay in view. */
 
 const DOSAGE_PRESETS = [
   '1 drop, both eyes, 3x daily',
@@ -106,7 +109,9 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved, onVis
   const [diagnosisId, setDiagnosisId] = useState(null);
   const [fillNote, setFillNote] = useState(null); // {source, count, historyCount}
   const [fillBusy, setFillBusy] = useState(false);
+  const [replaceAsk, setReplaceAsk] = useState(null); // {lines, std} while "Replace medicines / Keep mine" shows
   const fileRef = useRef(null);
+  const searchRef = useRef(null);
   const printPending = useRef(false);
   const visitDiagnosisRef = useRef(null);
   visitDiagnosisRef.current = visit?.diagnosisId ?? null;
@@ -152,6 +157,7 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved, onVis
       // The doctor's panel may have picked the diagnosis before any prescription was saved.
       setDiagnosisId(rx?.diagnosisId ?? visitDiagnosisRef.current ?? null);
       setFillNote(null);
+      setReplaceAsk(null);
       setAddingFor(null);
       setSearch('');
       setLoading(false);
@@ -160,6 +166,11 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved, onVis
       cancelled = true;
     };
   }, [isOpen, info.id, loadStock]);
+
+  // Focus moves into the pop-up: the medicine search box once the prescription has loaded.
+  useEffect(() => {
+    if (isOpen && !loading) searchRef.current?.focus();
+  }, [isOpen, loading]);
 
   // Typed text matches a master row by name, brand or composition (what the backend does on save)
   const findMed = (name) => {
@@ -262,6 +273,7 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved, onVis
     setDiagnosisId(id);
     setDirty(true);
     setFillNote(null);
+    setReplaceAsk(null);
     // The diagnosis lives on the visit too (the doctor's panel shows it): save it there now.
     if (typeof doctorApi?.setDiagnosis === 'function')
       doctorApi
@@ -278,13 +290,9 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved, onVis
         return;
       }
       if (lines.length > 0) {
-        const ok = window.confirm(
-          `Replace the ${lines.length} medicine${lines.length === 1 ? '' : 's'} already listed with the usual treatment for ${std.diagnosisName}?`
-        );
-        if (!ok) {
-          setFillNote({ source: 'kept', count: stdLines.length, historyCount: std.historyCount || 0 });
-          return;
-        }
+        // Ask in the page (not a browser pop-up): "Replace medicines" or "Keep mine".
+        setReplaceAsk({ lines: stdLines, std });
+        return;
       }
       setLines(stdLines);
       setFillNote({ source: std.source, count: stdLines.length, historyCount: std.historyCount || 0 });
@@ -292,6 +300,19 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved, onVis
       toast.error('Could not load the usual treatment', errorMessage(err));
     } finally {
       setFillBusy(false);
+    }
+  };
+
+  const answerReplace = (replace) => {
+    if (!replaceAsk) return;
+    const { lines: stdLines, std } = replaceAsk;
+    setReplaceAsk(null);
+    if (replace) {
+      setLines(stdLines);
+      setDirty(true);
+      setFillNote({ source: std.source, count: stdLines.length, historyCount: std.historyCount || 0 });
+    } else {
+      setFillNote({ source: 'kept', count: stdLines.length, historyCount: std.historyCount || 0 });
     }
   };
 
@@ -413,7 +434,7 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved, onVis
               Close
             </button>
             <button
-              className={`btn-primary full rx-save-btn${!dirty && !saving && (savedAt || hasRx) ? ' saved' : ''}`}
+              className={`btn-ghost rx-save-btn${!dirty && !saving && (savedAt || hasRx) ? ' saved' : ''}`}
               onClick={save}
               disabled={saving || loading || !dirty}
               type="button"
@@ -425,16 +446,21 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved, onVis
               onClick={print}
               disabled={saving || loading}
               type="button"
+              title={dirty ? 'Saves the prescription, then prints it' : undefined}
             >
               Print
             </button>
           </>
         }
       >
-        <div className="rx-head">
+        <div className="rx-head rx-head-compact">
           <img src="/logo.png" alt="Guru Krupa Eye Hospital & Laser Center" className="rx-head-logo" />
-          <h3>{HOSPITAL_NAME}</h3>
-          <p>{DOCTOR_NAME}, M.S. Ophthalmology</p>
+          <div>
+            <h3>Prescription</h3>
+            <p>
+              {HOSPITAL_NAME} · {DOCTOR_NAME}
+            </p>
+          </div>
         </div>
         <div className="rx-patient">
           <span>
@@ -484,6 +510,23 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved, onVis
                   {fillNote.source === 'kept' && 'Kept the medicines already listed.'}
                 </p>
               )}
+              {!fillBusy && replaceAsk && (
+                <div className="rx-replace-ask" role="group" aria-label="Replace the medicines?" data-testid="rx-replace-ask">
+                  <p>
+                    Replace the {lines.length} medicine{lines.length === 1 ? '' : 's'} already listed with the usual
+                    treatment for {replaceAsk.std.diagnosisName} ({replaceAsk.lines.length} medicine
+                    {replaceAsk.lines.length === 1 ? '' : 's'})?
+                  </p>
+                  <div className="rx-replace-btns">
+                    <button type="button" className="btn-primary sm" onClick={() => answerReplace(true)}>
+                      Replace medicines
+                    </button>
+                    <button type="button" className="btn-ghost" onClick={() => answerReplace(false)}>
+                      Keep mine
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="rx-cols">
               <span>Medicine &amp; treatment plan</span>
@@ -491,13 +534,17 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved, onVis
             </div>
             <div className="med-rows" id="medChips">
               {lines.length === 0 && (
-                <p className="rx-none">None added yet — search below or photograph the handwritten slip.</p>
+                <p className="rx-none">No medicines yet.</p>
               )}
               {lines.map((m, i) => {
                 const s = stockFor(m);
                 const qty = Number(m.qtyGiven) || 0;
                 let avail = null;
-                if (s) {
+                // A typed-by-hand line is not on the list, so no stock is kept for it: say nothing
+                // about stock rather than contradict the tag.
+                if (!m.matched) {
+                  avail = null;
+                } else if (s) {
                   const cls =
                     s.stock <= 0
                       ? 'coral'
@@ -522,9 +569,9 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved, onVis
                       <div className="med-name">
                         {m.name}
                         {m.matched ? (
-                          <span className="match-tag">in list</span>
+                          <span className="match-tag">From our medicine list</span>
                         ) : (
-                          <span className="match-tag rx-not-listed">not in list</span>
+                          <span className="match-tag rx-not-listed">Typed by hand</span>
                         )}
                         {avail}
                         {!m.matched && isAdmin && addingFor !== i && (
@@ -603,8 +650,7 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved, onVis
             </div>
             {lines.length > 0 && (
               <p className="rx-split-note">
-                {given} to be given from clinic stock · {lines.length - given} to buy outside. The front desk
-                confirms what the patient actually buys at billing — only that comes off the stock.
+                {given} from clinic stock · {lines.length - given} to buy outside
               </p>
             )}
 
@@ -615,6 +661,7 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved, onVis
                 onChange={setSearch}
                 onPick={pickMed}
                 onEnter={addMedManual}
+                inputRef={searchRef}
                 reloadKey={medsKey}
                 placeholder="Search or type a medicine name…"
                 ariaLabel="Medicine name"

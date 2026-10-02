@@ -123,3 +123,29 @@
     width: 100%;
   }
 }
+
+/* A visit still in progress: "in clinic", not a ₹0 that looks like a free visit. */
+.daybook-tag.clinic {
+  background: var(--surface-sunk);
+  color: var(--ink-soft);
+}
+.daybook-pending {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+.daybook-actions .btn-ghost.daybook-action-on {
+  background: var(--sapphire-wash);
+  color: var(--sapphire-deep);
+}
+/* Phone: the cash drawer and the totals first, the wide sheet after them. */
+.daybook-body {
+  display: flex;
+  flex-direction: column;
+}
+.daybook-body.cards-first .daybook-grid {
+  order: -1;
+  margin-bottom: 16px;
+}

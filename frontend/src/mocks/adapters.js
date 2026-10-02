@@ -168,17 +168,22 @@ export const patients = {
     };
   },
   // familyOwnerId (+ relationKey): "Add as a family member" — joins that family, like the server.
+  // Like the server, creating a patient does not put them in today's queue: POST /visits does
+  // (the queue's "New patient" calls both). Demo-internal callers that do queue in one go (the QR
+  // form, appointment check-in) pass visitRegistered: true.
   async create(data) {
     await latency();
-    const { dob, familyOwnerId, relationKey, ...rest } = data;
+    const { dob, familyOwnerId, relationKey, visitRegistered, ...rest } = data;
     const draft = {};
     applyDob(draft, dob !== undefined ? { dob } : {}, { isNew: true });
+    const queued = visitRegistered === true;
     const p = normalizePatient({
       ...rest,
       ...draft,
       id: store.nextId('patient'),
-      token: store.nextToken(),
-      stage: S.stages[0]?.key || 'reg',
+      token: queued ? store.nextToken() : null,
+      stage: queued ? S.stages[0]?.key || 'reg' : null,
+      visitRegistered: queued,
       stageEnteredAt: Date.now(),
       lastVisitDate: lookupLastVisit(data.phone),
     });
@@ -230,7 +235,8 @@ function lookupLastVisit(phone) {
 export const visits = {
   async today({ stage } = {}) {
     await latency(60);
-    const rows = stage ? S.patients.filter((p) => p.stage === stage) : S.patients;
+    // Only people with a visit today: returning patients who haven't come in today have no stage.
+    const rows = stage ? S.patients.filter((p) => p.stage === stage) : S.patients.filter((p) => p.stage);
     return rows.map(feeVisitOut); // + visit kind & fee (lane E2)
   },
   async counts() {
@@ -270,6 +276,7 @@ export const visits = {
     if (p.visitRegistered && p.stage !== 'done')
       throw httpError(409, 'Patient already has an active visit today');
     p.visitRegistered = true;
+    if (!p.token) p.token = store.nextToken(); // a returning patient gets today's token now
     p.stage = S.stages[0]?.key || 'reg';
     p.stageEnteredAt = Date.now();
     p.patientId = p.id;
@@ -482,13 +489,19 @@ export const appointments = {
     if (a.checkedIn) throw httpError(409, 'Appointment already checked in');
     a.checkedIn = true;
     const via = a.channel === 'whatsapp' ? 'WhatsApp' : a.channel === 'call' ? 'phone call' : 'walk-in';
-    const p = await patients.create({
-      name: a.name,
-      phone: a.phone,
-      note: a.sourceVisitId
-        ? 'Follow-up visit' + (a.note ? ' — ' + a.note : '')
-        : 'Appointment booked via ' + via,
-    });
+    const note = a.sourceVisitId
+      ? 'Follow-up visit' + (a.note ? ' — ' + a.note : '')
+      : 'Appointment booked via ' + via;
+    // Booked for a known patient (e.g. from their record): today's visit goes on that record.
+    const known = a.patientId != null ? S.patients.find((x) => x.id === Number(a.patientId)) : null;
+    let p;
+    if (known) {
+      const active = known.visitRegistered !== false && known.stage && known.stage !== 'done';
+      if (!active) await visits.create({ patientId: known.id, note });
+      p = patientRead(known);
+    } else {
+      p = await patients.create({ name: a.name, phone: a.phone, note, visitRegistered: true });
+    }
     p.visitRegistered = true;
     const stored = S.patients.find((x) => x.id === p.id);
     if (stored) stored.visitRegistered = true;

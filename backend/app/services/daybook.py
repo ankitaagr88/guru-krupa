@@ -344,7 +344,8 @@ def day_book(db: Session, day: date) -> DayBookOut:
         rows.append(DayBookRow(kind="visit", visit_id=v.id, patient_id=v.patient_id, name=v.patient.name,
                                phone=v.patient.phone, age_sex=_age_sex(v.patient), area=v.patient.address or "",
                                token=v.token, visit_date=v.date, amounts=dict(amounts), total=total,
-                               received=received, modes=modes, left=left, status=status))
+                               received=received, modes=modes, left=left, status=status,
+                               in_clinic=v.status == "active"))
 
     # Balances from earlier visits collected that day.
     for bill_id, pays in paid_today.items():

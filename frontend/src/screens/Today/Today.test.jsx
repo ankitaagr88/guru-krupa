@@ -58,7 +58,9 @@ describe('Today summary', () => {
     expect(chirag).toHaveTextContent('₹250');
     const bharat = within(owed).getByText('Bharat Oza').closest('li');
     expect(bharat).toHaveTextContent('₹60');
-    expect(bharat).toHaveTextContent('from');
+    // an earlier visit shows its date, not its old token
+    expect(bharat).toHaveTextContent('earlier visit');
+    expect(bharat).not.toHaveTextContent('#011');
     expect(within(bharat).getByRole('link', { name: 'Bharat Oza' })).toHaveAttribute('href', '/patients/5');
     const receipts = screen.getByTestId('receipts');
     expect(within(receipts).getByText('Chirag Mehta').closest('tr')).toHaveTextContent('₹250 still owed');

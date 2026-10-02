@@ -75,6 +75,7 @@ class DayBookRow(CamelModel):
     modes: list[str] = []  # payment modes of the money received that day, in order
     left: int = 0  # still owed now (bill balance)
     status: str = ""  # the bill's status (unpaid / part_paid / paid / no_charge / overpaid)
+    in_clinic: bool = False  # visit rows: the patient is still in the clinic (visit not completed yet)
     note: str = ""
 
 

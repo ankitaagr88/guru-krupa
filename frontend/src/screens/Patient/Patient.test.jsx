@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router-dom';
-import { renderShell } from '../../test/utils';
-import { billing, mockStore, patients } from '../../mocks/adapters';
+import { renderShell, RECEPTION } from '../../test/utils';
+import { billing, mockStore, patients, visits } from '../../mocks/adapters';
 import Patient from './Patient';
 import Queue from '../Queue';
 
@@ -22,13 +22,65 @@ describe('Patient screen', () => {
     });
     expect(await screen.findByTestId('patient-screen')).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'Bharat Oza' })).toBeInTheDocument();
-    expect(screen.getByText('Previous system id')).toBeInTheDocument();
+    // only what is known is listed: no empty "Previous system id: —" row
+    expect(screen.queryByText('Previous system id')).toBeNull();
+    expect(screen.getByText('Conditions')).toBeInTheDocument();
     const visits = await screen.findAllByTestId('patient-visit');
     expect(visits.length).toBeGreaterThanOrEqual(2); // today + the 18 Aug follow-up
     expect(within(visits[0]).getByText('Timolol 0.5% eye drops')).toBeInTheDocument();
     expect(within(visits[0]).getAllByText(/Glaucoma/).length).toBeGreaterThan(0);
     expect(within(visits[0]).getByTestId('patient-open-rx')).toBeInTheDocument();
-    expect(screen.getByText("Open today's visit")).toHaveAttribute('href', expect.stringContaining('?patient=5'));
+    expect(screen.getByRole('link', { name: "Open today's visit" })).toHaveAttribute(
+      'href',
+      expect.stringContaining('?patient=5')
+    );
+    // "insurance" shows as the admin's wording
+    expect(screen.getByText('Insurance / TPA')).toBeInTheDocument();
+  });
+
+  it('is the hub: shortcuts for today\'s visit, machine reading, prescription, bill, money owed, appointment, surgery', async () => {
+    renderShell({
+      route: '/patients/5',
+      child: (
+        <Routes>
+          <Route path="/patients/:id" element={<Patient />} />
+        </Routes>
+      ),
+    });
+    const bar = await screen.findByTestId('patient-shortcuts');
+    expect(within(bar).getByRole('link', { name: 'Capture machine reading' })).toHaveAttribute('href', '/machines?visit=5');
+    expect(within(bar).getByRole('link', { name: 'Book appointment' })).toHaveAttribute('href', '/appointments?patient=5');
+    expect(within(bar).getByRole('link', { name: 'Schedule surgery' })).toHaveAttribute('href', '/ot?patient=5');
+    expect(within(bar).getByRole('link', { name: "Today's bill" })).toHaveAttribute('href', expect.stringContaining('?patient=5'));
+    await waitFor(() => expect(within(bar).getByRole('button', { name: 'Receive payment' })).toBeInTheDocument());
+    expect(within(bar).getByRole('button', { name: 'Family' })).toBeInTheDocument();
+    // today's prescription opens from here (admin)
+    await userEvent.click(within(bar).getByRole('button', { name: "Today's prescription" }));
+    expect(await screen.findByText('Print language')).toBeInTheDocument();
+  });
+
+  it('reception sees no prescription shortcut; someone not in today\'s queue gets "Add to today" with a reason', async () => {
+    renderShell({
+      user: RECEPTION,
+      route: '/patients/902', // Rakesh Parmar: a returning patient, not here today
+      child: (
+        <Routes>
+          <Route path="/patients/:id" element={<Patient />} />
+          <Route path="/queue/:stage" element={<Queue />} />
+        </Routes>
+      ),
+    });
+    const bar = await screen.findByTestId('patient-shortcuts');
+    expect(within(bar).queryByRole('button', { name: /prescription/i })).toBeNull();
+    expect(within(bar).queryByRole('link', { name: 'Capture machine reading' })).toBeNull();
+    await userEvent.click(within(bar).getByRole('button', { name: "Add to today's queue" }));
+    await userEvent.type(await screen.findByLabelText('Reason for visit (optional)'), 'Red eye since morning');
+    await userEvent.click(screen.getByTestId('add-today-confirm'));
+    expect(await screen.findByText('Rakesh Parmar added to the queue')).toBeInTheDocument();
+    const v = (await visits.today()).find((x) => x.id === 902);
+    expect(v.note).toBe('Red eye since morning');
+    expect(v.token).toMatch(/^#\d{3}$/);
+    await waitFor(() => expect(document.querySelector('#drawer')).toHaveClass('show'));
   });
 
   it('shows age · sex and the DOB, and "Edit details" saves the person\'s details', async () => {
@@ -41,7 +93,7 @@ describe('Patient screen', () => {
       ),
     });
     expect(await screen.findByTestId('patient-age-sex')).toHaveTextContent('34 y · M');
-    expect(screen.getByText('Not known')).toBeInTheDocument(); // no DOB yet
+    expect(screen.queryByText(/DOB/)).toBeNull(); // no DOB yet: nothing shown
 
     await userEvent.click(screen.getByTestId('patient-edit'));
     const dialog = document.querySelector('#editPatientModal');

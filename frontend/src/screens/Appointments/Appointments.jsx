@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTopbar } from '../../components/AppShell';
 import DateStrip, { fmtDateLabel } from '../../components/DateStrip';
 import Modal from '../../components/Modal';
 import { useToast } from '../../components/Toast';
-import { appointments as api, onDataChange, errorMessage } from '../../api';
+import { appointments as api, patients as patientsApi, onDataChange, errorMessage } from '../../api';
 import { dateStr } from '../../mocks/data';
 import { CHANNEL_LABEL } from '../Queue/queueModel';
 import { IconPencil } from '../../components/Icons';
@@ -16,15 +16,64 @@ const CHANNELS = ['whatsapp', 'call', 'walkin'];
 
 /* Appointments (F4): day strip with counts, per-day list, add / edit / delete
    modal (name, phone, date, channel — no time slots) and check-in, which
-   registers today's visit and jumps to the queue with the drawer open. */
+   registers today's visit and jumps to the queue with the drawer open.
+   /appointments?patient=<id> (the patient page's "Book appointment") opens the booking form
+   filled in with that patient (name, phone, and the link to their record); ?date=YYYY-MM-DD opens
+   on that day (e.g. the doctor's follow-up date). */
+
+const isDay = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || '') && !Number.isNaN(new Date(`${s}T00:00:00`).getTime());
+
 export default function Appointments() {
   const navigate = useNavigate();
   const toast = useToast();
-  const [date, setDate] = useState(dateStr(0));
+  const [search, setSearch] = useSearchParams();
+  const [date, setDate] = useState(() => (isDay(search.get('date')) ? search.get('date') : dateStr(0)));
   const [counts, setCounts] = useState({});
   const [rows, setRows] = useState([]);
-  const [modal, setModal] = useState(null); // null | { id?, name, phone, date, channel }
+  const [modal, setModal] = useState(null); // null | { id?, name, phone, date, channel, patientId? }
   const [busy, setBusy] = useState(false);
+  const presetPatient = Number(search.get('patient')) || null;
+  const presetDate = isDay(search.get('date')) ? search.get('date') : null;
+
+  // ?date=: follow a later link to another day too.
+  useEffect(() => {
+    if (presetDate) setDate(presetDate);
+  }, [presetDate]);
+
+  // ?patient=<id>: open "New appointment" for that patient, then drop the link (once it is used —
+  // dropping it first would cancel the lookup).
+  useEffect(() => {
+    if (!presetPatient) return undefined;
+    let alive = true;
+    const drop = () =>
+      setSearch(
+        (s) => {
+          const next = new URLSearchParams(s);
+          next.delete('patient');
+          return next;
+        },
+        { replace: true }
+      );
+    patientsApi
+      .get(presetPatient)
+      .then((p) => {
+        if (!alive || !p) return;
+        setModal({
+          name: p.name || '',
+          phone: p.phone || '',
+          date: presetDate || dateStr(1),
+          channel: 'call',
+          patientId: p.id,
+        });
+        drop();
+      })
+      .catch(() => alive && drop());
+    return () => {
+      alive = false;
+    };
+    // presetDate is read once with the patient; the date link itself stays in the address
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presetPatient, setSearch]);
 
   const load = useCallback(() => {
     api
@@ -62,6 +111,7 @@ export default function Appointments() {
     setBusy(true);
     try {
       const body = { name, phone: modal.phone.trim(), date: modal.date, channel: modal.channel };
+      if (!modal.id && modal.patientId != null) body.patientId = modal.patientId; // booked from their record
       if (modal.id) await api.update(modal.id, body);
       else await api.create(body);
       setModal(null);
@@ -111,7 +161,7 @@ export default function Appointments() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [date]
   );
-  useTopbar({ sub: 'Appointments · booked via WhatsApp, call, walk-in, or the doctor’s follow-up', actions });
+  useTopbar({ sub: '', actions });
 
   return (
     <div className="appt-wrap">
@@ -129,8 +179,7 @@ export default function Appointments() {
         </label>
       </div>
       <p className="hint" style={{ margin: '-10px 0 16px' }}>
-        No fixed time slots — this is just who&apos;s told us they&apos;re coming on a given day. Patients are
-        seen in the order they arrive.
+        No time slots — seen in arrival order.
       </p>
       <DateStrip value={date} onChange={setDate} counts={counts} />
       <table className="data-table appt-table">

@@ -363,7 +363,11 @@ export default function AppShell() {
     [stages, stageCounts]
   );
 
-  const title = topbar.title ?? (isMobile ? HOSPITAL_SHORT : HOSPITAL_NAME);
+  // The heading is the screen's name (a screen may set its own, e.g. the patient's name); the
+  // hospital's name sits small above it.
+  const hospital = isMobile ? HOSPITAL_SHORT : HOSPITAL_NAME;
+  const screenName = NAV_ITEMS.find((it) => it.key === activeKey)?.fullLabel;
+  const title = topbar.title ?? screenName ?? hospital;
   const sub = topbar.sub ?? `${DOCTOR_NAME} · ${ROLE_LABELS[role] || 'Staff'}`;
 
   const ctx = useMemo(
@@ -408,11 +412,18 @@ export default function AppShell() {
                 <IconMenu />
               </button>
               <div style={{ minWidth: 0 }}>
+                {title !== hospital && (
+                  <div className="topbar-kicker" data-testid="topbar-hospital">
+                    {hospital}
+                  </div>
+                )}
                 <h1 id="topTitle">{title}</h1>
-                <div className="sub" id="topSub">
-                  {sub}
-                  {USE_MOCKS && !isMobile && <span className="faint"> · demo data</span>}
-                </div>
+                {(sub || (USE_MOCKS && !isMobile)) && (
+                  <div className="sub" id="topSub">
+                    {sub}
+                    {USE_MOCKS && !isMobile && <span className="faint">{sub ? ' · ' : ''}demo data</span>}
+                  </div>
+                )}
               </div>
             </div>
             <div className="topbar-right">

@@ -80,3 +80,11 @@ body.mobile-mode .install-prompt { width: 100%; justify-content: space-between; 
 .machine-next-row { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
 .machine-next-row .btn-primary { flex: 1 1 220px; }
 .machine-next-row .btn-ghost { flex: 0 1 auto; }
+
+/* Status tag beside the capture button (outside a .test-opt, so it needs its own look). */
+.machine-tag { font-family: var(--font-ui); font-weight: 500; font-size: 12px; line-height: 16px; color: var(--done-ink); background: var(--done-wash); padding: 4px 9px; border-radius: 6px; white-space: nowrap; }
+.machine-tag.processing { color: var(--gold-deep); background: var(--gold-wash); }
+.machine-tag.failed { color: var(--alert-ink); background: var(--alert-wash); }
+/* Demo-only "try without a connection": a small link, not a button. */
+.machine-demo-link { display: inline-block; background: none; border: none; padding: 0; margin: 0 0 12px; font-family: var(--font-ui); font-size: 12px; color: var(--ink-faint); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.machine-demo-link:hover { color: var(--sapphire-deep); }

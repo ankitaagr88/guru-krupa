@@ -1,7 +1,19 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useTopbar, useShell } from '../../components/AppShell';
-import { patients as patientsApi, errorMessage } from '../../api';
+import { patients as patientsApi, visits as visitsApi, billing as billingApi, errorMessage } from '../../api';
+import {
+  IconAppts,
+  IconFamily,
+  IconMachines,
+  IconOT,
+  IconPencil,
+  IconPersonAdd,
+  IconQueue,
+  IconRupee,
+} from '../../components/Icons';
+import IconRx from '../Prescription/IconRx';
+import AddToTodayModal from './AddToToday';
 import { useToast } from '../../components/Toast';
 import { PhotoTile } from '../Machines/ExamPhotos';
 import { OT_STATUS } from '../OT/constants';
@@ -19,6 +31,10 @@ import './patient.css';
 
 /* Patient screen — everything the clinic holds on one person, newest first.
    Reached by clicking a patient's name anywhere in the app (/patients/:id).
+   It is also the hub for that person: the shortcut bar under the name reaches every screen staff
+   use for them — today's visit (or "Add to today's queue" with a reason), capture a machine
+   reading, today's prescription, the bill / money owed, book an appointment, schedule surgery,
+   family, edit details. Only what applies (in today's queue or not) and what the role may use shows.
    The person's own details can be edited here (Edit details); the day's work still happens
    on the Queue / OT screens. "Family on this number" shows who shares the mobile number (the
    owner and the members with their relation) and adds / links / re-arranges them. */
@@ -44,10 +60,35 @@ function surgeryLine(k) {
   return [k.timeSlot, times, surgeon].filter(Boolean).join(' · ');
 }
 
+/** One shortcut: a link or a button, icon + label (short label on a phone). */
+function Shortcut({ icon: Icon, label, short, to, onClick, primary = false, testId }) {
+  const cls = `patient-shortcut${primary ? ' primary' : ''}`;
+  const body = (
+    <>
+      <Icon />
+      <span className="ps-long">{label}</span>
+      <span className="ps-short">{short || label}</span>
+    </>
+  );
+  return to ? (
+    <Link className={cls} to={to} data-testid={testId} aria-label={label}>
+      {body}
+    </Link>
+  ) : (
+    <button type="button" className={cls} onClick={onClick} data-testid={testId} aria-label={label}>
+      {body}
+    </button>
+  );
+}
+
+const scrollToId = (id) => document.getElementById(id)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+
 export default function Patient() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { stages } = useShell();
+  const { stages, navItems = [] } = useShell();
+  const [search] = useSearchParams();
+  const wantPay = search.get('pay') === '1'; // from Today's "Money still owed" → Receive
   const [data, setData] = useState(null);
   const [err, setErr] = useState('');
   const [rxVisit, setRxVisit] = useState(null);
@@ -55,6 +96,8 @@ export default function Patient() {
   const [editing, setEditing] = useState(false);
   const [addingMember, setAddingMember] = useState(null); // {phone, ownerId, ownerName} while the form is open
   const [savingMember, setSavingMember] = useState(false);
+  const [addingToday, setAddingToday] = useState(false);
+  const [owed, setOwed] = useState(0); // money still owed from earlier visits
   const config = useConfig();
   const relations = useRelations();
   const toast = useToast();
@@ -72,14 +115,44 @@ export default function Patient() {
   }, [id, reloadKey]);
 
   const p = data?.patient;
-  useTopbar({
-    title: p?.name || 'Patient',
-    sub: p ? `Patient record · ${data.totals.visits} visit${data.totals.visits === 1 ? '' : 's'}` : 'Patient record',
-  });
-
-  const stageLabel = (key) => stages.find((s) => s.key === key)?.label || key;
   const todayStr = new Date().toISOString().slice(0, 10);
   const todayVisit = data?.visits.find((v) => v.date === todayStr && v.status === 'active');
+  const todayVisitId = todayVisit?.id ?? null;
+
+  // Money owed from earlier visits → a "Receive payment" shortcut to the card below.
+  useEffect(() => {
+    let alive = true;
+    if (!p?.id || typeof billingApi?.owing !== 'function') return undefined;
+    billingApi
+      .owing(p.id)
+      .then(
+        (rows) =>
+          alive &&
+          setOwed(
+            (rows || [])
+              .filter((o) => Number(o.visitId) !== Number(todayVisitId))
+              .reduce((s, o) => s + Number(o.balance || 0), 0)
+          )
+      )
+      .catch(() => alive && setOwed(0));
+    return () => {
+      alive = false;
+    };
+  }, [p?.id, todayVisitId, reloadKey]);
+
+  // ?pay=1: land on the money-owed card.
+  const loaded = !!data;
+  useEffect(() => {
+    if (!wantPay || !loaded || owed <= 0) return undefined;
+    const t = setTimeout(() => scrollToId('patient-owed'), 60);
+    return () => clearTimeout(t);
+  }, [wantPay, loaded, owed]);
+
+  // The name is the page's own heading; the top bar just says where we are.
+  useTopbar({ title: 'Patient record', sub: '' });
+
+  const stageLabel = (key) => stages.find((s) => s.key === key)?.label || key;
+  const may = (key) => navItems.some((it) => it.key === key); // the role sees that screen
 
   if (err)
     return (
@@ -100,19 +173,23 @@ export default function Patient() {
       </div>
     );
 
+  // Only what is known (age, DOB and phone are in the header already).
   const details = [
-    ['Age / sex', ageSexLabel(p)],
-    ['Date of birth', p.dob ? fmtDob(p.dob) : 'Not known'],
-    ['Phone', p.phone || '—'],
-    ['Address', p.address || '—'],
-    ['Occupation', p.occupation || '—'],
-    ['Screen time', p.screenHours != null && p.screenHours !== '' ? `${p.screenHours} hrs/day` : '—'],
-    ['Language', p.language ? p.language[0].toUpperCase() + p.language.slice(1) : '—'],
-    ['Referred by', [p.referralSource, p.referralDetail].filter(Boolean).join(' · ') || '—'],
-    ['Conditions', [...(p.existingConditions || []), p.conditionOther].filter(Boolean).join(', ') || '—'],
-    ['Treated elsewhere', p.elsewhere ? p.elsewhereNote || 'Yes' : 'No'],
-    ['Previous system id', p.externalId || '—'],
-  ];
+    ['Address', p.address],
+    ['Occupation', p.occupation],
+    ['Screen time', p.screenHours != null && p.screenHours !== '' ? `${p.screenHours} hrs/day` : ''],
+    ['Language', p.language ? p.language[0].toUpperCase() + p.language.slice(1) : ''],
+    [
+      'Referred by',
+      // The admin's wording for the source ("Insurance / TPA"), not its key ("insurance").
+      [config.referralSources.find((r) => r.key === p.referralSource)?.label || p.referralSource, p.referralDetail]
+        .filter(Boolean)
+        .join(' · '),
+    ],
+    ['Conditions', [...(p.existingConditions || []), p.conditionOther].filter(Boolean).join(', ')],
+    ['Treated elsewhere', p.elsewhere ? p.elsewhereNote || 'Yes' : ''],
+    ['Previous system id', p.externalId],
+  ].filter(([, v]) => v != null && v !== '');
 
   return (
     <div className="board-wrap patient-wrap" data-testid="patient-screen">
@@ -139,56 +216,135 @@ export default function Patient() {
             <span>Last visit: {fmtLastVisit(p.lastVisitDate ? String(p.lastVisitDate).slice(0, 10) : null)}</span>
           </div>
         </div>
-        <div className="patient-actions">
-          <button type="button" className="btn-ghost" onClick={() => setEditing(true)} data-testid="patient-edit">
-            Edit details
-          </button>
-          {todayVisit ? (
-            <Link className="btn-primary" to={`/queue/${todayVisit.stage}?patient=${p.id}`}>
-              Open today&apos;s visit
-            </Link>
-          ) : (
-            <Link className="btn-primary" to={`/queue?patient=${p.id}`}>
-              Add to today&apos;s queue
-            </Link>
-          )}
-        </div>
       </div>
 
-      <div className="patient-stats">
-        <div className="patient-stat">
-          <b className="num">{data.totals.visits}</b>
-          <span>visits</span>
-        </div>
-        <div className="patient-stat">
-          <b className="num">{data.totals.prescriptions}</b>
-          <span>prescriptions</span>
-        </div>
-        <div className="patient-stat">
-          <b className="num">{data.totals.surgeries}</b>
-          <span>surgeries</span>
-        </div>
-        <div className="patient-stat">
-          <b className="num">{data.totals.readings}</b>
-          <span>machine readings</span>
-        </div>
-      </div>
+      <nav className="patient-shortcuts" aria-label={`Shortcuts for ${p.name}`} data-testid="patient-shortcuts">
+        {todayVisit ? (
+          <Shortcut
+            primary
+            icon={IconQueue}
+            label="Open today's visit"
+            short="Today's visit"
+            to={`/queue/${todayVisit.stage}?patient=${p.id}`}
+            testId="ps-open-visit"
+          />
+        ) : (
+          <Shortcut
+            primary
+            icon={IconPersonAdd}
+            label="Add to today's queue"
+            short="Add to today"
+            onClick={() => setAddingToday(true)}
+            testId="ps-add-today"
+          />
+        )}
+        {todayVisit && may('machines') && (
+          <Shortcut
+            icon={IconMachines}
+            label="Capture machine reading"
+            short="Machine reading"
+            to={`/machines?visit=${todayVisit.id}`}
+            testId="ps-machines"
+          />
+        )}
+        {todayVisit && may('prescriptions') && (
+          <Shortcut
+            icon={IconRx}
+            label={todayVisit.prescription ? "Today's prescription" : 'Write prescription'}
+            short="Prescription"
+            onClick={() => setRxVisit(todayVisit)}
+            testId="ps-rx"
+          />
+        )}
+        {todayVisit && may('today') && (
+          <Shortcut
+            icon={IconRupee}
+            label="Today's bill"
+            short="Bill"
+            to={`/queue/${todayVisit.stage}?patient=${p.id}`}
+            testId="ps-bill"
+          />
+        )}
+        {owed > 0 && may('today') && (
+          <Shortcut
+            icon={IconRupee}
+            label="Receive payment"
+            short="Receive payment"
+            onClick={() => scrollToId('patient-owed')}
+            testId="ps-owed"
+          />
+        )}
+        {may('appointments') && (
+          <Shortcut
+            icon={IconAppts}
+            label="Book appointment"
+            short="Appointment"
+            to={`/appointments?patient=${p.id}`}
+            testId="ps-appt"
+          />
+        )}
+        {may('ot') && (
+          <Shortcut
+            icon={IconOT}
+            label="Schedule surgery"
+            short="Surgery"
+            to={`/ot?patient=${p.id}`}
+            testId="ps-ot"
+          />
+        )}
+        <Shortcut icon={IconFamily} label="Family" onClick={() => scrollToId('patient-family')} testId="ps-family" />
+        <Shortcut
+          icon={IconPencil}
+          label="Edit details"
+          short="Edit"
+          onClick={() => setEditing(true)}
+          testId="patient-edit"
+        />
+      </nav>
 
-      <FamilyCard
-        patient={p}
-        relations={relations}
-        reloadKey={reloadKey}
-        onAddMember={setAddingMember}
-        onChanged={() => setReloadKey((k) => k + 1)}
-      />
+      {/* Counts that are not zero only. */}
+      {[
+        [data.totals.visits, 'visit', 'visits'],
+        [data.totals.prescriptions, 'prescription', 'prescriptions'],
+        [data.totals.surgeries, 'surgery', 'surgeries'],
+        [data.totals.readings, 'machine reading', 'machine readings'],
+      ].some(([n]) => n > 0) && (
+        <div className="patient-stats">
+          {[
+            [data.totals.visits, 'visit', 'visits'],
+            [data.totals.prescriptions, 'prescription', 'prescriptions'],
+            [data.totals.surgeries, 'surgery', 'surgeries'],
+            [data.totals.readings, 'machine reading', 'machine readings'],
+          ]
+            .filter(([n]) => n > 0)
+            .map(([n, one, many]) => (
+              <div className="patient-stat" key={many}>
+                <b className="num">{n}</b>
+                <span>{n === 1 ? one : many}</span>
+              </div>
+            ))}
+        </div>
+      )}
+
+      <div id="patient-family" className="patient-anchor">
+        <FamilyCard
+          patient={p}
+          relations={relations}
+          reloadKey={reloadKey}
+          onAddMember={setAddingMember}
+          onChanged={() => setReloadKey((k) => k + 1)}
+        />
+      </div>
 
       {/* Money still owed from earlier visits, with "Receive payment" (lane M) */}
-      <OwedBalances
-        patientId={p.id}
-        excludeVisitId={todayVisit?.id ?? null}
-        refreshKey={reloadKey}
-        onPaid={() => setReloadKey((k) => k + 1)}
-      />
+      <div id="patient-owed" className="patient-anchor">
+        <OwedBalances
+          patientId={p.id}
+          excludeVisitId={todayVisit?.id ?? null}
+          refreshKey={reloadKey}
+          onPaid={() => setReloadKey((k) => k + 1)}
+        />
+      </div>
 
       <div className="patient-grid">
         <section className="card patient-card-static" aria-labelledby="ph-details">
@@ -199,18 +355,20 @@ export default function Patient() {
             {details.map(([k, v]) => (
               <div key={k}>
                 <dt>{k}</dt>
-                <dd className={k === 'Phone' || k === 'Date of birth' || k === 'Age / sex' ? 'num' : ''}>{v}</dd>
+                <dd className={k === 'Previous system id' ? 'num' : ''}>{v}</dd>
               </div>
             ))}
           </dl>
           {p.note && <p className="patient-note">{p.note}</p>}
         </section>
 
+        {(data.otCases.length > 0 || data.appointments.length > 0) && (
         <section className="card patient-card-static" aria-labelledby="ph-surg">
-          <h3 id="ph-surg" className="section-title">
-            Surgeries
-          </h3>
-          {data.otCases.length === 0 && <p className="patient-empty">No surgery scheduled or recorded.</p>}
+          {data.otCases.length > 0 && (
+            <h3 id="ph-surg" className="section-title">
+              Surgeries
+            </h3>
+          )}
           {data.otCases.map((k) => {
             const st = OT_STATUS[k.status] || { label: k.status, cls: '' };
             return (
@@ -225,10 +383,11 @@ export default function Patient() {
             );
           })}
 
-          <h3 className="section-title" style={{ marginTop: 18 }}>
-            Appointments
-          </h3>
-          {data.appointments.length === 0 && <p className="patient-empty">No appointments.</p>}
+          {data.appointments.length > 0 && (
+            <h3 className="section-title" style={{ marginTop: data.otCases.length ? 18 : 0 }}>
+              Appointments
+            </h3>
+          )}
           {data.appointments.map((a) => (
             <div key={a.id} className="patient-line" data-testid="patient-appt">
               <span className="num">{fmtDate(a.date)}</span>
@@ -240,6 +399,7 @@ export default function Patient() {
             </div>
           ))}
         </section>
+        )}
       </div>
 
       <h3 className="section-title patient-visits-title">Visits</h3>
@@ -389,21 +549,40 @@ export default function Patient() {
         }}
       />
 
+      {/* "Add family member": the full New patient form in family mode — the family is fixed, and
+          only what a household shares (number, address, language, how they heard of us) comes over. */}
       <NewPatientModal
         open={!!addingMember}
-        preset={addingMember}
-        title="Add family member"
-        submitLabel="Save family member"
+        preset={
+          addingMember && {
+            ...addingMember,
+            relatedName: p.name,
+            address: p.address || '',
+            language: p.language || null,
+            referralSource: p.referralSource || '',
+          }
+        }
         config={config}
         busy={savingMember}
         onClose={() => setAddingMember(null)}
         onRegistered={() => setReloadKey((k) => k + 1)}
-        onSubmit={async (body) => {
+        onSubmit={async (body, extra = {}) => {
           setSavingMember(true);
           try {
             const created = await patientsApi.create(body);
             const where = created?.familyOwnerName ? ` to ${created.familyOwnerName}'s family` : '';
-            toast.success(`${created?.name || body.name} added${where}`);
+            let visit = null;
+            if (extra.addToQueue && created?.id != null) {
+              try {
+                visit = await visitsApi.create({ patientId: created.id, note: extra.note || undefined });
+              } catch (err) {
+                if (err?.response?.status !== 409) throw err;
+              }
+            }
+            toast.success(
+              `${created?.name || body.name} added${where}`,
+              extra.addToQueue ? `In today's queue${visit?.token ? ` · Token ${visit.token}` : ''}` : undefined
+            );
             setAddingMember(null);
             setReloadKey((k) => k + 1);
           } catch (e) {
@@ -412,6 +591,12 @@ export default function Patient() {
             setSavingMember(false);
           }
         }}
+      />
+
+      <AddToTodayModal
+        patient={addingToday ? p : null}
+        firstStage={stages[0]?.key}
+        onClose={() => setAddingToday(false)}
       />
 
       {rxVisit && (

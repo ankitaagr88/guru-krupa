@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useShell, useTopbar } from '../../components/AppShell';
 import DateStrip, { fmtDateLabel } from '../../components/DateStrip';
-import { ot as otApi, onDataChange } from '../../api';
+import { ot as otApi, patients as patientsApi, onDataChange } from '../../api';
 import { dateStr } from '../../mocks/data';
 import NewCaseModal from './NewCaseModal';
 import CaseDrawer from './CaseDrawer';
@@ -24,7 +25,37 @@ export default function OT() {
   const [loading, setLoading] = useState(true);
   const [lensTiers, setLensTiers] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
+  const [presetPatient, setPresetPatient] = useState(null); // ?patient=<id> → the New case form, prefilled
   const [current, setCurrent] = useState(null); // the open case (drawer)
+  const [search, setSearch] = useSearchParams();
+  const wantPatient = Number(search.get('patient')) || null;
+
+  // /ot?patient=<id> (the patient page's "Schedule surgery"): open the form with that patient picked.
+  useEffect(() => {
+    if (!wantPatient) return undefined;
+    let alive = true;
+    const drop = () =>
+      setSearch(
+        (s) => {
+          const next = new URLSearchParams(s);
+          next.delete('patient');
+          return next;
+        },
+        { replace: true }
+      );
+    patientsApi
+      .get(wantPatient)
+      .then((p) => {
+        if (!alive || !p) return;
+        setPresetPatient(p);
+        setModalOpen(true);
+        drop(); // the link is used once
+      })
+      .catch(() => alive && drop());
+    return () => {
+      alive = false;
+    };
+  }, [wantPatient, setSearch]);
 
   const loadCounts = useCallback(
     () =>
@@ -79,7 +110,7 @@ export default function OT() {
     ),
     []
   );
-  useTopbar({ sub: 'OT · surgery scheduling and operative records', actions });
+  useTopbar({ sub: '', actions });
 
   const sorted = useMemo(
     () => cases.slice().sort((a, b) => slotMinutes(caseSlot(a)) - slotMinutes(caseSlot(b))),
@@ -116,10 +147,6 @@ export default function OT() {
       <div className="appt-head">
         <h2 id="otHeading">{fmtDateLabel(date, true)}</h2>
       </div>
-      <p className="hint" style={{ margin: '-10px 0 16px' }}>
-        Real time slots — surgery needs advance prep (fasting, OT staff, anesthesia), unlike the rest of the app&apos;s
-        walk-in-order flow.
-      </p>
 
       <DateStrip value={date} onChange={setDate} counts={counts} from={STRIP_FROM} to={STRIP_TO} />
 
@@ -184,9 +211,14 @@ export default function OT() {
       <NewCaseModal
         open={modalOpen}
         date={date}
-        onClose={() => setModalOpen(false)}
+        presetPatient={presetPatient}
+        onClose={() => {
+          setModalOpen(false);
+          setPresetPatient(null);
+        }}
         onCreated={(created) => {
           setModalOpen(false);
+          setPresetPatient(null);
           if (created.date === date) setCases((rows) => [...rows, created]);
           else setDate(created.date);
           loadCounts();

@@ -180,9 +180,10 @@ export function seedPatients() {
         },
       ],
       diagnosisId: 8,
+      // Both are on the medicine list (matched is worked out from the name, like the server does).
       medicines: [
-        { name: 'Timolol 0.5% eye drops', matched: true, dosage: '1 drop both eyes, twice daily' },
-        { name: 'Latanoprost 0.005% eye drops', matched: false, dosage: '1 drop both eyes, at night' },
+        { id: 1, name: 'Timolol 0.5% eye drops', dosage: '1 drop both eyes, twice daily' },
+        { id: 2, name: 'Latanoprost 0.005% eye drops', dosage: '1 drop both eyes, at night' },
       ],
     },
     {
@@ -257,6 +258,54 @@ export function seedPatients() {
       elsewhere: false,
       stageEnteredAt: now - MIN * 45,
     },
+    /* Returning patients who are NOT in today's queue (no stage, no token): search for them to
+       try "Add to today". High ids so they never collide with patients added during a demo. */
+    {
+      id: 901,
+      name: 'Nirmala Joshi',
+      token: null,
+      age: 66,
+      sex: 'F',
+      phone: '98251 44321',
+      address: 'Parle Point, Surat',
+      occupation: 'Retired teacher',
+      stage: null,
+      visitRegistered: false,
+      lastVisitDate: dateStr(-35),
+      referralSource: 'self',
+      existingConditions: ['Diabetes'],
+    },
+    {
+      id: 902,
+      name: 'Rakesh Parmar',
+      token: null,
+      age: 41,
+      sex: 'M',
+      phone: '99090 55667',
+      address: 'Pal, Surat',
+      occupation: 'Diamond polisher',
+      screenHours: 2,
+      stage: null,
+      visitRegistered: false,
+      lastVisitDate: dateStr(-120),
+      referralSource: 'patient',
+      referralDetail: 'His wife is a patient',
+    },
+    {
+      id: 903,
+      name: 'Hetal Soni',
+      token: null,
+      age: 27,
+      sex: 'F',
+      phone: '97240 88990',
+      address: 'Katargam, Surat',
+      occupation: 'Accountant',
+      screenHours: 8,
+      stage: null,
+      visitRegistered: false,
+      lastVisitDate: dateStr(-10),
+      referralSource: 'online',
+    },
   ];
   return patients.map(normalizePatient);
 }
@@ -266,6 +315,8 @@ export function normalizePatient(p) {
   const out = { ...p };
   if (!out.readings) out.readings = [];
   if (!out.medicines) out.medicines = [];
+  // Every prescription line has an id (the front desk's "Bought here" finds the line by it).
+  out.medicines = out.medicines.map((m, i) => (m.id == null ? { ...m, id: i + 1 } : m));
   if (out.referralSource === undefined) out.referralSource = 'self';
   if (out.referralDetail === undefined) out.referralDetail = '';
   if (out.elsewhereNote === undefined) out.elsewhereNote = '';
@@ -291,6 +342,9 @@ export function normalizePatient(p) {
 export const PATIENT_HISTORY = {
   '90999 45678': ['2026-08-18'], // Bharat Oza — monthly glaucoma follow-up
   '99789 67890': ['2026-07-30'], // Ilaben Chauhan
+  '98251 44321': [dateStr(-35)], // Nirmala Joshi — not in today's queue
+  '99090 55667': [dateStr(-120)], // Rakesh Parmar — not in today's queue
+  '97240 88990': [dateStr(-10)], // Hetal Soni — not in today's queue
 };
 
 export function seedAppointments() {

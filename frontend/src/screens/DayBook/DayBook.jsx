@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useTopbar } from '../../components/AppShell';
+import { useShell, useTopbar } from '../../components/AppShell';
 import DateStrip, { fmtDateLabel } from '../../components/DateStrip';
 import { useToast } from '../../components/Toast';
-import { daybook as daybookApi, onDataChange, errorMessage } from '../../api';
+import { daybook as daybookApi, onDataChange, errorMessage, USE_MOCKS } from '../../api';
 import { dateStr } from '../../mocks/data';
 import { modeLabel, rupees, shortDate, timeOf } from '../Billing/money';
 import '../Today/today.css';
@@ -15,7 +15,10 @@ import './daybook.css';
    visits too), OT cases under the OT column, and balances from earlier visits collected that day
    (marked "old balance"); the totals row under it. Below: the cash drawer (opening cash, + cash
    received, − cash taken out, = closing cash) with "Set opening cash" and "Cash taken out / put
-   in", and the money received by mode. "Download Excel" gives the same sheet as a file.
+   in", and the money received by mode. "Download Excel" gives the same sheet as a file (the demo
+   has no server to build a workbook, so there it says "Download CSV (demo)").
+   A visit still in progress (`inClinic`) reads "in clinic" rather than a ₹0 that looks free.
+   On a phone the cash drawer and the totals come first, and the day strip shows today.
    Data: `daybook.day(date)` (GET /daybook/{date}). Only cash payments touch the drawer. */
 
 const OPENING_SOURCE = {
@@ -27,6 +30,8 @@ const OPENING_SOURCE = {
 
 export default function DayBook() {
   const toast = useToast();
+  const { isMobile } = useShell();
+  const stripRef = useRef(null);
   const today = dateStr(0);
   const [date, setDate] = useState(today);
   const [book, setBook] = useState(null);
@@ -53,7 +58,15 @@ export default function DayBook() {
     };
   }, [load, date, today]);
 
-  useTopbar({ sub: `Day book · ${fmtDateLabel(date, true)}` });
+  useTopbar({ sub: fmtDateLabel(date, true) });
+
+  // The strip runs up to today on the right: on a narrow screen scroll so the chosen day shows.
+  useEffect(() => {
+    const strip = stripRef.current?.querySelector('.date-strip');
+    const active = strip?.querySelector('.date-pill.active');
+    if (!strip || !active || strip.scrollWidth <= strip.clientWidth) return;
+    strip.scrollLeft = active.offsetLeft - strip.clientWidth + active.offsetWidth + 8;
+  }, [date, isMobile]);
 
   /** Cash-drawer writes answer with the whole day; show it. */
   const act = async (fn, okMsg, failTitle) => {
@@ -105,23 +118,25 @@ export default function DayBook() {
             />
           </label>
           <button type="button" className="btn-primary sm" onClick={download} disabled={!book}>
-            Download Excel
+            {USE_MOCKS ? 'Download CSV (demo)' : 'Download Excel'}
           </button>
         </div>
       </div>
-      <DateStrip value={date} onChange={setDate} from={-6} to={0} />
+      <div ref={stripRef}>
+        <DateStrip value={date} onChange={setDate} from={-6} to={0} />
+      </div>
 
       {failed && !book && <p className="hint">Could not load the day book. Check the connection and try again.</p>}
       {!failed && !book && <p className="hint">Loading…</p>}
 
       {book && (
-        <>
+        <div className={`daybook-body${isMobile ? ' cards-first' : ''}`}>
           <Sheet book={book} />
           <div className="today-grid daybook-grid">
             <CashDrawer book={book} date={date} busy={busy} act={act} />
             <ByMode book={book} />
           </div>
-        </>
+        </div>
       )}
     </div>
   );
@@ -134,10 +149,7 @@ function Sheet({ book }) {
   return (
     <section className="today-card daybook-card" aria-labelledby="h-daybook-sheet">
       <h3 id="h-daybook-sheet">Patient list</h3>
-      <p className="today-note">
-        One row per visit (free visits show 0), surgeries under their column, and old balances collected on this
-        day. Left is what is still owed now.
-      </p>
+      <p className="today-note">Left = still owed now.</p>
       <div className="daybook-scroll" tabIndex={0} aria-label="Day book table, scrolls sideways">
         <table className="today-table daybook-table" data-testid="daybook-table">
           <thead>
@@ -187,7 +199,20 @@ function Sheet({ book }) {
                     {cell(r.amounts?.[h.key])}
                   </td>
                 ))}
-                <td className="num mono daybook-total">{Number(r.total || 0).toLocaleString('en-IN')}</td>
+                <td className="num mono daybook-total">
+                  {r.inClinic && !r.total ? (
+                    <span className="daybook-pending" data-testid="daybook-in-clinic">
+                      in clinic
+                    </span>
+                  ) : r.kind === 'visit' && r.inClinic && r.patientId != null ? (
+                    // today's bill is in the queue drawer
+                    <Link to={`/queue?patient=${r.patientId}`} title="Open the bill">
+                      {Number(r.total || 0).toLocaleString('en-IN')}
+                    </Link>
+                  ) : (
+                    Number(r.total || 0).toLocaleString('en-IN')
+                  )}
+                </td>
                 <td className="daybook-nowrap">{r.modes.map(modeLabel).join(' + ')}</td>
                 <td className={`num mono${r.left > 0 ? ' daybook-owed' : ''}`}>
                   {r.left < 0 ? `−${cell(-r.left)}` : Number(r.left || 0).toLocaleString('en-IN')}
@@ -224,7 +249,7 @@ function CashDrawer({ book, date, busy, act }) {
   return (
     <section className="today-card" aria-labelledby="h-cash-drawer">
       <h3 id="h-cash-drawer">Cash drawer</h3>
-      <p className="today-note">Only cash counts here — UPI, card and mediclaim are in the totals by mode.</p>
+      <p className="today-note">Cash only.</p>
       <table className="today-table daybook-cash" data-testid="cash-box">
         <tbody>
           <tr>
@@ -281,16 +306,27 @@ function CashDrawer({ book, date, busy, act }) {
           </tr>
         </tfoot>
       </table>
-      {!form && (
-        <div className="daybook-actions">
-          <button type="button" className="btn-ghost" onClick={() => setForm('opening')} disabled={busy}>
-            Set opening cash
-          </button>
-          <button type="button" className="btn-ghost" onClick={() => setForm('move')} disabled={busy}>
-            Cash taken out / put in
-          </button>
-        </div>
-      )}
+      {/* Both actions stay visible; the one that is open is marked. */}
+      <div className="daybook-actions">
+        <button
+          type="button"
+          className={`btn-ghost${form === 'opening' ? ' daybook-action-on' : ''}`}
+          onClick={() => setForm(form === 'opening' ? null : 'opening')}
+          aria-expanded={form === 'opening'}
+          disabled={busy}
+        >
+          Set opening cash
+        </button>
+        <button
+          type="button"
+          className={`btn-ghost${form === 'move' ? ' daybook-action-on' : ''}`}
+          onClick={() => setForm(form === 'move' ? null : 'move')}
+          aria-expanded={form === 'move'}
+          disabled={busy}
+        >
+          Cash taken out / put in
+        </button>
+      </div>
       {form === 'opening' && (
         <OpeningForm
           cash={cash}
@@ -334,6 +370,7 @@ function OpeningForm({ cash, busy, onSave, onCancel }) {
         <input
           className="fake-input mono"
           inputMode="numeric"
+          autoFocus
           aria-label="Opening cash"
           value={amount}
           onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, ''))}
@@ -410,6 +447,7 @@ function MovementForm({ busy, onSave, onCancel }) {
         <input
           className="fake-input mono"
           inputMode="numeric"
+          autoFocus
           aria-label="Cash amount"
           value={amount}
           onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, ''))}
@@ -458,7 +496,6 @@ function ByMode({ book }) {
   return (
     <section className="today-card" aria-labelledby="h-daybook-modes">
       <h3 id="h-daybook-modes">Money received by mode</h3>
-      <p className="today-note">Every payment received on this day, bills and surgeries.</p>
       <table className="today-table" data-testid="daybook-modes">
         <thead>
           <tr>

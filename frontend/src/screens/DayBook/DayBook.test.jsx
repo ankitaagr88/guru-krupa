@@ -39,9 +39,16 @@ describe('Day book', () => {
     expect(num(cells.at(-3))).toBe(750); // total
     expect(cells.at(-2)).toBe('Cash');
     expect(num(cells.at(-1))).toBe(250); // left
-    // a visit with no bill yet still has its row, at 0
+    // a visit with no bill yet still has its row; still in the clinic, so "in clinic" rather than a 0
     const rasila = within(table).getByRole('link', { name: 'Rasilaben Patel' }).closest('tr');
-    expect(num(within(rasila).getAllByRole('cell').at(-3).textContent)).toBe(0);
+    expect(within(within(rasila).getAllByRole('cell').at(-3)).getByTestId('daybook-in-clinic')).toHaveTextContent(
+      'in clinic'
+    );
+    // a finished visit is not "in clinic"
+    const pooja = within(table).getByRole('link', { name: 'Pooja Trivedi' }).closest('tr');
+    expect(within(pooja).queryByTestId('daybook-in-clinic')).toBeNull();
+    // returning patients who haven't come in today have no row
+    expect(within(table).queryByText('Nirmala Joshi')).toBeNull();
 
     const old = within(table).getByText(/old balance/).closest('tr');
     expect(old).toHaveTextContent('Bharat Oza');
@@ -75,6 +82,9 @@ describe('Day book', () => {
 
     const cashIn = (await daybook.day(dateStr(0))).cash.cashReceived;
     await userEvent.click(screen.getByRole('button', { name: 'Cash taken out / put in' }));
+    // the amount box has the cursor, and "Set opening cash" is still there
+    expect(screen.getByLabelText('Cash amount')).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Set opening cash' })).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText('Cash amount'), '3000');
     await userEvent.type(screen.getByLabelText('Who took or gave it'), 'MAAM');
     await userEvent.type(screen.getByLabelText('Reason'), 'Taken home');
@@ -86,6 +96,9 @@ describe('Day book', () => {
 
     // put ₹500 in (change for the day)
     await userEvent.click(screen.getByRole('button', { name: 'Cash taken out / put in' }));
+    // the amount box has the cursor, and "Set opening cash" is still there
+    expect(screen.getByLabelText('Cash amount')).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Set opening cash' })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Put in' }));
     await userEvent.type(screen.getByLabelText('Cash amount'), '500');
     await userEvent.click(
@@ -111,7 +124,8 @@ describe('Day book', () => {
     });
     renderShell({ route: '/daybook', child: <DayBook /> });
     await screen.findByTestId('daybook-table');
-    await userEvent.click(screen.getByRole('button', { name: 'Download Excel' }));
+    // demo mode hands over a CSV and says so
+    await userEvent.click(screen.getByRole('button', { name: 'Download CSV (demo)' }));
     await waitFor(() => expect(click).toHaveBeenCalled());
     // the demo hands over a CSV of the same sheet (the server sends the .xlsx)
     expect(names).toEqual([`day-book-${dateStr(0)}.csv`]);

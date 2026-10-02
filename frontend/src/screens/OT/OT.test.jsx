@@ -16,6 +16,12 @@ describe('OT screen (F6)', () => {
     mockStore.reset();
   });
 
+  it('/ot?patient=<id> (the patient page\'s "Schedule surgery") opens the form with the patient picked', async () => {
+    renderShell({ route: '/ot?patient=5', child: <OT /> });
+    expect(await screen.findByTestId('ot-picked-patient')).toHaveTextContent('Bharat Oza');
+    expect(screen.getByRole('dialog', { name: 'Schedule surgery' })).toBeInTheDocument();
+  });
+
   it('shows today\'s cases with slot and status, and per-day counts on the strip', async () => {
     renderOT();
     const row = await screen.findByTestId('ot-row-1');

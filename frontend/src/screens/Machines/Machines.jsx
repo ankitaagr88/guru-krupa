@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useShell, useTopbar } from '../../components/AppShell';
 import { useOffline } from '../../offline/OfflineContext';
 import { readings as readingsApi, visits as visitsApi, onDataChange, errorMessage, USE_MOCKS } from '../../api';
@@ -56,9 +57,17 @@ function PatientPicker({ rows, query, onQuery, onPick, stages, loading, machine 
 /* ------------------------------------------------------------------ */
 /* Machine picker — step 1: every machine, one tap                       */
 /* ------------------------------------------------------------------ */
-function MachinePicker({ machines, onPick }) {
+function MachinePicker({ machines, onPick, forPatient }) {
   return (
     <>
+      {forPatient && (
+        <div className="machine-chosen" data-testid="machine-for-patient">
+          <span>
+            Reading for <b>{forPatient.name}</b>
+            {forPatient.token ? <span className="machine-patient-meta"> · {forPatient.token}</span> : null}
+          </span>
+        </div>
+      )}
       <p className="label">Which machine are you using?</p>
       <div className="machine-opts" id="machineOptZone">
         {machines.map((m) => (
@@ -198,11 +207,12 @@ function CaptureArea({ patient, machine, machines, stages, isMobile, onNextPatie
   })();
   let tag = null;
   if (pending.some((p) => p.machineKey === machine.key))
-    tag = <span className="done-tag processing">waiting to upload</span>;
-  else if (latest && isBusy(latest)) tag = <span className="done-tag processing">processing…</span>;
-  else if (latest && latest.status === 'failed') tag = <span className="done-tag failed">failed — retake</span>;
-  else if (latest && latest.approved) tag = <span className="done-tag">approved</span>;
-  else if (latest) tag = <span className="done-tag processing">captured — check and approve</span>;
+    tag = <span className="done-tag machine-tag processing">waiting to upload</span>;
+  else if (latest && isBusy(latest)) tag = <span className="done-tag machine-tag processing">processing…</span>;
+  else if (latest && latest.status === 'failed')
+    tag = <span className="done-tag machine-tag failed">failed — retake</span>;
+  else if (latest && latest.approved) tag = <span className="done-tag machine-tag">approved</span>;
+  else if (latest) tag = <span className="done-tag machine-tag processing">captured — needs approval</span>;
 
   return (
     <div id="machineCaptureArea" style={{ marginTop: 16 }}>
@@ -255,8 +265,7 @@ function CaptureArea({ patient, machine, machines, stages, isMobile, onNextPatie
       )}
       {!isMobile && !typing && (
         <p className="hint" style={{ margin: '6px 0 14px' }}>
-          Readings photographed on the phone appear here on their own. The values are extracted and shown below for
-          checking and approval.
+          Phone photos show up here for approval.
         </p>
       )}
 
@@ -335,8 +344,14 @@ function CaptureArea({ patient, machine, machines, stages, isMobile, onNextPatie
 /* ------------------------------------------------------------------ */
 /* Screen                                                               */
 /* ------------------------------------------------------------------ */
+/* /machines?visit=<visitId> (the patient page, the pre-testing drawer): that patient is picked
+   straight away — with a remembered machine it goes on to the capture, otherwise it asks the
+   machine first and then captures for them. The link is used once; "Next patient" is a free pick. */
 export default function Machines() {
   const { isMobile, stages } = useShell();
+  const [search, setSearch] = useSearchParams();
+  const wantVisit = Number(search.get('visit')) || null;
+  const [visitMissing, setVisitMissing] = useState(false);
   const { isOffline, simulateOffline, toggleSimulateOffline, pendingCount } = useOffline();
   const [machines, setMachines] = useState([]);
   const [rows, setRows] = useState([]);
@@ -362,7 +377,7 @@ export default function Machines() {
   };
 
   useTopbar({
-    sub: isMobile ? 'Machines · capture a reading for any patient, any stage' : 'Machines · values read from printouts, for checking and approval',
+    sub: '',
   });
 
   useEffect(() => {
@@ -398,20 +413,32 @@ export default function Machines() {
     };
   }, []);
 
+  // ?visit=<id>: preselect that patient once today's list is in, then drop the link.
+  useEffect(() => {
+    if (!wantVisit || loading) return;
+    const row = rows.find((r) => r.id === wantVisit && r.stage !== 'done');
+    setVisitMissing(!row);
+    if (row) setSelected(row);
+    setSearch(
+      (s) => {
+        const next = new URLSearchParams(s);
+        next.delete('visit');
+        return next;
+      },
+      { replace: true }
+    );
+  }, [wantVisit, loading, rows, setSearch]);
+
   // Keep the selected row's stage fresh.
   const current = useMemo(() => (selected ? rows.find((r) => r.id === selected.id) || selected : null), [rows, selected]);
 
   return (
     <div className="appt-wrap machines-wrap" id="machinesWrap">
-      <div className="appt-head">
-        <h2>Machine readings</h2>
-        <div className="machines-head-right">{isMobile && <InstallPrompt />}</div>
-      </div>
-      <p className="hint" style={{ margin: '-10px 0 12px' }}>
-        {isMobile
-          ? "Capture a machine's printout for any patient currently in the clinic — not tied to one stage, since tests can happen before, during, or after the doctor."
-          : 'Printouts are photographed on the phone; this screen shows the values read from them so they can be checked and approved. An image file can also be added here.'}
-      </p>
+      {isMobile && (
+        <div className="machines-head-right" style={{ marginBottom: 10 }}>
+          <InstallPrompt />
+        </div>
+      )}
 
       <div id="connectivityBanner" style={isMobile ? undefined : { display: 'none' }}>
         {isOffline && (
@@ -421,14 +448,20 @@ export default function Machines() {
           </div>
         )}
         {USE_MOCKS && (
-          <button type="button" className="btn-ghost machine-demo-btn" onClick={toggleSimulateOffline} data-testid="offline-toggle">
-            {simulateOffline ? 'Demo: back online' : 'Demo: no connection'}
+          <button type="button" className="machine-demo-link" onClick={toggleSimulateOffline} data-testid="offline-toggle">
+            {simulateOffline ? 'Demo only: back online' : 'Demo only: try without a connection'}
           </button>
         )}
       </div>
 
+      {visitMissing && (
+        <p className="hint" role="status" data-testid="machine-visit-missing">
+          Not in today&apos;s queue — pick the patient.
+        </p>
+      )}
+
       {!machine ? (
-        <MachinePicker machines={machines} onPick={(m) => chooseMachine(m.key)} />
+        <MachinePicker machines={machines} onPick={(m) => chooseMachine(m.key)} forPatient={current} />
       ) : !current ? (
         <>
           <div className="machine-chosen" data-testid="machine-chosen">

@@ -45,7 +45,7 @@ export default function PrescriptionsToday() {
   }, [load]);
 
   const written = rows.filter((v) => visitInfo(v).hasPrescription).length;
-  useTopbar({ sub: `Prescriptions · ${written} written today · ${rows.length - written} pending` });
+  useTopbar({ sub: `${written} written today · ${rows.length - written} pending` });
 
   const shown = useMemo(
     () =>
@@ -78,10 +78,6 @@ export default function PrescriptionsToday() {
           ))}
         </div>
       </div>
-      <p className="hint" style={{ margin: '-10px 0 16px' }}>
-        Write or print a prescription for any patient in the clinic today. Quantities given from clinic stock
-        deduct from Stock automatically.
-      </p>
       <table className="data-table">
         <thead>
           <tr>

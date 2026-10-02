@@ -32,6 +32,7 @@ export function AppRoutes() {
           </RequireAuth>
         }
       >
+        {/* The app opens on the Queue (the desk's main screen), though Appointments is first in the menu. */}
         <Route index element={<Navigate to="/queue" replace />} />
         <Route path="/queue" element={<Queue />} />
         <Route path="/queue/:stage" element={<Queue />} />
@@ -90,9 +91,14 @@ export function AppProviders({ children, initialUser }) {
   );
 }
 
+/* Opt in to React Router v7 behaviour now (silences the console warnings): state updates in
+   startTransition, and relative links inside splat routes resolve like v7. We have no splat routes
+   with relative links, so nothing changes for us. */
+export const ROUTER_FUTURE = { v7_startTransition: true, v7_relativeSplatPath: true };
+
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter future={ROUTER_FUTURE}>
       <AppProviders>
         <AppRoutes />
       </AppProviders>

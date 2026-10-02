@@ -189,10 +189,7 @@ export default function FamilyCard({ patient, relations, reloadKey = 0, onAddMem
       </div>
 
       {fam.members.length === 0 && (
-        <p className="patient-empty">
-          {patient.name} is not linked to a family yet. Use &quot;Add family member&quot; for someone new
-          {fam.samePhone.length > 0 ? ', or link someone already registered on this number below.' : '.'}
-        </p>
+        <p className="patient-empty">No family linked yet.</p>
       )}
       {fam.members.map((m) => {
         const me = m.id === pid;

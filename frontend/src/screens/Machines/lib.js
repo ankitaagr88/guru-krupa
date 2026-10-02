@@ -26,7 +26,8 @@ export function filterVisits(rows, query) {
 export const STATUS_META = {
   pending: { label: 'Pending', cls: 'amber' },
   processing: { label: 'Processing', cls: 'amber' },
-  done: { label: 'Done', cls: 'sage' },
+  // Values read, not yet checked by a person ("Approved" once they are).
+  done: { label: 'Needs approval', cls: 'amber' },
   failed: { label: 'Failed', cls: 'coral' },
 };
 
