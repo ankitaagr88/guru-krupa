@@ -395,7 +395,8 @@ def pay_bill(db: Session, bill: Bill, payment_mode: str, by=None) -> Bill:
 def owed_bills(db: Session, patient_id: int | None = None, on_or_before=None) -> list[Bill]:
     """Bills with money still to collect (balance > 0), oldest visit first. Only bills not settled
     (`paid_at` is None) can owe, so the scan stays small."""
-    stmt = select(Bill).join(Visit, Bill.visit_id == Visit.id).where(Bill.paid_at.is_(None))
+    stmt = select(Bill).join(Visit, Bill.visit_id == Visit.id).where(Bill.paid_at.is_(None),
+                                                                     Visit.imported.is_(False))
     if patient_id is not None:
         stmt = stmt.where(Visit.patient_id == patient_id)
     if on_or_before is not None:

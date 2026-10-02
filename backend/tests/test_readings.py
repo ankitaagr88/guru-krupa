@@ -301,6 +301,10 @@ def test_approve_while_processing_is_409(client, admin_headers, visit_id, db):
 def test_purge_stale_images(client, admin_headers, visit_id, upload_dir, db):
     from datetime import datetime, timedelta, timezone
 
+    # Earlier tests leave readings captured on a fixed date (19 Sept 2026); keep them out of this count.
+    for row in db.scalars(select(Reading)):
+        row.captured_at = datetime.now(timezone.utc)
+    db.commit()
     old = upload(client, admin_headers, visit_id, "hrk8000a_ref").json()
     fresh = upload(client, admin_headers, visit_id, "hnt1p_tono").json()
     twin_a = upload(client, admin_headers, visit_id, "clm1_lensmeter").json()

@@ -1,7 +1,7 @@
 # Task List — Gurukrupa Eye Hospital Core Tool
 
 **Live status board.** Updated at the end of every working session together with `handoff.md`.
-Last updated: **2026-09-23 (end of session 3)**
+Last updated: **2026-10-02 (session 5)**
 
 Status key: ✅ Done · 🔄 In progress · ⏳ Not started · ⛔ Blocked/waiting on someone · 🧪 Done, needs real-world check · ⏸ Parked at your request
 
@@ -11,7 +11,7 @@ Source of truth for behaviour: `guru-krupa-eye-hospital-mockup.html` (copy in `g
 
 ## Summary
 
-**Overall progress: 86%** (56 of 65 tasks done)
+**Overall progress: 89%** (53 of 60 tasks done, 1 in progress)
 
 | Area | Done | In progress | Not started | Blocked | % complete |
 |---|---|---|---|---|---|
@@ -19,9 +19,10 @@ Source of truth for behaviour: `guru-krupa-eye-hospital-mockup.html` (copy in `g
 | Frontend (screens) | 22 | 0 | 0 | 0 | 100% |
 | Improvements from the session-2 review | 8 | 0 | 0 | 0 | 100% |
 | New requests (N1–N3) | 3 | 0 | 0 | 0 | 100% |
-| Data & go-live | 3 | 0 | 4 | 2 | 33% |
-| WhatsApp intake | 3 | 0 | 1 | 1 | 60% |
-| **Total** | **56** | **0** | **6** | **3** | **86%** |
+| Data & go-live | 3 | 1 | 4 | 1 | 39% |
+| **Total** | **53** | **1** | **5** | **1** | **89%** |
+
+The separate WhatsApp new-patient chat tool was removed on 2026-10-02 at your request: patients are sent the same QR new-patient form (N1) as a link instead.
 
 How the % is worked out: done = 1, in progress = ½, not started / blocked = 0, divided by the number of tasks in that area.
 
@@ -112,20 +113,10 @@ Built on 2026-09-23 by three helpers working side by side (A = reception, B = bi
 | G5 | More real printout photos: YPC-100K (none yet), extra HNT-1P/HRK slips, phone photos at an angle | ⏳ | Improves reading accuracy |
 | G6 | Set up the server, domain, SSL — **a small rented server (VPS) in an Indian data centre (DPDP Act)**, e.g. DigitalOcean Bangalore / Linode Mumbai / E2E Networks | ⏳ | Decided 2026-09-20. Scripts ready (B11). Start small; migrate to AWS Mumbai later if the business grows (restore backup + copy photos + re-point domain — no provider-specific code)  **Recommended buy (2026-09-23):** DigitalOcean Bangalore — Basic Droplet 2 GB / 1 CPU / 50 GB ($12) + Daily backups ($3.60) + Spaces ($5) ≈ $20.60/month + GST |
 | G6a | **Data never lost:** nightly Postgres + photo backup on the server (30 days) + automatic off-site copy to Indian object storage + a copy pulled to the clinic laptop **at start-up and mid-day** (machines are off by 8 pm, so nothing nightly on the clinic side); missed-backup alert; restore drill documented and tested before go-live; later an Admin "download my data" export | ⏳ | Firm requirement from the user 2026-09-20 |
-| G7 | First real import from KiviHealth + staff logins created | ⛔ | Import screen ready; waiting on the export files |
+| G7 | First real import from KiviHealth + staff logins created | 🔄 | **2026-10-02:** export files arrived (2021–2026). Import extended: several yearly files at once, **Past visits** and **Past bills** (old money kept out of Day book / cash drawer / Today), KiviHealth name/date formats, medicine prices. Full test run in a separate test area of the database (`import_test`): 3,518 patients, 6,072 past visits, 2,432 bills (₹85.7 lakh), 396 medicines, 11 prescription lines. **Waiting on:** 2025 Appointments + Payments re-export; Dr Anu's review of `KiviHealth\Medicine list - for review.xlsx`; then the real import on the server. Staff logins still open |
 | G8 | Staff training / first day at the clinic | ⏳ | |
 
 ---
-
-## WhatsApp new-patient intake (separate tool, reusable for other clinics)
-
-| # | Task | Status | Notes |
-|---|---|---|---|
-| W1 | Conversation flow in Gujarati/Hindi with tap buttons, per the spec | ✅ | Honorific starts from the address question (gender is asked after age) |
-| W2 | Details land in the Gurukrupa patient list (with Google Sheet / CSV alternatives) | ✅ | Retries automatically if the clinic system is down |
-| W3 | Printable QR page + on-PC simulator | ✅ | |
-| W4 | Connect a real WhatsApp Business number | ⛔ | Decisions needed: provider (official API vs linked phone), whose number, data destination, extra questions |
-| W5 | Pilot at the front desk | ⏳ | After W4 |
 
 ## Out of scope for this build
 WhatsApp follow-up reminders and care messages (later phase). API reference kept in `Whatsapp API.txt`.

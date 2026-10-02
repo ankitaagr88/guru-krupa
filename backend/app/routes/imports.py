@@ -1,7 +1,7 @@
 """Spreadsheet import (B13/F15), admin-only.
 
   GET  /admin/import/targets          what can be imported and which columns each needs
-  POST /admin/import/files            multipart `file` (CSV / Excel) -> token, headers, sample rows, suggested matching
+  POST /admin/import/files            multipart `file` (CSV / Excel), or several same-column `files` -> token, headers, sample rows, suggested matching
   POST /admin/import/preview          {token, target, mapping} -> every row judged, nothing written
   POST /admin/import/run              same body -> written in one go, audited
 """
@@ -65,18 +65,31 @@ def targets(user: Staff = admin_user):
 
 
 @router.post("/files", response_model=ImportFileOut)
-async def upload(file: UploadFile = File(...), user: Staff = admin_user):
-    data = await file.read()
-    if not data:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Empty file")
-    if len(data) > MAX_BYTES:
-        raise HTTPException(413, "File too large (max 25 MB)")
+async def upload(file: UploadFile | None = File(None), files: list[UploadFile] | None = File(None),
+                 user: Staff = admin_user):
+    """One file as `file`, or several with the same columns as `files` (read as one, in the order sent)."""
+    uploads = [f for f in ([file] if file is not None else []) + (files or [])]
+    if not uploads:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "No file")
+    parts = []
+    for f in uploads:
+        data = await f.read()
+        if not data:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Empty file: {f.filename}")
+        parts.append((data, f.filename or "upload.csv"))
+    if sum(len(d) for d, _ in parts) > MAX_BYTES:
+        raise HTTPException(413, "Files too large (max 25 MB together)")
     try:
-        token = svc.store_file(data, file.filename or "upload.csv")
-        headers, rows = svc.parse_table(data, file.filename or "upload.csv")
+        if len(parts) == 1:
+            data, filename = parts[0]
+            token = svc.store_file(data, filename)
+            headers, rows = svc.parse_table(data, filename)
+        else:
+            data, filename, headers, rows = svc.combine_files(parts)
+            token = svc.store_file(data, "combined.csv")
     except svc.ImportError_ as exc:
         raise _bad(exc) from exc
-    return ImportFileOut(token=token, filename=file.filename or "", headers=headers, row_count=len(rows),
+    return ImportFileOut(token=token, filename=filename, headers=headers, row_count=len(rows),
                          sample=rows[: svc.SAMPLE_ROWS],
                          suggested={t: svc.suggest_mapping(headers, t) for t in svc.TARGETS})
 

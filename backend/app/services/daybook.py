@@ -326,7 +326,7 @@ def day_book(db: Session, day: date) -> DayBookOut:
 
     # Visits that day, in registration order.
     visit_bills = set()
-    for v in db.scalars(select(Visit).where(Visit.date == day).order_by(Visit.id)):
+    for v in db.scalars(select(Visit).where(Visit.date == day, Visit.imported.is_(False)).order_by(Visit.id)):
         bill = v.bill
         amounts: dict[str, int] = defaultdict(int)
         total = received = left = 0

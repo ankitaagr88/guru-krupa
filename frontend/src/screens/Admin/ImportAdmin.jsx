@@ -4,12 +4,21 @@ import { IconUpload } from '../../components/Icons';
 import './import.css';
 
 /* Admin › Import from KiviHealth (B13/F15).
-   Upload a CSV / Excel export → say what it holds → match its columns to the
+   Upload a CSV / Excel export (or several same-column files, read as one) → say what it holds → match its columns to the
    app's fields (suggested automatically from the header names) → preview every
    row (new / update / skip, with the reason) → import. Nothing is written
    until "Import" is pressed; a repeat import of the same file changes nothing. */
 
-const ORDER_HINT = 'Import in this order: Patients → Medicines → Stock → Prescriptions (prescriptions need the patients to be there first).';
+const ORDER_HINT = 'Order: Patients → Medicines → Past visits → Past bills → Prescriptions.';
+
+// one line after a successful import, per kind of file
+const DONE_NOTE = {
+  prescriptions: ' The treatment standards now count these prescriptions.',
+  visits: " These show on each patient's page as visits from the previous system.",
+  payments: " Old bills show on the patient's page; they are not counted in the Day book or Today.",
+};
+// patients need a Name column, or First / Last name columns instead
+const NAME_KEYS = ['name', 'first_name', 'last_name'];
 
 export function ImportSection() {
   const [targets, setTargets] = useState([]);
@@ -39,13 +48,13 @@ export function ImportSection() {
   };
 
   const onFile = async (e) => {
-    const f = e.target.files?.[0];
+    const picked = Array.from(e.target.files || []);
     e.target.value = '';
-    if (!f) return;
+    if (!picked.length) return;
     reset();
     setBusy('upload');
     try {
-      const info = await api.upload(f);
+      const info = await api.upload(picked.length === 1 ? picked[0] : picked);
       setFile(info);
       // best guess of what the file is: the target with the most matched columns
       const best = Object.entries(info.suggested || {}).sort((a, b) => Object.keys(b[1]).length - Object.keys(a[1]).length)[0];
@@ -114,6 +123,8 @@ export function ImportSection() {
   };
 
   const missing = fields.filter((f) => f.required && !mapping[f.key]).map((f) => f.label);
+  if (target === 'patients' && fields.some((f) => f.key === 'first_name') && !NAME_KEYS.some((k) => mapping[k]))
+    missing.unshift('Name (or First / Last name)');
   const shown = (preview || result)?.rows || [];
   const rowsToShow = showAll ? shown : shown.slice(0, 50);
 
@@ -121,30 +132,32 @@ export function ImportSection() {
     <section className="admin-block" aria-labelledby="h-import">
       <h2 id="h-import">Import from KiviHealth</h2>
       <p className="hint">
-        Bring the clinic&apos;s existing records in from a KiviHealth export (or any spreadsheet with the same
-        information). Upload the file, check the column matching, look at the preview, then import.
-        Nothing is written until you press Import, and importing the same file twice changes nothing. {ORDER_HINT}
+        Upload, match columns, preview, import. Nothing is written until Import; repeating a file changes nothing.
+        <br />
+        {ORDER_HINT}
       </p>
 
       {/* ---- step 1: file */}
       <div className="imp-step">
         <div className="imp-step-head">
           <span className="step-order">1</span>
-          <span>Choose the export file</span>
+          <span>Choose the export file(s)</span>
         </div>
         <input
           ref={inputRef}
           type="file"
+          multiple
           accept=".csv,.tsv,.txt,.xlsx,.xlsm,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
           onChange={onFile}
           style={{ display: 'none' }}
           data-testid="import-file-input"
-          aria-label="Export file"
+          aria-label="Export files"
         />
         <button type="button" className="dashed-action" onClick={() => inputRef.current?.click()} disabled={busy === 'upload'}>
           <IconUpload />
-          {busy === 'upload' ? 'Reading the file…' : file ? `Choose a different file (now: ${file.filename})` : 'Choose a CSV or Excel file'}
+          {busy === 'upload' ? 'Reading the file…' : file ? 'Choose different file(s)' : 'Choose CSV or Excel file(s)'}
         </button>
+        {!file && <p className="imp-hint imp-multi-hint">Pick several files with the same columns (e.g. every year&apos;s Patients.csv) to import them together.</p>}
         {file && (
           <p className="imp-file-note" data-testid="import-file-note">
             <b>{file.filename}</b> · {file.rowCount} row{file.rowCount === 1 ? '' : 's'} · columns: {file.headers.join(', ')}
@@ -260,7 +273,7 @@ export function ImportSection() {
               {result && (
                 <p className="rx-fill-note" data-testid="import-done">
                   Done — {result.new} added, {result.update} updated, {result.skip} left as they were.
-                  {target === 'prescriptions' && ' The treatment standards now count these prescriptions.'}
+                  {DONE_NOTE[target] || ''}
                 </p>
               )}
               <table className="data-table uniform-cells admin-table imp-rows">

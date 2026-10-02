@@ -1847,13 +1847,17 @@ export const treatments = {
 /* ---------------- spreadsheet import (B13/F15) — demo-mode version ----------------
    Parses CSV in the browser and applies the same rules as the server (patients by
    KiviHealth id or name+phone, medicines by name, stock levels, prescription rows
-   grouped per patient + day). Excel needs the real server. */
+   grouped per patient + day, past visits, past bills). Several same-column CSVs can be
+   uploaded together and are read as one. Excel needs the real server. */
 const IMPORT_FIELDS = {
   patients: {
     label: 'Patients',
     fields: [
       { key: 'external_id', label: 'KiviHealth id', hint: 'Local Id, e.g. GK2341 — keeps re-imports from duplicating', syn: ['local id', 'localid', 'patient id', 'id', 'uhid'] },
-      { key: 'name', label: 'Name', required: true, syn: ['name', 'patient name', 'patient'] },
+      { key: 'name', label: 'Name', hint: 'or First / Middle / Last name below', syn: ['name', 'patient name', 'patient'] },
+      { key: 'first_name', label: 'First name', syn: ['first name', 'firstname', 'given name'] },
+      { key: 'middle_name', label: 'Middle name', syn: ['middle name', 'middlename'] },
+      { key: 'last_name', label: 'Last name', syn: ['last name', 'lastname', 'surname'] },
       { key: 'phone', label: 'Phone', syn: ['contact', 'mobile', 'phone', 'mobile no', 'phone number'] },
       { key: 'sex', label: 'Gender', syn: ['gender', 'sex'] },
       { key: 'age', label: 'Age', syn: ['age', 'age(y)', 'age (y)'] },
@@ -1861,6 +1865,7 @@ const IMPORT_FIELDS = {
       { key: 'address', label: 'Address', syn: ['address'] },
       { key: 'area', label: 'Area', hint: 'joined into the address', syn: ['area', 'locality'] },
       { key: 'city', label: 'City', hint: 'joined into the address', syn: ['city', 'town'] },
+      { key: 'pincode', label: 'Pincode', hint: 'joined into the address', syn: ['pincode', 'pin code', 'pin', 'zip'] },
       { key: 'note', label: 'Note', syn: ['note', 'notes', 'remarks'] },
     ],
   },
@@ -1869,6 +1874,7 @@ const IMPORT_FIELDS = {
     fields: [
       { key: 'name', label: 'Medicine name', required: true, syn: ['medicine name', 'medicine', 'name', 'drug'] },
       { key: 'manufacturer', label: 'Company', syn: ['company', 'manufacturer'] },
+      { key: 'price', label: 'Price (₹)', hint: 'selling price; billed on "Bought here"', syn: ['price', 'selling price', 'last price', 'mrp', 'rate'] },
     ],
   },
   stock: {
@@ -1891,6 +1897,28 @@ const IMPORT_FIELDS = {
       { key: 'medicine', label: 'Medicine', required: true, syn: ['medicine', 'medicine name', 'drug'] },
       { key: 'dosage', label: 'Dosage / instructions', syn: ['dosage', 'dose', 'instructions', 'frequency'] },
       { key: 'qty', label: 'Quantity given', syn: ['qty', 'quantity', 'total tablets'] },
+    ],
+  },
+  visits: {
+    label: 'Past visits',
+    fields: [
+      { key: 'patient_external_id', label: 'Patient KiviHealth id', hint: 'matches patients imported with their Local Id', syn: ['local id', 'localid', 'patient number', 'patient id', 'uhid'] },
+      { key: 'patient_name', label: 'Patient name', hint: 'used when there is no id column', syn: ['patient name', 'patient', 'name'] },
+      { key: 'date', label: 'Date', required: true, syn: ['appointment date', 'date', 'visit date', 'appointment'] },
+      { key: 'reason', label: 'Reason', hint: "kept as a note on the visit when it is not just the patient's name", syn: ['reason', 'complaint', 'purpose', 'note'] },
+    ],
+  },
+  payments: {
+    label: 'Past bills',
+    fields: [
+      { key: 'patient_external_id', label: 'Patient KiviHealth id', hint: "KiviHealth's payment export has none; the name is matched instead", syn: ['local id', 'localid', 'patient number', 'patient id', 'uhid'] },
+      { key: 'patient_name', label: 'Patient name', required: true, syn: ['patient name', 'patient', 'name'] },
+      { key: 'date', label: 'Date', required: true, syn: ['date', 'payment date', 'receipt date', 'bill date'] },
+      { key: 'item', label: 'Charge / item', required: true, syn: ['treatment plan', 'item', 'particular', 'particulars', 'description', 'service'] },
+      { key: 'amount', label: 'Amount (₹)', required: true, syn: ['amount', 'total', 'price'] },
+      { key: 'mode', label: 'Payment mode', syn: ['payment mode', 'mode', 'paid by'] },
+      { key: 'invoice', label: 'Invoice no.', hint: 'lines with the same invoice form one bill', syn: ['invoice number', 'invoice no', 'invoice', 'bill no', 'bill number'] },
+      { key: 'receipt', label: 'Receipt no.', hint: 'keeps a second import from adding the bill again', syn: ['receipt number', 'receipt no', 'receipt'] },
     ],
   },
 };
@@ -1981,6 +2009,8 @@ const normDate = (v) => {
 function importRecords(info, mapping, target) {
   const missing = IMPORT_FIELDS[target].fields.filter((f) => f.required && !mapping[f.key]).map((f) => f.label);
   if (missing.length) throw httpError(422, 'Match a column for: ' + missing.join(', '));
+  if (target === 'patients' && !['name', 'first_name', 'last_name'].some((k) => mapping[k]))
+    throw httpError(422, 'Match a column for: Name (or First / Last name)');
   const idx = Object.fromEntries(info.headers.map((h, i) => [h, i]));
   return info.rows.map((r) => {
     const rec = {};
@@ -2001,7 +2031,7 @@ function importApply(target, recs, write) {
     const seen = new Set();
     recs.forEach((r, i) => {
       const n = i + 1;
-      const name = r.name || '';
+      const name = r.name || [r.first_name, r.middle_name, r.last_name].filter(Boolean).join(' ');
       const ext = r.external_id || null;
       if (!name) return add(n, 'skip', ext || '(blank)', 'no name');
       if (ext && seen.has(ext)) return add(n, 'skip', name, `${ext} appears twice in the file`);
@@ -2011,7 +2041,7 @@ function importApply(target, recs, write) {
       // A readable DOB is kept (the age follows from it); without one, Age(Y) as before.
       const dob = parseDobCell(r.dob);
       const age = dob ? ageFromDob(dob) : normInt(r.age);
-      const address = [r.address, r.area, r.city].filter(Boolean).join(', ') || null;
+      const address = [r.address, r.area, r.city, r.pincode].filter(Boolean).join(', ') || null;
       let existing = ext ? S.patients.find((p) => p.externalId === ext) : null;
       if (!existing)
         existing = S.patients.find((p) => p.name.toLowerCase() === name.toLowerCase() && (phone ? normPhone(p.phone) === phone : !p.phone));
@@ -2053,10 +2083,16 @@ function importApply(target, recs, write) {
       const key = name.toLowerCase();
       if (seen.has(key)) return add(n, 'skip', name, 'appears twice in the file');
       seen.add(key);
+      const price = normMoney(r.price);
       const existing = S.medicines.find((m) => m.name.toLowerCase() === key);
-      if (existing) return add(n, 'skip', name, 'already in the list');
-      add(n, 'new', name, r.manufacturer || '');
-      if (write) S.medicines.push({ id: store.nextId('medicine'), name, brand: null, composition: name, form: 'drops', manufacturer: r.manufacturer || null, active: true });
+      if (existing) {
+        if (price == null || price === existing.price) return add(n, 'skip', name, 'already in the list');
+        add(n, 'update', name, existing.price != null ? `price ₹${existing.price} → ₹${price}` : `price ₹${price}`);
+        if (write) existing.price = price;
+        return;
+      }
+      add(n, 'new', name, [r.manufacturer, price != null && `₹${price}`].filter(Boolean).join(' · '));
+      if (write) S.medicines.push({ id: store.nextId('medicine'), name, brand: null, composition: name, form: 'drops', manufacturer: r.manufacturer || null, price, active: true });
     });
   } else if (target === 'stock') {
     const seen = new Set();
@@ -2128,6 +2164,63 @@ function importApply(target, recs, write) {
       // history-derived standards count imported prescriptions too
       importedRx.push({ diagnosisId: dx ? dx.id : null, medicines: lines });
     });
+  } else if (target === 'visits') {
+    const seen = new Set();
+    recs.forEach((r, i) => {
+      const n = i + 1;
+      const ext = r.patient_external_id || '';
+      const pname = r.patient_name || '';
+      const on = normDate(r.date);
+      if (!ext && !pname) return add(n, 'skip', '(blank)', 'no patient id or name');
+      if (!on) return add(n, 'skip', pname || ext, `date '${r.date}' not understood`);
+      const patient = findImportPatient(ext, pname);
+      if (!patient) return add(n, 'skip', pname || ext, 'patient not found — import patients first');
+      const key = `${patient.id}|${on}`;
+      const label = `${patient.name} · ${on}`;
+      if (seen.has(key) || (patient.history || []).some((h) => h.date === on)) return add(n, 'skip', label, 'already here');
+      seen.add(key);
+      const note = r.reason && r.reason.toLowerCase() !== patient.name.toLowerCase() ? r.reason : '';
+      add(n, 'new', label, note);
+      if (write) {
+        patient.history ||= [];
+        patient.history.push({ date: on, diagnosisId: null, medicines: [], imported: true, note });
+      }
+    });
+  } else if (target === 'payments') {
+    // lines grouped into one bill per receipt (or invoice, or patient + day); bills stay off the Day book
+    const groups = new Map();
+    recs.forEach((r, i) => {
+      const n = i + 1;
+      const pname = r.patient_name || '';
+      const on = normDate(r.date);
+      const amount = normMoney(r.amount);
+      if (!pname) return add(n, 'skip', r.item || '(blank)', 'no patient name');
+      if (!on) return add(n, 'skip', pname, `date '${r.date}' not understood`);
+      if (!r.item) return add(n, 'skip', pname, 'no charge / item');
+      if (amount == null) return add(n, 'skip', pname, `amount '${r.amount}' is not a number`);
+      const key = r.receipt ? `r:${r.receipt}` : r.invoice ? `i:${r.invoice}` : `p:${pname.toLowerCase()}|${on}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push([n, r, amount, on]);
+    });
+    groups.forEach((items, key) => {
+      const [, first, , on] = items[0];
+      const patient = findImportPatient(first.patient_external_id || '', first.patient_name);
+      if (!patient) {
+        items.forEach(([n]) => add(n, 'skip', first.patient_name, 'patient not found — import patients first'));
+        return;
+      }
+      const label = `${patient.name} · ${on}`;
+      if (importedBills.some((b) => b.key === key && b.patientId === patient.id)) {
+        items.forEach(([n]) => add(n, 'skip', label, 'already imported'));
+        return;
+      }
+      items.forEach(([n, r, amount]) => add(n, 'new', label, `${r.item} · ₹${amount}`));
+      if (write)
+        importedBills.push({
+          key, patientId: patient.id, date: on, mode: first.mode || '',
+          items: items.map(([, r, amount]) => ({ label: r.item, amount })),
+        });
+    });
   }
   if (write) {
     res.written = true;
@@ -2136,27 +2229,48 @@ function importApply(target, recs, write) {
   return res;
 }
 const importedRx = [];
+const importedBills = []; // demo only: old bills, never counted in the Day book / Today
+const normMoney = (v) => {
+  const t = String(v ?? '').replace(/[₹,\s]/g, '').replace(/^rs\.?/i, '');
+  if (t === '' || Number.isNaN(Number(t))) return null;
+  return Math.round(Number(t));
+};
+const findImportPatient = (ext, name) =>
+  (ext && S.patients.find((p) => p.externalId === ext)) ||
+  (name && S.patients.find((p) => p.name.toLowerCase() === name.toLowerCase())) ||
+  null;
+const readText = (file) =>
+  typeof file.text === 'function'
+    ? file.text()
+    : new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(String(fr.result || ''));
+        fr.onerror = () => reject(new Error('Could not read the file'));
+        fr.readAsText(file);
+      });
 
 export const imports = {
   async targets() {
     return Object.entries(IMPORT_FIELDS).map(([key, t]) => ({ key, label: t.label, fields: t.fields.map(({ key: k, label, required = false, hint = '' }) => ({ key: k, label, required, hint })) }));
   },
-  async upload(file) {
-    const name = file.name || 'import.csv';
-    if (/\.xlsx?$/i.test(name) && !USE_XLSX_IN_MOCK) throw httpError(422, 'Excel files need the real server — in demo mode use a CSV export');
-    const text =
-      typeof file.text === 'function'
-        ? await file.text()
-        : await new Promise((resolve, reject) => {
-            const fr = new FileReader();
-            fr.onload = () => resolve(String(fr.result || ''));
-            fr.onerror = () => reject(new Error('Could not read the file'));
-            fr.readAsText(file);
-          });
-    const rows = parseCsv(text);
-    if (!rows.length) throw httpError(422, 'The file is empty');
-    const headers = rows[0];
-    const body = rows.slice(1);
+  // one file, or several with the same columns — read as one, in the order given
+  async upload(fileOrFiles) {
+    const list = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles];
+    if (!list.length) throw httpError(400, 'No file');
+    const names = list.map((f) => f.name || 'import.csv');
+    let headers = null;
+    const body = [];
+    for (let i = 0; i < list.length; i++) {
+      const name = names[i];
+      if (/\.xlsx?$/i.test(name) && !USE_XLSX_IN_MOCK) throw httpError(422, 'Excel files need the real server — in demo mode use a CSV export');
+      const rows = parseCsv(await readText(list[i]));
+      if (!rows.length) throw httpError(list.length > 1 ? 400 : 422, list.length > 1 ? `Empty file: ${name}` : 'The file is empty');
+      if (!headers) headers = rows[0];
+      else if (rows[0].map(normHeader).join('|') !== headers.map(normHeader).join('|'))
+        throw httpError(422, `${name} has different columns from ${names[0]} — upload it on its own`);
+      body.push(...rows.slice(1));
+    }
+    const name = list.length === 1 ? names[0] : `${list.length} files (${names.join(', ')})`;
     const token = Math.random().toString(16).slice(2).padEnd(32, '0').slice(0, 32);
     IMPORT_FILES[token] = { headers, rows: body };
     return {

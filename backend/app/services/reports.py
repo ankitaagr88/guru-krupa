@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models.audit import AuditLog
-from app.models.billing import PAYMENT_MODES, BillItem, BillPayment
+from app.models.billing import PAYMENT_MODES, Bill, BillItem, BillPayment
 from app.models.config import Stage
 from app.models.patients import Visit
 from app.models.pharmacy import PrescriptionLine
@@ -99,10 +99,13 @@ def visit_kind_counts(db: Session, visits: list[Visit]) -> VisitKindCounts:
 
 
 def payments_on(db: Session, bounds) -> list[BillPayment]:
-    """Payments received within [start, end), in time order."""
+    """Payments received within [start, end), in time order. Money brought in from the previous system
+    (imported visits) is history, not the clinic's till, so it is left out."""
     lo, hi = bounds
-    rows = db.scalars(select(BillPayment).where(BillPayment.at >= lo - timedelta(days=1),
-                                                BillPayment.at < hi + timedelta(days=1)))
+    rows = db.scalars(select(BillPayment).join(Bill, BillPayment.bill_id == Bill.id)
+                      .join(Visit, Bill.visit_id == Visit.id)
+                      .where(BillPayment.at >= lo - timedelta(days=1), BillPayment.at < hi + timedelta(days=1),
+                             Visit.imported.is_(False)))
     return sorted((p for p in rows if _within(p.at, bounds)), key=lambda p: (_aware(p.at), p.id))
 
 
@@ -152,7 +155,7 @@ def medicines_sold(db: Session, bounds) -> list[MedicineSold]:
 def today_report(db: Session, day: date | None = None) -> TodayReport:
     day = day or clinic_today()
     bounds = day_bounds(day)
-    visits = list(db.scalars(select(Visit).where(Visit.date == day).order_by(Visit.id)))
+    visits = list(db.scalars(select(Visit).where(Visit.date == day, Visit.imported.is_(False)).order_by(Visit.id)))
     completed = [v for v in visits if v.status == "completed"]
     visit_minutes = [_minutes(v.created_at, v.completed_at) for v in completed if v.completed_at is not None]
     money, receipts = collections(db, day, visits, bounds)

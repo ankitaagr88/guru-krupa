@@ -121,7 +121,8 @@ def set_va(db: Session, visit: Visit, r: str, l: str) -> Visit:  # noqa: E741
 
 
 def todays_visits(db: Session, stage_key: str | None = None, on: date | None = None) -> list[Visit]:
-    stmt = select(Visit).where(Visit.date == (on or today())).order_by(Visit.stage_entered_at, Visit.id)
+    stmt = (select(Visit).where(Visit.date == (on or today()), Visit.imported.is_(False))
+            .order_by(Visit.stage_entered_at, Visit.id))
     if stage_key:
         stmt = stmt.where(Visit.stage_key == stage_key)
     return list(db.scalars(stmt))

@@ -185,7 +185,7 @@ def patient_history(db: Session, patient: Patient, today: date):
             id=v.id, date=v.date, token=v.token, stage=v.stage_key, status=v.status,
             va={"R": v.va_r, "L": v.va_l}, note=v.note or "", doctor_notes=v.doctor_notes or "",
             elsewhere=v.elsewhere, elsewhere_note=v.elsewhere_note or "", completed_at=v.completed_at,
-            imported=(v.note or "").startswith("Imported from"),
+            imported=v.imported or (v.note or "").startswith("Imported from"),
             readings=[readings_svc.reading_out(db, r) for r in v.readings],
             prescription=pharmacy_svc.prescription_out(db, rx) if rx else None,
             bill=billing_svc.bill_out(v.bill) if v.bill is not None else None,

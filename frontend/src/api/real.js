@@ -327,13 +327,15 @@ export const treatments = {
   },
 };
 
-/* Spreadsheet import (B13/F15), admin only. upload → {token, filename, headers, rowCount, sample, suggested};
+/* Spreadsheet import (B13/F15), admin only. upload(file | [files]) → {token, filename, headers, rowCount, sample, suggested};
    preview/run → {target, total, new, update, skip, written, rows:[{row, action, label, reason}]} */
 export const imports = {
   targets: () => data(client.get('/admin/import/targets')),
-  upload: (file) => {
+  // one file, or several with the same columns (combined in the order given)
+  upload: (fileOrFiles) => {
+    const list = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles];
     const fd = new FormData();
-    fd.append('file', file, file.name || 'import.csv');
+    list.forEach((f) => fd.append(list.length === 1 ? 'file' : 'files', f, f.name || 'import.csv'));
     return data(client.post('/admin/import/files', fd, { headers: { 'Content-Type': 'multipart/form-data' } }));
   },
   preview: (token, target, mapping) => data(client.post('/admin/import/preview', { token, target, mapping })),
