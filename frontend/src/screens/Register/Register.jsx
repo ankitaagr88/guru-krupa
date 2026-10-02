@@ -71,7 +71,7 @@ export default function Register() {
   const staff = !!currentUser;
   const navigate = useNavigate();
   const toast = useToast();
-  // Patients in Surat mostly read Gujarati (the WhatsApp intake starts in Gujarati too); staff get English.
+  // Patients in Surat mostly read Gujarati; staff get English.
   const [lang, setLangState] = useState(() => readLang() || (staff ? 'en' : 'gu'));
   const [lists, setLists] = useState({ referralSources: [], conditions: [] });
   const [d, setD] = useState(EMPTY);

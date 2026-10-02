@@ -1,6 +1,6 @@
 /* Every word on the new-patient form (/register) and its QR poster, in English, Gujarati and
    Hindi. One table so someone who reads Gujarati / Hindi can correct the wording in one place.
-   Some lines are taken from the WhatsApp intake scripts (whatsapp-intake/clinics/gurukrupa.yaml).
+   This is also the form patients are sent on WhatsApp (as a link).
    `{name}` / `{age}` are filled in by t(). A missing key falls back to English. */
 
 export const UI_LANGS = [
