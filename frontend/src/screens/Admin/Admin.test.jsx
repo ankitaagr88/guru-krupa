@@ -178,6 +178,21 @@ describe('Admin', () => {
     );
   });
 
+  it('diagnoses per visit: the setting saves (1 to 10)', async () => {
+    renderShell({ route: '/admin', child: <Admin /> });
+    const input = await screen.findByLabelText('Diagnoses per visit');
+    await waitFor(() => expect(input).toHaveValue(3));
+    fireEvent.change(input, { target: { value: '5' } });
+    fireEvent.blur(input);
+    await waitFor(async () => expect((await treatments.settings()).maxPerVisit).toBe(5));
+    // out of range is not sent
+    fireEvent.change(input, { target: { value: '12' } });
+    fireEvent.blur(input);
+    await waitFor(() => expect(input).toHaveValue(5));
+    expect((await treatments.settings()).maxPerVisit).toBe(5);
+    await treatments.admin.saveSettings(3);
+  });
+
   it('OT slots & procedures: add a slot, switch one off (it leaves the picker), add and reorder procedures', async () => {
     window.confirm = () => true;
     renderShell({ route: '/admin', child: <Admin /> });

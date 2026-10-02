@@ -4,6 +4,7 @@ from pydantic import Field
 
 from app.schemas.common import CamelModel
 from app.schemas.patients import PatientOut
+from app.schemas.pharmacy import DiagnosisRef
 
 
 class VisitCreate(CamelModel):
@@ -29,6 +30,8 @@ class VisitPatch(CamelModel):
     elsewhere_note: str | None = None
     # Doctor's panel: an explicit null clears the diagnosis (the prescription's follows it).
     diagnosis_id: int | None = None
+    # Several, in order (an empty list clears them); wins over diagnosis_id when both are sent.
+    diagnosis_ids: list[int] | None = None
 
 
 class FollowUpIn(CamelModel):
@@ -73,8 +76,10 @@ class VisitOut(CamelModel):
     has_bill: bool
     has_prescription: bool
     readings_count: int
-    diagnosis_id: int | None = None
+    diagnosis_id: int | None = None  # the first (main) of `diagnoses`
     diagnosis_name: str | None = None
+    diagnoses: list[DiagnosisRef] = []
+    max_diagnoses: int = 3  # the clinic's limit per visit (Admin)
     follow_up_date: date_type | None = None
     follow_up_note: str = ""
     follow_up_appointment_id: int | None = None  # the appointment the follow-up booked

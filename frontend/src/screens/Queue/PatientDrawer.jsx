@@ -10,6 +10,7 @@ import {
   errorMessage,
 } from '../../api';
 import { PrescriptionModal } from '../Prescription';
+import { dxList, dxNames } from '../../components/DiagnosisChips';
 import { ageSex, fmtLastVisit } from '../../lib/format';
 import DilationChecklist from './DilationChecklist';
 import BillingPanel from './BillingPanel';
@@ -72,6 +73,8 @@ function pickDraft(row) {
 const pickDoc = (v) => ({
   diagnosisId: v?.diagnosisId ?? null,
   diagnosisName: v?.diagnosisName ?? null,
+  diagnoses: dxList(v),
+  maxDiagnoses: v?.maxDiagnoses ?? 3,
   followUpDate: v?.followUpDate ?? null,
   followUpNote: v?.followUpNote ?? '',
 });
@@ -437,7 +440,8 @@ function DoctorStage({
         <section className="doc-o3">
           <DiagnosisPicker
             visitId={row.id}
-            diagnosisId={doc.diagnosisId}
+            diagnoses={doc.diagnoses}
+            maxDiagnoses={doc.maxDiagnoses}
             lines={rxLines}
             onVisit={applyVisit}
             onRx={(res) => {
@@ -799,7 +803,7 @@ function PatientSummary({ row, draft, readings, config, doc }) {
         <div className="summary-card-title">Doctor&apos;s plan</div>
         {showDx && (
           <div className="summary-line">
-            <b>Diagnosis:</b> {doc.diagnosisName}
+            <b>Diagnosis:</b> {dxNames(doc)}
           </div>
         )}
         {showFu && (

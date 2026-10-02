@@ -1,7 +1,8 @@
-/* Demo-mode doctor's panel (lane C owns this file): diagnosis on the visit and the follow-up
+/* Demo-mode doctor's panel (lane C owns this file): diagnoses on the visit and the follow-up
    date that books an appointment. Same method names and shapes as `doctor` in src/api/real.js.
-   In demo mode a "patient" row is today's visit, and its prescription's diagnosis is the same
-   `diagnosisId` field — so visit and prescription stay in sync by construction. */
+   In demo mode a "patient" row is today's visit, and its prescription's diagnoses are the same
+   `diagnosisIds` field (first = `diagnosisId`) — so visit and prescription stay in sync by
+   construction. Older rows may carry only `diagnosisId`. */
 import { store, latency } from './store';
 import { dateStr } from './data';
 
@@ -20,6 +21,42 @@ function visitRow(id) {
   return p;
 }
 
+const DEFAULT_MAX_DIAGNOSES = 3;
+
+/** The clinic's limit of diagnoses per visit (Admin). */
+export const maxDiagnoses = () => S.diagnosisSettings?.maxPerVisit ?? DEFAULT_MAX_DIAGNOSES;
+
+/** A visit's / prescription's diagnoses in order (older rows: only `diagnosisId`). */
+export function dxIdsOf(o) {
+  if (Array.isArray(o?.diagnosisIds) && o.diagnosisIds.length) return o.diagnosisIds;
+  return o?.diagnosisId != null ? [o.diagnosisId] : [];
+}
+
+/** {diagnosisId, diagnosisName, diagnoses} as VisitOut / PrescriptionOut return them. */
+export function dxFields(o) {
+  const diagnoses = dxIdsOf(o).map((id) => ({ id, name: S.diagnoses.find((d) => d.id === id)?.name ?? '' }));
+  return { diagnosisId: diagnoses[0]?.id ?? null, diagnosisName: diagnoses[0]?.name ?? null, diagnoses };
+}
+
+/** The ids in order, repeats dropped; each must exist, and no more than the limit (422). */
+export function cleanDiagnosisIds(ids) {
+  const out = [];
+  (ids || []).forEach((i) => {
+    const n = Number(i);
+    if (!out.includes(n)) out.push(n);
+  });
+  if (out.some((i) => !S.diagnoses.some((d) => d.id === i))) throw httpError(422, 'Unknown diagnosis');
+  const limit = maxDiagnoses();
+  if (out.length > limit) throw httpError(422, `At most ${limit} diagnoses per visit`);
+  return out;
+}
+
+/** Store the (cleaned) ids on a visit row — its prescription follows, being the same row. */
+export function setDiagnosisIds(p, ids) {
+  p.diagnosisIds = [...ids];
+  p.diagnosisId = ids[0] ?? null;
+}
+
 /** The appointment a visit's follow-up booked (latest; `openOnly` skips checked-in ones). */
 export function followUpAppointment(visitId, { openOnly = false } = {}) {
   const rows = S.appointments.filter(
@@ -33,8 +70,8 @@ export function doctorVisitOut(p) {
   const appt = p.followUpDate ? followUpAppointment(p.id) : null;
   return {
     ...c(p),
-    diagnosisId: p.diagnosisId ?? null,
-    diagnosisName: S.diagnoses.find((d) => d.id === p.diagnosisId)?.name ?? null,
+    ...dxFields(p),
+    maxDiagnoses: maxDiagnoses(),
     followUpDate: p.followUpDate ?? null,
     followUpNote: appt?.note || '',
     followUpAppointmentId: appt?.id ?? null,
@@ -43,11 +80,13 @@ export function doctorVisitOut(p) {
 
 export const doctor = {
   async setDiagnosis(visitId, diagnosisId) {
+    return doctor.setDiagnoses(visitId, diagnosisId == null ? [] : [diagnosisId]);
+  },
+  // several, in order (first = main); [] clears; more than the limit → 422
+  async setDiagnoses(visitId, diagnosisIds) {
     await latency(30);
     const p = visitRow(visitId);
-    if (diagnosisId != null && !S.diagnoses.some((d) => d.id === Number(diagnosisId)))
-      throw httpError(422, 'Unknown diagnosis');
-    p.diagnosisId = diagnosisId == null ? null : Number(diagnosisId);
+    setDiagnosisIds(p, cleanDiagnosisIds(diagnosisIds));
     store.notify();
     return doctorVisitOut(p);
   },

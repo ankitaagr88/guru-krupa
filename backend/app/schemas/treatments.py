@@ -61,3 +61,24 @@ class StandardOut(CamelModel):
     updated_by: str | None = None
     # When an admin standard exists, the history-derived set is still returned so Admin can compare.
     history_lines: list[StandardLineOut] = []
+
+
+class CombinedPart(CamelModel):
+    diagnosis_id: int
+    diagnosis_name: str
+    source: str  # "admin" | "history" | "none"
+    history_count: int
+    lines: int  # how many medicines this diagnosis's standard has
+
+
+class CombinedStandardOut(CamelModel):
+    """`GET /diagnoses/standard?ids=1&ids=2`: several diagnoses' standards, each medicine once."""
+
+    lines: list[StandardLineOut]
+    parts: list[CombinedPart]
+
+
+class DiagnosisSettings(CamelModel):
+    """How many diagnoses a visit may have (Admin)."""
+
+    max_per_visit: int = Field(ge=1, le=10)

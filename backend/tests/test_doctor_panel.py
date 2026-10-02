@@ -150,3 +150,79 @@ def test_appointment_book_changes_flow_back_to_the_visit(client, admin_headers):
 
     assert client.delete(f"/api/appointments/{aid}", headers=admin_headers).status_code == 204
     assert client.get(f"/api/visits/{v['id']}", headers=admin_headers).json()["followUpDate"] is None
+
+
+def test_several_diagnoses_per_visit(client, admin_headers):
+    dx = _diagnoses(client, admin_headers)
+    gl, dry, cat, bleph = dx["Glaucoma"], dx["Dry eye"], dx["Cataract"], dx["Blepharitis"]
+    v = _visit(client, admin_headers, "Two Diagnoses")
+    url = f"/api/visits/{v['id']}"
+    assert v["diagnoses"] == [] and v["maxDiagnoses"] == 3
+
+    # picked in order; the first is the main one; a repeat is dropped
+    r = client.patch(url, json={"diagnosisIds": [gl, dry, gl]}, headers=admin_headers)
+    assert r.status_code == 200, r.text
+    assert [d["name"] for d in r.json()["diagnoses"]] == ["Glaucoma", "Dry eye"]
+    assert r.json()["diagnosisId"] == gl and r.json()["diagnosisName"] == "Glaucoma"
+    # more than the clinic's limit is refused
+    r = client.patch(url, json={"diagnosisIds": [gl, dry, cat, bleph]}, headers=admin_headers)
+    assert r.status_code == 422 and "At most 3" in r.json()["detail"]
+
+    # a new prescription takes the visit's diagnoses; saving the old way with the main one keeps both
+    r = client.post(f"{url}/prescription", json={"lines": [{"name": "Timolol 0.5%", "dosage": "1 drop BD"}]},
+                    headers=admin_headers)
+    assert [d["id"] for d in r.json()["diagnoses"]] == [gl, dry]
+    r = client.post(f"{url}/prescription", json={"diagnosisId": gl, "lines": [{"name": "Timolol 0.5%"}]},
+                    headers=admin_headers)
+    assert [d["id"] for d in r.json()["diagnoses"]] == [gl, dry]
+    # the prescription screen sends a new list -> the visit follows
+    client.post(f"{url}/prescription", json={"diagnosisIds": [dry, cat], "lines": [{"name": "Timolol 0.5%"}]},
+                headers=admin_headers)
+    got = client.get(url, headers=admin_headers).json()
+    assert [d["id"] for d in got["diagnoses"]] == [dry, cat] and got["diagnosisId"] == dry
+    # changed on the visit -> the prescription follows; the old single field still works
+    client.patch(url, json={"diagnosisIds": [cat]}, headers=admin_headers)
+    assert [d["id"] for d in client.get(f"{url}/prescription", headers=admin_headers).json()["diagnoses"]] == [cat]
+    r = client.patch(url, json={"diagnosisId": None}, headers=admin_headers)
+    assert r.json()["diagnoses"] == [] and r.json()["diagnosisId"] is None
+
+    # Admin sets the limit
+    assert client.put("/api/admin/diagnoses/settings", json={"maxPerVisit": 1},
+                      headers=admin_headers).json() == {"maxPerVisit": 1}
+    assert client.get("/api/diagnoses/settings", headers=admin_headers).json() == {"maxPerVisit": 1}
+    assert client.patch(url, json={"diagnosisIds": [gl, dry]}, headers=admin_headers).status_code == 422
+    client.put("/api/admin/diagnoses/settings", json={"maxPerVisit": 3}, headers=admin_headers)
+
+
+def test_history_and_combined_standard_with_several_diagnoses(client, admin_headers):
+    a = client.post("/api/admin/diagnoses", json={"name": "Multi Dx A"}, headers=admin_headers).json()["id"]
+    b = client.post("/api/admin/diagnoses", json={"name": "Multi Dx B"}, headers=admin_headers).json()["id"]
+
+    def rx(name, ids, meds):
+        v = _visit(client, admin_headers, name)
+        r = client.post(f"/api/visits/{v['id']}/prescription",
+                        json={"diagnosisIds": ids, "lines": [{"name": m, "dosage": "1 drop"} for m in meds]},
+                        headers=admin_headers)
+        assert r.status_code == 201, r.text
+
+    rx("Multi One", [a], ["Drop Alpha"])
+    rx("Multi Two", [a], ["Drop Alpha"])
+    rx("Multi Three", [a, b], ["Drop Alpha", "Drop Beta"])
+    rx("Multi Four", [a, b], ["Drop Alpha", "Drop Beta"])
+    rx("Multi Five", [a, b], ["Drop Alpha", "Drop Beta"])
+
+    counts = {d["id"]: d["prescriptionCount"] for d in client.get("/api/diagnoses", headers=admin_headers).json()}
+    assert counts[a] == 5 and counts[b] == 3  # a mixed prescription counts for both
+    # A on its own was prescribed twice: those decide A's standard (Drop Beta belongs to B)
+    std_a = client.get(f"/api/diagnoses/{a}/standard", headers=admin_headers).json()
+    assert std_a["historyCount"] == 2 and [l["name"] for l in std_a["lines"]] == ["Drop Alpha"]
+    # B was never prescribed alone: the mixed ones are used
+    std_b = client.get(f"/api/diagnoses/{b}/standard", headers=admin_headers).json()
+    assert std_b["historyCount"] == 3 and [l["name"] for l in std_b["lines"]] == ["Drop Alpha", "Drop Beta"]
+
+    # Both picked: A's medicines, then B's not already there
+    both = client.get("/api/diagnoses/standard", params=[("ids", a), ("ids", b)], headers=admin_headers).json()
+    assert [l["name"] for l in both["lines"]] == ["Drop Alpha", "Drop Beta"]
+    assert [(p["diagnosisName"], p["source"], p["lines"]) for p in both["parts"]] == [
+        ("Multi Dx A", "history", 1), ("Multi Dx B", "history", 2)]
+    assert client.get("/api/diagnoses/standard", params={"ids": 999999}, headers=admin_headers).status_code == 404

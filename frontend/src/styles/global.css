@@ -323,9 +323,16 @@ textarea, .fake-input { width: 100%; border: 1px solid var(--line); border-radiu
 
 /* Doctor's panel (drawer, doctor stage): diagnosis picker + follow-up. */
 .dx-picker .field-label { display: block; }
+.dx-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.dx-chip { display: inline-flex; align-items: center; gap: 2px; font-family: var(--font-ui); font-size: 13px; font-weight: 500; color: var(--sapphire-deep); background: var(--sapphire-wash); border: 1px solid var(--sapphire-line); border-radius: 9999px; padding: 3px 4px 3px 12px; }
+.dx-chip.dx-main { /* not ".main": that is the app shell's page area */ font-weight: 600; border-color: var(--sapphire); }
+.dx-chip button { border: none; background: transparent; color: inherit; font-size: 16px; line-height: 1; cursor: pointer; min-width: 26px; min-height: 26px; border-radius: 9999px; }
+.dx-chip button:hover:not(:disabled) { background: var(--surface); }
+.dx-chip button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 .dx-note { font-family: var(--font-ui); font-size: 12px; line-height: 17px; color: var(--sapphire-deep); background: var(--sapphire-wash); border-radius: 8px; padding: 8px 11px; margin: 8px 0 0; }
 .dx-source { display: inline-block; font-weight: 600; margin-right: 6px; }
 .dx-source::after { content: ' ·'; font-weight: 400; }
+.dx-source.none::after { content: none; }
 .fu-presets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .fu-presets button { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 10px 4px; font-family: var(--font-ui); font-weight: 500; font-size: 13px; color: var(--ink-soft); cursor: pointer; white-space: nowrap; transition: background 0.15s, border-color 0.15s, color 0.15s; }
 .fu-presets button:hover:not(:disabled) { border-color: var(--sapphire); color: var(--sapphire); }

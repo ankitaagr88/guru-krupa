@@ -11,6 +11,7 @@ import {
 import { useAuth } from '../../auth/AuthContext';
 import { treatments as treatmentsApi, doctor as doctorApi } from '../../api';
 import MedicinePicker from '../../components/MedicinePicker';
+import DiagnosisChips, { dxList, missingLines } from '../../components/DiagnosisChips';
 import MedicineForm from '../Admin/MedicineForm';
 import { HOSPITAL_NAME, DOCTOR_NAME } from '../../nav';
 import { RX_LANGUAGES, visitInfo } from './hospital';
@@ -28,9 +29,9 @@ import './prescription.css';
      open     — optional; defaults to !!visit
      onClose  — called on Close / Esc / backdrop (asks first when there are unsaved changes)
      onSaved  — optional (prescriptionOut) after a successful save
-     onVisitChange — optional (visitOut) after the diagnosis was changed here (it is saved on
+     onVisitChange — optional (visitOut) after the diagnoses were changed here (they are saved on
                 the visit straight away, like on the doctor's panel)
-   The visit's `diagnosisId` preselects the diagnosis; its `followUpDate` prints as
+   The visit's `diagnoses` (or `diagnosisId`) preselect the diagnoses; its `followUpDate` prints as
    "Next visit" on the sheet.
 
    Each line = { name, medicineId, matched, dosage, qtyGiven, form?, formLabel? }:
@@ -43,11 +44,11 @@ import './prescription.css';
    kept for medicines on the list only) and, for admins, an inline "Add to medicine list" form
    (POST /admin/medicines) that re-matches the line.
 
-   Diagnosis (B15/F17): picking one fills the lines with that diagnosis's
-   treatment standard (Dr Anu's own, else the most common past prescription —
-   counted, not AI). When medicines are already listed, an in-page choice asks
-   "Replace medicines / Keep mine". The doctor edits the differences; the diagnosis
-   is saved with the prescription so it counts towards the history next time.
+   Diagnoses (B15/F17): several per visit (up to the Admin limit; the first is the main one).
+   Picking one adds that diagnosis's treatment standard (Dr Anu's own, else the most common past
+   prescription — counted, not AI) to the lines: only the medicines not already listed, so
+   nothing is replaced. Removing a diagnosis keeps the medicines. The diagnoses are saved with
+   the prescription so they count towards the history next time.
    Buttons: Print is the main one (it saves first); Save is secondary; both stay in view. */
 
 const DOSAGE_PRESETS = [
@@ -80,6 +81,16 @@ const lineFromApi = (l) => ({
 });
 
 const norm = (v) => (v || '').trim().toLowerCase();
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+/** Where the medicines just added came from, in a few words. */
+function fillNoteText({ source, count, historyCount, added }) {
+  if (source === 'none') return 'No usual treatment yet — add the medicines below.';
+  if (count === 0) return 'Its usual medicines are already listed.';
+  const what = `${added ? 'Added' : 'Filled'} ${plural(count, 'medicine')}`;
+  if (source === 'admin') return `${what} from Dr Anu's standard.`;
+  return `${what} from the most common past prescription (${plural(historyCount, 'patient')}).`;
+}
 const clockTime = (d) => d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
 export default function PrescriptionModal({ visit, open, onClose, onSaved, onVisitChange }) {
@@ -105,16 +116,16 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved, onVis
   const [addingFor, setAddingFor] = useState(null); // index of the free-text line being added to the list
   const [addBusy, setAddBusy] = useState(false);
   const [medsKey, setMedsKey] = useState(0);
-  const [diagnoses, setDiagnoses] = useState([]);
-  const [diagnosisId, setDiagnosisId] = useState(null);
-  const [fillNote, setFillNote] = useState(null); // {source, count, historyCount}
+  const [diagnoses, setDiagnoses] = useState([]); // the active list to pick from
+  const [picked, setPicked] = useState([]); // [{id, name}] in order; first = main
+  const [maxDx, setMaxDx] = useState(3);
+  const [fillNote, setFillNote] = useState(null); // {source, count, historyCount, added}
   const [fillBusy, setFillBusy] = useState(false);
-  const [replaceAsk, setReplaceAsk] = useState(null); // {lines, std} while "Replace medicines / Keep mine" shows
   const fileRef = useRef(null);
   const searchRef = useRef(null);
   const printPending = useRef(false);
-  const visitDiagnosisRef = useRef(null);
-  visitDiagnosisRef.current = visit?.diagnosisId ?? null;
+  const visitDiagnosisRef = useRef({ picked: [], max: null });
+  visitDiagnosisRef.current = { picked: dxList(visit), max: visit?.maxDiagnoses ?? null };
 
   const loadStock = useCallback(async () => {
     try {
@@ -140,10 +151,11 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved, onVis
     setPrintPayload(null);
     setPhotos(0);
     (async () => {
-      const [rx, medList, dxList] = await Promise.all([
+      const [rx, medList, dxAll, dxSettings] = await Promise.all([
         prescriptions.get(info.id).catch(() => null),
         prescriptions.medicines({ q: '' }).catch(() => []),
         treatmentsApi.diagnoses().catch(() => []),
+        treatmentsApi.settings ? treatmentsApi.settings().catch(() => null) : null,
       ]);
       await loadStock();
       if (cancelled) return;
@@ -153,11 +165,12 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved, onVis
       setLines(existing.map(lineFromApi));
       setHasRx(!!rx && existing.length > 0);
       setLang(rx?.printLanguage || 'english');
-      setDiagnoses(Array.isArray(dxList) ? dxList : []);
-      // The doctor's panel may have picked the diagnosis before any prescription was saved.
-      setDiagnosisId(rx?.diagnosisId ?? visitDiagnosisRef.current ?? null);
+      setDiagnoses(Array.isArray(dxAll) ? dxAll : []);
+      // The doctor's panel may have picked the diagnoses before any prescription was saved.
+      const fromRx = dxList(rx);
+      setPicked(fromRx.length ? fromRx : visitDiagnosisRef.current.picked);
+      setMaxDx(dxSettings?.maxPerVisit ?? visitDiagnosisRef.current.max ?? 3);
       setFillNote(null);
-      setReplaceAsk(null);
       setAddingFor(null);
       setSearch('');
       setLoading(false);
@@ -266,53 +279,36 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved, onVis
     });
   };
 
-  /* Diagnosis picked → fetch its standard and fill the lines. Existing lines are
-     replaced only after the doctor confirms (the standard is a starting point). */
-  const pickDiagnosis = async (value) => {
-    const id = value ? Number(value) : null;
-    setDiagnosisId(id);
+  /* Diagnoses changed → save them on the visit; one added → add its standard's medicines that
+     are not listed yet (the standard is a starting point; nothing is replaced). */
+  const pickDiagnoses = async (ids, addedId) => {
+    const nameOf = (id) =>
+      picked.find((d) => d.id === id)?.name || diagnoses.find((d) => d.id === id)?.name || '';
+    setPicked(ids.map((id) => ({ id, name: nameOf(id) })));
     setDirty(true);
     setFillNote(null);
-    setReplaceAsk(null);
-    // The diagnosis lives on the visit too (the doctor's panel shows it): save it there now.
-    if (typeof doctorApi?.setDiagnosis === 'function')
+    // The diagnoses live on the visit too (the doctor's panel shows them): save them there now.
+    if (typeof doctorApi?.setDiagnoses === 'function')
       doctorApi
-        .setDiagnosis(info.id, id)
+        .setDiagnoses(info.id, ids)
         .then((v) => onVisitChange?.(v))
         .catch((err) => toast.error('Could not save the diagnosis on the visit', errorMessage(err)));
-    if (!id) return;
+    if (!addedId) return;
     setFillBusy(true);
     try {
-      const std = await treatmentsApi.standard(id);
+      const std = await treatmentsApi.standard(addedId);
       const stdLines = (std?.lines || []).map(lineFromApi);
       if (stdLines.length === 0) {
-        setFillNote({ source: 'none', count: 0, historyCount: std?.historyCount || 0 });
+        setFillNote({ source: 'none', count: 0 });
         return;
       }
-      if (lines.length > 0) {
-        // Ask in the page (not a browser pop-up): "Replace medicines" or "Keep mine".
-        setReplaceAsk({ lines: stdLines, std });
-        return;
-      }
-      setLines(stdLines);
-      setFillNote({ source: std.source, count: stdLines.length, historyCount: std.historyCount || 0 });
+      const add = missingLines(lines, stdLines);
+      if (add.length) setLines((ls) => [...ls, ...missingLines(ls, add)]);
+      setFillNote({ source: std.source, count: add.length, historyCount: std.historyCount || 0, added: lines.length > 0 });
     } catch (err) {
       toast.error('Could not load the usual treatment', errorMessage(err));
     } finally {
       setFillBusy(false);
-    }
-  };
-
-  const answerReplace = (replace) => {
-    if (!replaceAsk) return;
-    const { lines: stdLines, std } = replaceAsk;
-    setReplaceAsk(null);
-    if (replace) {
-      setLines(stdLines);
-      setDirty(true);
-      setFillNote({ source: std.source, count: stdLines.length, historyCount: std.historyCount || 0 });
-    } else {
-      setFillNote({ source: 'kept', count: stdLines.length, historyCount: std.historyCount || 0 });
     }
   };
 
@@ -326,7 +322,12 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved, onVis
         dosage: l.dosage,
         qtyGiven: Number(l.qtyGiven) || 0,
       }));
-      const res = await prescriptions.save(info.id, body, lang, diagnosisId);
+      const res = await prescriptions.save(
+        info.id,
+        body,
+        lang,
+        picked.map((d) => d.id)
+      );
       setDirty(false);
       setSavedAt(new Date());
       setHasRx(true);
@@ -480,52 +481,19 @@ export default function PrescriptionModal({ visit, open, onClose, onSaved, onVis
         ) : (
           <>
             <div className="rx-diagnosis">
-              <label className="field-label" htmlFor="rxDiagnosis">
-                Diagnosis
-              </label>
-              <select
-                id="rxDiagnosis"
-                className="drop-select"
-                value={diagnosisId ?? ''}
-                onChange={(e) => pickDiagnosis(e.target.value)}
+              <DiagnosisChips
+                inputId="rxDiagnosis"
+                picked={picked}
+                all={diagnoses}
+                max={maxDx}
+                onChange={pickDiagnoses}
                 disabled={fillBusy}
-                aria-label="Diagnosis"
-              >
-                <option value="">— pick a diagnosis to fill the usual treatment —</option>
-                {diagnoses.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
+              />
               {fillBusy && <p className="rx-fill-note">Looking up the usual treatment…</p>}
               {!fillBusy && fillNote && (
                 <p className="rx-fill-note" data-testid="rx-fill-note">
-                  {fillNote.source === 'admin' &&
-                    `Filled ${fillNote.count} medicine${fillNote.count === 1 ? '' : 's'} from Dr Anu's standard treatment — change what this patient needs.`}
-                  {fillNote.source === 'history' &&
-                    `Filled ${fillNote.count} medicine${fillNote.count === 1 ? '' : 's'} from the most common prescription across ${fillNote.historyCount} past patient${fillNote.historyCount === 1 ? '' : 's'} — change what this patient needs.`}
-                  {fillNote.source === 'none' &&
-                    'No standard treatment yet for this diagnosis — add the medicines below; once saved, they start counting towards the usual treatment.'}
-                  {fillNote.source === 'kept' && 'Kept the medicines already listed.'}
+                  {fillNoteText(fillNote)}
                 </p>
-              )}
-              {!fillBusy && replaceAsk && (
-                <div className="rx-replace-ask" role="group" aria-label="Replace the medicines?" data-testid="rx-replace-ask">
-                  <p>
-                    Replace the {lines.length} medicine{lines.length === 1 ? '' : 's'} already listed with the usual
-                    treatment for {replaceAsk.std.diagnosisName} ({replaceAsk.lines.length} medicine
-                    {replaceAsk.lines.length === 1 ? '' : 's'})?
-                  </p>
-                  <div className="rx-replace-btns">
-                    <button type="button" className="btn-primary sm" onClick={() => answerReplace(true)}>
-                      Replace medicines
-                    </button>
-                    <button type="button" className="btn-ghost" onClick={() => answerReplace(false)}>
-                      Keep mine
-                    </button>
-                  </div>
-                </div>
               )}
             </div>
             <div className="rx-cols">

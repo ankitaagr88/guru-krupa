@@ -23,6 +23,7 @@ function createStore() {
     standardCharges: clone(D.STANDARD_CHARGES), // lane B: one-tap bill charges
     visitKinds: clone(D.VISIT_KINDS), // lane E2: new patient / follow-up / new case…
     feeRules: clone(D.FEE_RULES),
+    diagnosisSettings: { maxPerVisit: 3 }, // Admin: diagnoses per visit
     treatmentStandards: {}, // diagnosisId -> {lines, updatedAt, updatedBy}
     inventory: clone(D.INVENTORY).map((it, i) => ({ id: i + 1, ...it })),
     stockMovements: [],

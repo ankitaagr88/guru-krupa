@@ -1,10 +1,12 @@
-"""Doctor's panel: the diagnosis on the visit and the follow-up date that books an appointment.
+"""Doctor's panel: the diagnoses on the visit and the follow-up date that books an appointment.
 
-Diagnosis: the visit's diagnosis and its prescription's diagnosis are kept equal. Setting it on
-the visit copies it to the prescription (`set_diagnosis`); saving a prescription with a diagnosis
-(the prescription screen, the import) copies it back to the visit (the `before_flush` hook below),
-so the treatment-standard counting, which reads `Prescription.diagnosis_id`, always agrees with
-what the doctor picked.
+Diagnoses: a visit can have several (up to ClinicSetting "diagnoses".maxPerVisit, default 3), in the
+order picked; `diagnosis_id` is always the first of `diagnosis_ids`. The visit's diagnoses and its
+prescription's are kept equal. Setting them on the visit copies them to the prescription
+(`set_diagnoses`); saving a prescription with diagnoses (the prescription screen, the import) copies
+them back to the visit (the `before_flush` hook below), so the treatment-standard counting, which
+reads the prescriptions, always agrees with what the doctor picked. Code that still sets only
+`diagnosis_id` gets a one-item list.
 
 Follow-up: `visit.follow_up_date` plus one appointment for that day carrying
 `source_visit_id = visit.id`. Moving the date moves that appointment; clearing it deletes the
@@ -16,6 +18,7 @@ from sqlalchemy import event, select
 from sqlalchemy.orm import Session, attributes
 
 from app.models.appointments import Appointment
+from app.models.config import ClinicSetting
 from app.models.patients import Visit
 from app.models.pharmacy import Diagnosis, Prescription
 from app.services import queue
@@ -33,6 +36,15 @@ class UnknownDiagnosis(DoctorError):
     pass
 
 
+class TooManyDiagnoses(DoctorError):
+    pass
+
+
+DIAGNOSIS_SETTINGS_KEY = "diagnoses"
+DEFAULT_MAX_DIAGNOSES = 3
+MAX_DIAGNOSES_LIMIT = 10  # what Admin may set at most
+
+
 class BadFollowUp(DoctorError):
     pass
 
@@ -43,32 +55,102 @@ def _latest_prescription(db: Session, visit: Visit) -> Prescription | None:
                      .order_by(Prescription.id.desc()))
 
 
-def set_diagnosis(db: Session, visit: Visit, diagnosis_id: int | None) -> Visit:
-    """Pick (or clear, with None) the visit's diagnosis; the prescription's follows."""
-    if diagnosis_id is not None and db.get(Diagnosis, diagnosis_id) is None:
-        raise UnknownDiagnosis(diagnosis_id)
-    visit.diagnosis_id = diagnosis_id
+def max_diagnoses(db: Session) -> int:
+    row = db.get(ClinicSetting, DIAGNOSIS_SETTINGS_KEY)
+    try:
+        n = int((row.value or {}).get("maxPerVisit", DEFAULT_MAX_DIAGNOSES)) if row is not None else DEFAULT_MAX_DIAGNOSES
+    except (TypeError, ValueError):
+        n = DEFAULT_MAX_DIAGNOSES
+    return min(max(n, 1), MAX_DIAGNOSES_LIMIT)
+
+
+def save_max_diagnoses(db: Session, n: int) -> int:
+    """Admin: how many diagnoses a visit may have (1 = one, as before). Visits that already have
+    more keep them."""
+    row = db.get(ClinicSetting, DIAGNOSIS_SETTINGS_KEY)
+    if row is None:
+        row = ClinicSetting(key=DIAGNOSIS_SETTINGS_KEY, value={})
+        db.add(row)
+    row.value = {**(row.value or {}), "maxPerVisit": min(max(int(n), 1), MAX_DIAGNOSES_LIMIT)}
+    db.commit()
+    return max_diagnoses(db)
+
+
+def clean_diagnosis_ids(db: Session, ids: list[int] | None) -> list[int]:
+    """The ids in order, repeats dropped; each must exist, and no more than the clinic's limit."""
+    out: list[int] = []
+    for i in ids or []:
+        if i not in out:
+            out.append(i)
+    for i in out:
+        if db.get(Diagnosis, i) is None:
+            raise UnknownDiagnosis(i)
+    limit = max_diagnoses(db)
+    if len(out) > limit:
+        raise TooManyDiagnoses(f"At most {limit} diagnoses per visit")
+    return out
+
+
+def set_diagnoses(db: Session, visit: Visit, ids: list[int] | None) -> Visit:
+    """Pick the visit's diagnoses (an empty list clears them); the prescription's follow."""
+    ids = clean_diagnosis_ids(db, ids)
+    visit.diagnosis_ids = list(ids)
+    visit.diagnosis_id = ids[0] if ids else None
     rx = _latest_prescription(db, visit)
     if rx is not None:
-        rx.diagnosis_id = diagnosis_id
+        rx.diagnosis_ids = list(ids)
+        rx.diagnosis_id = visit.diagnosis_id
     db.commit()
     return visit
 
 
+def set_diagnosis(db: Session, visit: Visit, diagnosis_id: int | None) -> Visit:
+    """One diagnosis (or none): kept for callers that send a single `diagnosisId`."""
+    return set_diagnoses(db, visit, [diagnosis_id] if diagnosis_id is not None else [])
+
+
+def ids_of(obj) -> list[int]:
+    """A visit's or prescription's diagnoses, in order (older rows may have only `diagnosis_id`)."""
+    ids = list(obj.diagnosis_ids or [])
+    if not ids and obj.diagnosis_id is not None:
+        ids = [obj.diagnosis_id]
+    return ids
+
+
+def _normalise(obj, is_new: bool) -> bool:
+    """Keep `diagnosis_id` == first of `diagnosis_ids`. Returns True when the diagnoses changed."""
+    ids_changed = attributes.get_history(obj, "diagnosis_ids").has_changes()
+    id_changed = attributes.get_history(obj, "diagnosis_id").has_changes()
+    ids = list(obj.diagnosis_ids or [])
+    if ids_changed or (is_new and ids):
+        first = ids[0] if ids else None
+        if obj.diagnosis_id != first:
+            obj.diagnosis_id = first
+        return True
+    if id_changed or (is_new and obj.diagnosis_id is not None):
+        if ids[:1] != ([obj.diagnosis_id] if obj.diagnosis_id is not None else []):
+            obj.diagnosis_ids = [obj.diagnosis_id] if obj.diagnosis_id is not None else []
+        return True
+    return False
+
+
 @event.listens_for(Session, "before_flush")
 def _prescription_diagnosis_to_visit(session: Session, _ctx, _instances) -> None:
-    """A prescription saved with a (changed) diagnosis sets the same diagnosis on its visit."""
+    """A prescription saved with (changed) diagnoses sets the same diagnoses on its visit."""
     for obj in list(session.new) + list(session.dirty):
+        if isinstance(obj, Visit):
+            _normalise(obj, obj in session.new)
+            continue
         if not isinstance(obj, Prescription) or obj.visit_id is None:
             continue
-        hist = attributes.get_history(obj, "diagnosis_id")
-        if obj in session.new:
-            if obj.diagnosis_id is None:
-                continue  # a new prescription without a diagnosis leaves the visit's alone
-        elif not hist.has_changes():
+        is_new = obj in session.new
+        if not _normalise(obj, is_new):
             continue
+        if is_new and obj.diagnosis_id is None:
+            continue  # a new prescription without a diagnosis leaves the visit's alone
         visit = session.get(Visit, obj.visit_id)
-        if visit is not None and visit.diagnosis_id != obj.diagnosis_id:
+        if visit is not None and ids_of(visit) != ids_of(obj):
+            visit.diagnosis_ids = ids_of(obj)
             visit.diagnosis_id = obj.diagnosis_id
 
 

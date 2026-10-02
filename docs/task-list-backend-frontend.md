@@ -11,16 +11,16 @@ Source of truth for behaviour: `guru-krupa-eye-hospital-mockup.html` (copy in `g
 
 ## Summary
 
-**Overall progress: 89%** (53 of 60 tasks done, 1 in progress)
+**Overall progress: 89%** (54 of 61 tasks done, 1 in progress)
 
 | Area | Done | In progress | Not started | Blocked | % complete |
 |---|---|---|---|---|---|
 | Backend (server side) | 17 | 0 | 1 | 0 | 94% |
 | Frontend (screens) | 22 | 0 | 0 | 0 | 100% |
 | Improvements from the session-2 review | 8 | 0 | 0 | 0 | 100% |
-| New requests (N1–N3) | 3 | 0 | 0 | 0 | 100% |
+| New requests (N1–N3, N18) | 4 | 0 | 0 | 0 | 100% |
 | Data & go-live | 3 | 1 | 4 | 1 | 39% |
-| **Total** | **53** | **1** | **5** | **1** | **89%** |
+| **Total** | **54** | **1** | **5** | **1** | **89%** |
 
 The separate WhatsApp new-patient chat tool was removed on 2026-10-02 at your request: patients are sent the same QR new-patient form (N1) as a link instead.
 
@@ -100,6 +100,7 @@ Built on 2026-09-23 by three helpers working side by side (A = reception, B = bi
 | N1 || ✅ | Built (helper D), checked on the real database: QR poster in Admin (English / Gujarati / Hindi), patient fills it on their phone, lands in today's queue with a token and a note for reception; staff use the same form ("New patient form" button). **Gujarati/Hindi wording to be checked by a native reader.** Works on phones once the app is on the rented server (same Wi-Fi only until then) |
 | N2 | **Families on one mobile number**: the number's owner (e.g. parent) + other patients on it, each with a relation (Son, Daughter, Spouse… — list editable in Admin) | ✅ | Built (helper E1) and checked on the real database: \"Add as a family member\" with relation on the new-patient forms; \"Family on this number\" card + \"Son of …\" line on the patient page (change relation / make owner / remove / add member); family prompt in the registration drawer; relation shown in search and queue; Admin → Family relations (editable list) + \"Group patients who share a number\" for after the KiviHealth import. Public QR form never reveals or links anyone. **Question:** \"Add family member\" from the patient page saves without queueing — OK? |
 | N3 | **Follow-up or new issue → the right fee**, from Dr Anu's fee sheets: new patient ₹700; back within 6 days free; 7 days–6 months follow-up ₹350; after 6 months or a different problem new case ₹500; emergency ₹1000 suggested 8 pm–8 am and Sundays; tests with one-eye / both-eyes prices (Perimetry, Fundus photo, Macular OCT, RNFL, CCT) and two packages. All limits and prices editable in Admin | ✅ | Built (helper E2) and checked on the real database (new patient / free follow-up after 3 days / follow-up after 40 days / new case after 200 days; bill pre-filled; Perimetry both eyes). Fee list loaded; everything editable in Admin → Standard charges and Visit types & fees. **To confirm with Dr Anu:** after-surgery rule (now free for 30 days), 6 months = 182 days, delete the switched-off Pre-test / Dilation charges? |
+| N18 | **Several diagnoses per visit** (decided 2026-10-02: yes) | ✅ | Built 2026-10-02: diagnosis chips + "Add diagnosis" on the doctor's panel and prescription pop-up; first = main; limit in Admin → Diagnoses (default 3). Each added diagnosis adds its usual medicines without replacing any; "fill from history" prefers prescriptions written for one diagnosis alone. Checked in Edge |
 | N4 | Returning-patient QR (type your number, say what the problem is) | ⏸ | Skipped for now at your request — reception handles returning patients at the desk |
 
 ## Data & go-live
@@ -113,7 +114,7 @@ Built on 2026-09-23 by three helpers working side by side (A = reception, B = bi
 | G5 | More real printout photos: YPC-100K (none yet), extra HNT-1P/HRK slips, phone photos at an angle | ⏳ | Improves reading accuracy |
 | G6 | Set up the server, domain, SSL — **a small rented server (VPS) in an Indian data centre (DPDP Act)**, e.g. DigitalOcean Bangalore / Linode Mumbai / E2E Networks | ⏳ | Decided 2026-09-20. Scripts ready (B11). Start small; migrate to AWS Mumbai later if the business grows (restore backup + copy photos + re-point domain — no provider-specific code)  **Recommended buy (2026-09-23):** DigitalOcean Bangalore — Basic Droplet 2 GB / 1 CPU / 50 GB ($12) + Daily backups ($3.60) + Spaces ($5) ≈ $20.60/month + GST |
 | G6a | **Data never lost:** nightly Postgres + photo backup on the server (30 days) + automatic off-site copy to Indian object storage + a copy pulled to the clinic laptop **at start-up and mid-day** (machines are off by 8 pm, so nothing nightly on the clinic side); missed-backup alert; restore drill documented and tested before go-live; later an Admin "download my data" export | ⏳ | Firm requirement from the user 2026-09-20 |
-| G7 | First real import from KiviHealth + staff logins created | 🔄 | **2026-10-02:** export files arrived (2021–2026). Import extended: several yearly files at once, **Past visits** and **Past bills** (old money kept out of Day book / cash drawer / Today), KiviHealth name/date formats, medicine prices. Full test run in a separate test area of the database (`import_test`): 3,518 patients, 6,072 past visits, 2,432 bills (₹85.7 lakh), 396 medicines, 11 prescription lines. **Waiting on:** 2025 Appointments + Payments re-export; Dr Anu's review of `KiviHealth\Medicine list - for review.xlsx`; then the real import on the server. Staff logins still open |
+| G7 | First real import from KiviHealth + staff logins created | 🔄 | **2026-10-02:** export files arrived (2021–2026). Import extended: several yearly files at once, **Past visits** and **Past bills** (old money kept out of Day book / cash drawer / Today), KiviHealth name/date formats, medicine prices. Full test run in a separate test area of the database (`import_test`): 3,518 patients, 6,072 past visits, 2,432 bills (₹85.7 lakh), 396 medicines, 11 prescription lines. 2025 Appointments + Payments are not available (2025 patients imported without their 2025 visits/bills). **Waiting on:** Dr Anu's review of `KiviHealth\Medicine list - for review.xlsx`; then the real import on the server. Staff logins still open |
 | G8 | Staff training / first day at the clinic | ⏳ | |
 
 ---

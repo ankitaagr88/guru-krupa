@@ -27,7 +27,7 @@ export { intake } from './intake';
 export { daybook } from './daybook';
 export { rxPrint } from './rxPrint';
 export { otTeam } from './otTeam';
-import { doctor as doctorMock } from './doctor';
+import { cleanDiagnosisIds, doctor as doctorMock, dxFields, dxIdsOf, maxDiagnoses, setDiagnosisIds } from './doctor';
 import { applySuggestion, feeVisitOut } from './fees';
 import { printExtras as rxPrintExtras } from './rxPrint';
 import { cleanTeam, defaultTeam, teamFees, teamOf } from './otTeam';
@@ -123,8 +123,7 @@ export const patients = {
     const visits = [];
     if (p.stage) {
       const rx = (p.medicines || []).length
-        ? { id: p.id, visitId: p.id, printLanguage: p.printLanguage || 'english', diagnosisId: p.diagnosisId ?? null,
-            diagnosisName: S.diagnoses.find((d) => d.id === p.diagnosisId)?.name ?? null, lines: p.medicines.map(rxLineOut) }
+        ? { id: p.id, visitId: p.id, printLanguage: p.printLanguage || 'english', ...dxFields(p), lines: p.medicines.map(rxLineOut) }
         : null;
       visits.push({
         id: p.id, date: dateStr(0), token: p.token, stage: p.stage, status: p.stage === 'done' ? 'completed' : 'active',
@@ -141,8 +140,7 @@ export const patients = {
       visits.push({
         id: -(i + 1), date: h.date, token: '', stage: 'done', status: 'completed', va: { R: '', L: '' }, note: 'Imported from the previous system',
         doctorNotes: '', elsewhere: false, elsewhereNote: '', completedAt: h.date, imported: true, readings: [],
-        prescription: { id: -(i + 1), visitId: -(i + 1), printLanguage: 'english', diagnosisId: h.diagnosisId ?? null,
-          diagnosisName: S.diagnoses.find((d) => d.id === h.diagnosisId)?.name ?? null, lines: c(h.medicines || []) },
+        prescription: { id: -(i + 1), visitId: -(i + 1), printLanguage: 'english', ...dxFields(h), lines: c(h.medicines || []) },
         bill: null, examPhotos: [],
       });
     });
@@ -292,12 +290,13 @@ export const visits = {
     if (!p) throw httpError(404, 'Visit not found');
     return feeVisitOut(p);
   },
-  // PATCH /visits/{id} {note?, doctorNotes?, elsewhere?, elsewhereNote?, diagnosisId?}
+  // PATCH /visits/{id} {note?, doctorNotes?, elsewhere?, elsewhereNote?, diagnosisId?, diagnosisIds?}
   async update(id, patch) {
     await latency(30);
     const p = S.patients.find((x) => x.id === Number(id));
     if (!p) throw httpError(404, 'Visit not found');
-    if (patch.diagnosisId !== undefined) await doctorMock.setDiagnosis(id, patch.diagnosisId);
+    if (patch.diagnosisIds !== undefined) await doctorMock.setDiagnoses(id, patch.diagnosisIds || []);
+    else if (patch.diagnosisId !== undefined) await doctorMock.setDiagnosis(id, patch.diagnosisId);
     ['note', 'doctorNotes', 'elsewhere', 'elsewhereNote'].forEach((k) => {
       if (patch[k] !== undefined) p[k] = patch[k];
     });
@@ -979,19 +978,18 @@ export const prescriptions = {
       id: p.id,
       visitId: p.id,
       printLanguage: p.printLanguage || 'english',
-      diagnosisId: p.diagnosisId ?? null,
-      diagnosisName: S.diagnoses.find((d) => d.id === p.diagnosisId)?.name ?? null,
+      ...dxFields(p),
       lines: (p.medicines || []).map(rxLineOut),
     };
   },
   // lines: [{name, medicineId?, dosage, qtyGiven}] — decrements stock only by qtyGiven.
   // `matched` when the typed name equals a medicine's name, brand or composition; stored name is canonical.
-  async save(patientId, lines, printLanguage, diagnosisId = null) {
+  // dx: diagnosis ids in order (real: `diagnosisIds`) or a single id / null (real: `diagnosisId`)
+  async save(patientId, lines, printLanguage, dx = null) {
     await latency();
     const p = S.patients.find((x) => x.id === Number(patientId));
     if (!p) throw httpError(404, 'Patient not found');
-    if (diagnosisId != null && !S.diagnoses.some((d) => d.id === Number(diagnosisId)))
-      throw httpError(422, 'Unknown diagnosis');
+    const dxIds = cleanDiagnosisIds(Array.isArray(dx) ? dx : dx == null ? [] : [dx]);
     const resolved = lines.map((line) => {
       const med = medById(line.medicineId) || medByText(line.name);
       return {
@@ -1019,7 +1017,7 @@ export const prescriptions = {
       const old = prevLines.find((m) => m.name.toLowerCase() === l.name.toLowerCase());
       return { id: i + 1, ...l, dispensedQty: old?.dispensedQty || 0, dispensedAt: old?.dispensedAt || null, dispensedBy: old?.dispensedBy || null };
     });
-    p.diagnosisId = diagnosisId == null ? null : Number(diagnosisId);
+    setDiagnosisIds(p, dxIds);
     if (printLanguage) p.printLanguage = printLanguage;
     store.notify();
     // lowStock: mock keeps full items (name/stock/unit/reorder); real returns names only
@@ -1029,8 +1027,7 @@ export const prescriptions = {
       visitId: p.id,
       printLanguage: p.printLanguage || 'english',
       createdAt: new Date().toISOString(),
-      diagnosisId: p.diagnosisId ?? null,
-      diagnosisName: S.diagnoses.find((d) => d.id === p.diagnosisId)?.name ?? null,
+      ...dxFields(p),
       lines: out,
       medicines: out,
       lowStock,
@@ -1057,8 +1054,7 @@ export const prescriptions = {
     store.notify();
     const out = p.medicines.map(rxLineOut);
     const lowStock = item.stock <= item.reorder ? [c(item)] : [];
-    return { id: p.id, visitId: p.id, printLanguage: p.printLanguage || 'english', diagnosisId: p.diagnosisId ?? null,
-      diagnosisName: S.diagnoses.find((d) => d.id === p.diagnosisId)?.name ?? null, lines: out, medicines: out, lowStock };
+    return { id: p.id, visitId: p.id, printLanguage: p.printLanguage || 'english', ...dxFields(p), lines: out, medicines: out, lowStock };
   },
   async undispense(patientId, lineId) {
     await latency(40);
@@ -1079,8 +1075,7 @@ export const prescriptions = {
       store.notify();
     }
     const out = p.medicines.map(rxLineOut);
-    return { id: p.id, visitId: p.id, printLanguage: p.printLanguage || 'english', diagnosisId: p.diagnosisId ?? null,
-      diagnosisName: S.diagnoses.find((d) => d.id === p.diagnosisId)?.name ?? null, lines: out, medicines: out, lowStock: [] };
+    return { id: p.id, visitId: p.id, printLanguage: p.printLanguage || 'english', ...dxFields(p), lines: out, medicines: out, lowStock: [] };
   },
   // Real: GET /visits/{id}/prescription/print?lang= → {hospital, patient, language,
   //   lines[{name, dosage, dosageLocal, qtyGiven, brand, composition, form, formLabel, packSize}],
@@ -1696,11 +1691,15 @@ export { store as mockStore };
 const HISTORY_MIN_SHARE = 0.5;
 const lineKey = (n) => (n || '').toLowerCase().split(/\s+/).join(' ').trim();
 
+// Prescriptions for this diagnosis alone are counted when there are any; else the mixed ones
+// (a "glaucoma + dry eye" one would otherwise teach glaucoma's standard the lubricants).
 function historyStandard(diagnosisId) {
-  const rxs = [
-    ...S.patients.filter((p) => p.diagnosisId === diagnosisId && (p.medicines || []).length),
-    ...importedRx.filter((r) => r.diagnosisId === diagnosisId),
+  const all = [
+    ...S.patients.filter((p) => dxIdsOf(p).includes(diagnosisId) && (p.medicines || []).length),
+    ...importedRx.filter((r) => dxIdsOf(r).includes(diagnosisId)),
   ];
+  const alone = all.filter((r) => dxIdsOf(r).length === 1);
+  const rxs = alone.length ? alone : all;
   const total = rxs.length;
   if (!total) return { lines: [], count: 0 };
   const perRx = {};
@@ -1738,7 +1737,8 @@ function historyStandard(diagnosisId) {
 function diagnosisOut(d) {
   return {
     ...c(d),
-    prescriptionCount: S.patients.filter((p) => p.diagnosisId === d.id).length + importedRx.filter((r) => r.diagnosisId === d.id).length,
+    prescriptionCount:
+      S.patients.filter((p) => dxIdsOf(p).includes(d.id)).length + importedRx.filter((r) => dxIdsOf(r).includes(d.id)).length,
     hasStandard: !!S.treatmentStandards[d.id],
   };
 }
@@ -1784,7 +1784,43 @@ export const treatments = {
     await latency(40);
     return standardOut(diagById(id));
   },
+  // GET /diagnoses/standard?ids=…: each diagnosis's standard in order, each medicine once
+  async combinedStandard(ids) {
+    await latency(40);
+    const parts = [];
+    const lines = [];
+    const seen = new Set();
+    [...new Set((ids || []).map(Number))].forEach((i) => {
+      const part = standardOut(diagById(i));
+      parts.push({
+        diagnosisId: part.diagnosisId,
+        diagnosisName: part.diagnosisName,
+        source: part.source,
+        historyCount: part.historyCount,
+        lines: part.lines.length,
+      });
+      part.lines.forEach((l) => {
+        const k = lineKey(l.name);
+        if (k && !seen.has(k)) {
+          seen.add(k);
+          lines.push(l);
+        }
+      });
+    });
+    return { lines, parts };
+  },
+  async settings() {
+    return { maxPerVisit: maxDiagnoses() };
+  },
   admin: {
+    async saveSettings(maxPerVisit) {
+      await latency(30);
+      const n = Number(maxPerVisit);
+      if (!Number.isInteger(n) || n < 1 || n > 10) throw httpError(422, 'Diagnoses per visit must be 1 to 10');
+      S.diagnosisSettings = { maxPerVisit: n };
+      store.notify();
+      return { maxPerVisit: n };
+    },
     async create(name) {
       const n = (name || '').trim().replace(/\s+/g, ' ');
       if (!n) throw httpError(422, 'Diagnosis name is required');
@@ -1815,7 +1851,7 @@ export const treatments = {
     },
     async remove(id) {
       const d = diagById(id);
-      const used = S.patients.filter((p) => p.diagnosisId === d.id).length;
+      const used = S.patients.filter((p) => dxIdsOf(p).includes(d.id)).length;
       if (used) throw httpError(409, `${used} prescription(s) use '${d.name}' — switch it off instead`);
       delete S.treatmentStandards[d.id];
       S.diagnoses.splice(S.diagnoses.indexOf(d), 1);

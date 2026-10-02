@@ -3,6 +3,8 @@
 Reads for any staff (the prescription screen needs them); writes admin-only.
   GET  /diagnoses                       active list (?includeInactive=1 for Admin)
   GET  /diagnoses/{id}/standard         what auto-fills: admin standard, else history-derived
+  GET  /diagnoses/standard?ids=1&ids=2  several diagnoses together, each medicine once
+  GET  /diagnoses/settings              {maxPerVisit}   PUT /admin/diagnoses/settings (admin)
   POST /admin/diagnoses  PATCH/DELETE /admin/diagnoses/{id}  PUT /admin/diagnoses/order
   PUT  /admin/diagnoses/{id}/standard   save Dr Anu's standard   DELETE ... revert to history
 """
@@ -15,7 +17,9 @@ from app.db import get_db
 from app.models.staff import Staff
 from app.routes import register
 from app.schemas.admin import IdOrder
-from app.schemas.treatments import DiagnosisIn, DiagnosisOut, DiagnosisPatch, StandardIn, StandardOut
+from app.schemas.treatments import (CombinedStandardOut, DiagnosisIn, DiagnosisOut, DiagnosisPatch, DiagnosisSettings,
+                                    StandardIn, StandardOut)
+from app.services import doctor
 from app.services import treatments as svc
 
 router = register(APIRouter(tags=["treatments"], dependencies=[Depends(get_current_user)]))
@@ -39,6 +43,25 @@ def _diag(db: Session, diagnosis_id: int):
 @router.get("/diagnoses", response_model=list[DiagnosisOut])
 def list_diagnoses(include_inactive: bool = Query(False, alias="includeInactive"), db: Session = Depends(get_db)):
     return svc.diagnoses(db, include_inactive)
+
+
+@router.get("/diagnoses/settings", response_model=DiagnosisSettings)
+def get_settings(db: Session = Depends(get_db)):
+    return DiagnosisSettings(max_per_visit=doctor.max_diagnoses(db))
+
+
+@admin_router.put("/diagnoses/settings", response_model=DiagnosisSettings)
+def put_settings(data: DiagnosisSettings, db: Session = Depends(get_db), user: Staff = admin_user):
+    return DiagnosisSettings(max_per_visit=doctor.save_max_diagnoses(db, data.max_per_visit))
+
+
+@router.get("/diagnoses/standard", response_model=CombinedStandardOut)
+def get_combined_standard(ids: list[int] = Query(...), db: Session = Depends(get_db)):
+    """Several diagnoses picked together: their standards, each medicine once."""
+    try:
+        return svc.combined_standard(db, ids)
+    except svc.NotFound as exc:
+        raise _http(exc) from exc
 
 
 @router.get("/diagnoses/{diagnosis_id}/standard", response_model=StandardOut)

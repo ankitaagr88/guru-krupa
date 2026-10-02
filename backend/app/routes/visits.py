@@ -84,11 +84,17 @@ def set_va(visit_id: int, data: VaIn, db: Session = Depends(get_db)):
 def patch_visit(visit_id: int, data: VisitPatch, db: Session = Depends(get_db)):
     visit = _get(db, visit_id)
     values = data.model_dump(exclude_unset=True)
-    if "diagnosis_id" in values:  # null clears it; the prescription's diagnosis follows
+    if "diagnosis_ids" in values or "diagnosis_id" in values:  # the prescription's diagnoses follow
+        ids = values.pop("diagnosis_ids", None)
+        one = values.pop("diagnosis_id", None)
+        if ids is None:
+            ids = [one] if one is not None else []
         try:
-            doctor.set_diagnosis(db, visit, values.pop("diagnosis_id"))
+            doctor.set_diagnoses(db, visit, ids)
         except doctor.UnknownDiagnosis:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Unknown diagnosis")
+        except doctor.TooManyDiagnoses as exc:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))
     for k, v in values.items():
         if v is not None:
             setattr(visit, k, v)

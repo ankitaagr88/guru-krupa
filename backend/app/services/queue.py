@@ -4,7 +4,7 @@ from datetime import date, datetime, timezone
 
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from app.config import settings
 from app.db import utcnow
@@ -140,6 +140,20 @@ def follow_up_appointments(db: Session, visit_ids: list[int]) -> dict[int, Appoi
     return {a.source_visit_id: a for a in rows}
 
 
+def _diagnoses(visit: Visit) -> list:
+    from app.services.pharmacy import diagnosis_refs  # noqa: PLC0415 (keeps the import graph acyclic)
+
+    db = object_session(visit)
+    return diagnosis_refs(db, visit) if db is not None else []
+
+
+def _max_diagnoses(visit: Visit) -> int:
+    from app.services.doctor import DEFAULT_MAX_DIAGNOSES, max_diagnoses  # noqa: PLC0415 (doctor imports queue)
+
+    db = object_session(visit)
+    return max_diagnoses(db) if db is not None else DEFAULT_MAX_DIAGNOSES
+
+
 def visit_out(visit: Visit, *, last_visit: date | None = None, now: datetime | None = None,
               follow_up: Appointment | None = None, fee: dict | None = None) -> VisitOut:
     now = now or utcnow()
@@ -157,6 +171,7 @@ def visit_out(visit: Visit, *, last_visit: date | None = None, now: datetime | N
         has_bill=visit.bill is not None, has_prescription=bool(visit.prescriptions),
         readings_count=len(visit.readings),
         diagnosis_id=visit.diagnosis_id, diagnosis_name=visit.diagnosis.name if visit.diagnosis else None,
+        diagnoses=_diagnoses(visit), max_diagnoses=_max_diagnoses(visit),
         follow_up_date=visit.follow_up_date,
         follow_up_note=(follow_up.note or "") if follow_up and visit.follow_up_date else "",
         follow_up_appointment_id=follow_up.id if follow_up and visit.follow_up_date else None,

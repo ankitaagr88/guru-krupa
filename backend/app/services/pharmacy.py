@@ -17,7 +17,7 @@ from app.models.patients import Visit
 from app.models.pharmacy import (INVENTORY_UNITS, STOCK_REASONS, Diagnosis, InventoryItem, Medicine, MedicineForm,
                                  Prescription, PrescriptionLine, StockMovement)
 from app.models.staff import Staff
-from app.schemas.pharmacy import (InventoryItemOut, MedicineOut, MovementOut, PrescriptionLineIn, PrescriptionLineOut,
+from app.schemas.pharmacy import (DiagnosisRef, InventoryItemOut, MedicineOut, MovementOut, PrescriptionLineIn, PrescriptionLineOut,
                                   PrescriptionOut, PrintDoctor, PrintExamRow, PrintGlasses, PrintGlassesRow, PrintLine,
                                   PrintPayload)
 from app.services import billing as billing_svc
@@ -238,8 +238,13 @@ def _staff_id(by: Staff | int | None) -> int | None:
 
 
 def save_prescription(db: Session, visit: Visit, lines: list[PrescriptionLineIn], print_language: str | None,
-                      by: Staff | int | None, diagnosis_id: int | None = None) -> tuple[Prescription, list[InventoryItem]]:
+                      by: Staff | int | None, diagnosis_id: int | None = None,
+                      diagnosis_ids: list[int] | None = None) -> tuple[Prescription, list[InventoryItem]]:
     """Create or replace the visit's prescription in one transaction.
+
+    Diagnoses: `diagnosis_ids` (several, in order) when given; else the older single `diagnosis_id`,
+    which leaves a longer list alone when it is that list's first. A new prescription without either
+    takes the visit's diagnoses.
 
     Saving never moves stock: `qty_given` is the doctor's "to give from clinic". Stock moves only
     when the front desk confirms a line with `dispense_line`. Replacing keeps the confirmed
@@ -254,17 +259,33 @@ def save_prescription(db: Session, visit: Visit, lines: list[PrescriptionLineIn]
 
     rx = get_prescription(db, visit)
     try:
-        if diagnosis_id is not None and db.get(Diagnosis, diagnosis_id) is None:
-            raise BadValue("Unknown diagnosis")
+        from app.services import doctor  # noqa: PLC0415 (doctor imports queue, which imports this module)
+
+        if diagnosis_ids is not None:
+            try:
+                ids = doctor.clean_diagnosis_ids(db, diagnosis_ids)
+            except doctor.UnknownDiagnosis as exc:
+                raise BadValue("Unknown diagnosis") from exc
+            except doctor.TooManyDiagnoses as exc:
+                raise BadValue(str(exc)) from exc
+        elif diagnosis_id is not None:
+            if db.get(Diagnosis, diagnosis_id) is None:
+                raise BadValue("Unknown diagnosis")
+            current = doctor.ids_of(rx) if rx is not None else doctor.ids_of(visit)
+            ids = current if current[:1] == [diagnosis_id] else [diagnosis_id]
+        else:
+            ids = None if rx is None else []  # new: the visit's; existing: cleared, as before
         if rx is None:
+            ids = doctor.ids_of(visit) if ids is None else ids
             rx = Prescription(visit_id=visit.id, print_language=lang or visit.patient.language or "english",
-                              diagnosis_id=diagnosis_id)
+                              diagnosis_ids=list(ids), diagnosis_id=ids[0] if ids else None)
             db.add(rx)
             db.flush()
         else:
             if lang:
                 rx.print_language = lang
-            rx.diagnosis_id = diagnosis_id
+            rx.diagnosis_ids = list(ids)
+            rx.diagnosis_id = ids[0] if ids else None
 
         # Carry the front desk's confirmations over to lines that are still there; give the
         # stock back for confirmed lines the doctor removed.
@@ -374,7 +395,18 @@ def prescription_out(db: Session, rx: Prescription, low: list[InventoryItem] | N
                                          price=ln.medicine.price if ln.medicine is not None else None))
     return PrescriptionOut(id=rx.id, visit_id=rx.visit_id, print_language=rx.print_language, created_at=rx.created_at,
                            diagnosis_id=rx.diagnosis_id, diagnosis_name=rx.diagnosis.name if rx.diagnosis else None,
-                           lines=lines, low_stock=[it.name for it in (low or [])])
+                           diagnoses=diagnosis_refs(db, rx), lines=lines, low_stock=[it.name for it in (low or [])])
+
+
+def diagnosis_refs(db: Session, obj) -> list[DiagnosisRef]:
+    """A visit's or prescription's diagnoses as {id, name}, in the doctor's order."""
+    ids = list(obj.diagnosis_ids or []) or ([obj.diagnosis_id] if obj.diagnosis_id is not None else [])
+    out = []
+    for i in ids:
+        d = db.get(Diagnosis, i)
+        if d is not None:
+            out.append(DiagnosisRef(id=d.id, name=d.name))
+    return out
 
 
 def print_payload(db: Session, rx: Prescription, lang: str | None) -> PrintPayload:

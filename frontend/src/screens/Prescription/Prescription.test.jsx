@@ -230,12 +230,13 @@ describe('Diagnosis auto-fill (B15/F17)', () => {
   it('picking a diagnosis fills the lines from history, and the diagnosis is saved with the prescription', async () => {
     // Bharat Oza (id 5) is seeded with a Glaucoma prescription (Timolol + Latanoprost) -> history of 1
     renderWithProviders(<PrescriptionModal visit={{ id: 7, name: 'Ilaben Chauhan' }} onClose={() => {}} />);
-    const select = await screen.findByLabelText('Diagnosis');
+    const select = await screen.findByLabelText('Add diagnosis');
     expect(select).toHaveValue('');
+    expect(screen.queryByTestId('dx-chip')).toBeNull();
     const glaucoma = (await treatments.diagnoses()).find((d) => d.name === 'Glaucoma');
     await userEvent.selectOptions(select, String(glaucoma.id));
     const note = await screen.findByTestId('rx-fill-note');
-    expect(note).toHaveTextContent('Filled 2 medicines from the most common prescription across 1 past patient');
+    expect(note).toHaveTextContent('Filled 2 medicines from the most common past prescription (1 patient)');
     const rows = await screen.findAllByTestId('med-row');
     expect(rows).toHaveLength(2);
     // both appear in 100% of the history -> alphabetical
@@ -250,37 +251,45 @@ describe('Diagnosis auto-fill (B15/F17)', () => {
     expect((await treatments.standard(glaucoma.id)).historyCount).toBe(2);
   });
 
-  it('an admin-set standard wins over history; a diagnosis with nothing says so; existing lines: "Replace medicines / Keep mine"', async () => {
-    const dry = (await treatments.diagnoses()).find((d) => d.name === 'Dry eye');
-    await treatments.admin.saveStandard(dry.id, [{ name: LATANO, dosage: '1 drop at night' }]);
-    const cataract = (await treatments.diagnoses()).find((d) => d.name === 'Cataract');
+  it('several diagnoses: each adds only the medicines not listed yet; the limit hides the picker; all are saved in order', async () => {
+    const all = await treatments.diagnoses();
+    const id = (n) => all.find((d) => d.name === n).id;
+    await treatments.admin.saveStandard(id('Dry eye'), [{ name: LATANO, dosage: '1 drop at night' }]);
+    window.confirm = vi.fn(() => false);
 
     renderWithProviders(<PrescriptionModal visit={{ id: 1, name: 'Rasilaben Patel' }} onClose={() => {}} />);
-    const select = await screen.findByLabelText('Diagnosis');
-    await userEvent.selectOptions(select, String(cataract.id));
-    expect(await screen.findByTestId('rx-fill-note')).toHaveTextContent('No standard treatment yet');
+    const pick = async (name) => {
+      const select = await screen.findByLabelText('Add diagnosis');
+      await waitFor(() => expect(within(select).getAllByRole('option').length).toBeGreaterThan(1));
+      await userEvent.selectOptions(select, String(id(name)));
+    };
+    await pick('Cataract');
+    expect(await screen.findByTestId('rx-fill-note')).toHaveTextContent('No usual treatment yet');
 
-    await userEvent.selectOptions(select, String(dry.id));
-    expect(await screen.findByTestId('rx-fill-note')).toHaveTextContent("Filled 1 medicine from Dr Anu's standard treatment");
+    await pick('Dry eye');
+    expect(await screen.findByTestId('rx-fill-note')).toHaveTextContent("Filled 1 medicine from Dr Anu's standard");
     expect(within((await screen.findAllByTestId('med-row'))[0]).getByText(LATANO)).toBeInTheDocument();
 
-    // switching diagnosis with lines present asks in the page (no browser pop-up); "Keep mine" keeps them
-    window.confirm = vi.fn(() => false);
-    const glaucoma = (await treatments.diagnoses()).find((d) => d.name === 'Glaucoma');
-    await userEvent.selectOptions(select, String(glaucoma.id));
-    const ask = await screen.findByTestId('rx-replace-ask');
-    expect(ask).toHaveTextContent('Replace the 1 medicine already listed with the usual treatment for Glaucoma');
-    await userEvent.click(within(ask).getByRole('button', { name: 'Keep mine' }));
-    expect(await screen.findByTestId('rx-fill-note')).toHaveTextContent('Kept the medicines already listed');
+    // Glaucoma's usual set is Latanoprost + Timolol: only Timolol is new
+    await userEvent.type(screen.getByLabelText(`Dosage for ${LATANO}`), ' (mine)');
+    await pick('Glaucoma');
+    expect(await screen.findByTestId('rx-fill-note')).toHaveTextContent('Added 1 medicine from the most common past prescription');
+    const rows = screen.getAllByTestId('med-row');
+    expect(rows).toHaveLength(2);
+    expect(within(rows[1]).getByText('Timolol 0.5% eye drops')).toBeInTheDocument();
+    expect(screen.getByLabelText(`Dosage for ${LATANO}`)).toHaveValue('1 drop at night (mine)');
     expect(window.confirm).not.toHaveBeenCalled();
-    expect(screen.getAllByTestId('med-row')).toHaveLength(1);
 
-    // …and "Replace medicines" puts in the usual treatment
-    const dryAgain = (await treatments.diagnoses()).find((d) => d.name === 'Dry eye');
-    await userEvent.selectOptions(select, String(dryAgain.id)); // back to Dry eye (1 line listed)
-    await userEvent.click(within(await screen.findByTestId('rx-replace-ask')).getByRole('button', { name: 'Replace medicines' }));
-    expect(await screen.findByTestId('rx-fill-note')).toHaveTextContent("Dr Anu's standard treatment");
-    expect(screen.queryByTestId('rx-replace-ask')).toBeNull();
+    // three picked = the default limit: no more picker
+    expect(screen.getAllByTestId('dx-chip').map((c) => c.firstChild.textContent)).toEqual(['Cataract', 'Dry eye', 'Glaucoma']);
+    expect(screen.queryByLabelText('Add diagnosis')).toBeNull();
+
+    await userEvent.click(screen.getByRole('button', { name: /^Save/ }));
+    await screen.findByRole('button', { name: /^Saved at / });
+    const rx = await prescriptions.get(1);
+    expect(rx.diagnoses.map((d) => d.name)).toEqual(['Cataract', 'Dry eye', 'Glaucoma']);
+    expect(rx.diagnosisName).toBe('Cataract');
+    mockStore.reset(); // the lists below expect Rasilaben without a prescription
   });
 });
 

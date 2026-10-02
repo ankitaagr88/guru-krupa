@@ -99,8 +99,10 @@ class Prescription(Base):
     visit_id: Mapped[int] = mapped_column(ForeignKey("visits.id"), index=True)
     print_language: Mapped[str] = mapped_column(String(20), default="english")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    # The diagnosis this prescription was written for (drives the treatment standards).
+    # The diagnoses this prescription was written for (drive the treatment standards), in the
+    # doctor's order; `diagnosis_id` is the first (the main one).
     diagnosis_id: Mapped[int | None] = mapped_column(ForeignKey("diagnoses.id"), index=True)
+    diagnosis_ids: Mapped[list] = mapped_column(default=list)
 
     visit = relationship("Visit", back_populates="prescriptions")
     diagnosis = relationship("Diagnosis")

@@ -34,7 +34,7 @@ export const visits = {
   // B3: register today's visit for an existing patient (409 if one is already active today)
   create: (body) => data(client.post('/visits', body)),
   get: (id) => data(client.get(`/visits/${id}`)),
-  // B3: PATCH /visits/{id} {note?, doctorNotes?, elsewhere?, elsewhereNote?, diagnosisId?}
+  // B3: PATCH /visits/{id} {note?, doctorNotes?, elsewhere?, elsewhereNote?, diagnosisId?, diagnosisIds?}
   update: (id, patch) => data(client.patch(`/visits/${id}`, patch)),
   move: (id, stage) => data(client.post(`/visits/${id}/move`, { stage })),
   setVA: (id, va) => data(client.patch(`/visits/${id}/va`, va)),
@@ -163,6 +163,8 @@ export const fees = {
 export const doctor = {
   // null clears; the prescription's diagnosis follows server-side
   setDiagnosis: (visitId, diagnosisId) => data(client.patch(`/visits/${visitId}`, { diagnosisId })),
+  // several, in order (first = main); [] clears; more than the Admin limit → 422
+  setDiagnoses: (visitId, diagnosisIds) => data(client.patch(`/visits/${visitId}`, { diagnosisIds })),
   // books (or moves) the patient's appointment on `date` ('YYYY-MM-DD'), tagged with this visit
   setFollowUp: (visitId, date, note = '') => data(client.put(`/visits/${visitId}/follow-up`, { date, note })),
   // "No follow-up": the booked appointment is removed unless already checked in
@@ -296,8 +298,14 @@ export const prescriptions = {
   medicines: ({ q = '' } = {}) => data(client.get('/medicines', { params: { q } })),
   get: (visitId) => data(client.get(`/visits/${visitId}/prescription`)),
   // lines: [{name, medicineId?, dosage, qtyGiven}] → {…, lines:[{…, matched, form, formLabel}], lowStock:[names]}
-  save: (visitId, lines, printLanguage, diagnosisId = null) =>
-    data(client.post(`/visits/${visitId}/prescription`, { lines, printLanguage, diagnosisId })),
+  // dx: an array of diagnosis ids (in order) or a single id / null
+  save: (visitId, lines, printLanguage, dx = null) =>
+    data(
+      client.post(
+        `/visits/${visitId}/prescription`,
+        Array.isArray(dx) ? { lines, printLanguage, diagnosisIds: dx } : { lines, printLanguage, diagnosisId: dx }
+      )
+    ),
   // → {hospital, patient, language, lines:[{name, dosage, dosageLocal, qtyGiven, brand, composition, form, formLabel, packSize}]}
   printPayload: (visitId, lang) =>
     data(client.get(`/visits/${visitId}/prescription/print`, { params: { lang } })),
@@ -316,7 +324,13 @@ export const treatments = {
   // → {diagnosisId, diagnosisName, source: 'admin'|'history'|'none', lines:[{name, medicineId, matched, dosage,
   //    qtyGiven, frequency?}], historyCount, updatedAt?, updatedBy?, historyLines}
   standard: (diagnosisId) => data(client.get(`/diagnoses/${diagnosisId}/standard`)),
+  // several together → {lines (each medicine once), parts:[{diagnosisId, diagnosisName, source, historyCount, lines}]}
+  combinedStandard: (ids) =>
+    data(client.get(`/diagnoses/standard?${ids.map((i) => `ids=${encodeURIComponent(i)}`).join('&')}`)),
+  // → {maxPerVisit}
+  settings: () => data(client.get('/diagnoses/settings')),
   admin: {
+    saveSettings: (maxPerVisit) => data(client.put('/admin/diagnoses/settings', { maxPerVisit })),
     create: (name) => data(client.post('/admin/diagnoses', { name })),
     update: (id, patch) => data(client.patch(`/admin/diagnoses/${id}`, patch)),
     remove: (id) => data(client.delete(`/admin/diagnoses/${id}`)),

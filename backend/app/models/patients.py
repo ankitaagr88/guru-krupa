@@ -82,8 +82,10 @@ class Visit(Base):
     elsewhere_note: Mapped[str] = mapped_column(Text, default="")
     note: Mapped[str] = mapped_column(Text, default="")
     doctor_notes: Mapped[str] = mapped_column(Text, default="")
-    # Picked on the doctor's panel; the prescription's diagnosis follows it.
+    # Picked on the doctor's panel (up to ClinicSetting "diagnoses".maxPerVisit, in the order picked);
+    # the prescription's follow. `diagnosis_id` is the first of `diagnosis_ids` (the main one).
     diagnosis_id: Mapped[int | None] = mapped_column(ForeignKey("diagnoses.id"), index=True)
+    diagnosis_ids: Mapped[list] = mapped_column(default=list)
     # "Come back on…" — the matching appointment carries source_visit_id = this visit.
     follow_up_date: Mapped[date | None] = mapped_column(Date, nullable=True)  # `date` is shadowed above
     # What kind of visit this is (VisitKind.key: new patient, follow-up, new case, after surgery...) —

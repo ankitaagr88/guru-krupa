@@ -13,6 +13,7 @@ import './treatments.css';
      • the most common prescription across every past prescription for that
        diagnosis (a medicine that appears in at least half of them, with the
        dosage written most often). Plain counting, no AI.
+   "Diagnoses per visit" (1–10) caps how many the doctor can pick for one visit.
    Takes the parent's `run(fn, okMsg)` so errors toast like every other Admin section. */
 
 export function TreatmentsSection({ run }) {
@@ -20,6 +21,8 @@ export function TreatmentsSection({ run }) {
   const [showInactive, setShowInactive] = useState(false);
   const [name, setName] = useState('');
   const [editing, setEditing] = useState(null); // diagnosis row whose standard is open
+  const [maxPerVisit, setMaxPerVisit] = useState(null); // as saved
+  const [maxDraft, setMaxDraft] = useState('');
 
   const load = async () => {
     try {
@@ -30,7 +33,30 @@ export function TreatmentsSection({ run }) {
   };
   useEffect(() => {
     load();
+    api
+      .settings()
+      .then((st) => {
+        setMaxPerVisit(st?.maxPerVisit ?? 3);
+        setMaxDraft(String(st?.maxPerVisit ?? 3));
+      })
+      .catch(() => {});
   }, []);
+
+  const saveMax = async () => {
+    const n = Number(maxDraft);
+    if (!Number.isInteger(n) || n < 1 || n > 10) {
+      setMaxDraft(String(maxPerVisit ?? 3));
+      return;
+    }
+    if (n === maxPerVisit) return;
+    let saved = null;
+    const ok = await run(async () => {
+      saved = await api.admin.saveSettings(n);
+    }, `Diagnoses per visit: ${n}`);
+    const now = ok && saved ? saved.maxPerVisit : maxPerVisit;
+    setMaxPerVisit(now);
+    setMaxDraft(String(now ?? 3));
+  };
 
   const doRun = async (fn, okMsg) => {
     const ok = await run(fn, okMsg);
@@ -77,6 +103,21 @@ export function TreatmentsSection({ run }) {
             aria-label="Show inactive diagnoses"
           />
           Show inactive
+        </label>
+        <label className="admin-check">
+          Diagnoses per visit
+          <input
+            type="number"
+            min={1}
+            max={10}
+            className="fake-input tx-max-dx"
+            aria-label="Diagnoses per visit"
+            value={maxDraft}
+            onChange={(e) => setMaxDraft(e.target.value)}
+            onBlur={saveMax}
+            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+            disabled={maxPerVisit == null}
+          />
         </label>
       </div>
       <table className="data-table uniform-cells admin-table" style={{ marginBottom: 10 }}>

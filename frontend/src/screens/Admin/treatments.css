@@ -7,3 +7,10 @@
 .tx-freq { font-family: var(--font-mono); font-size: 11px; color: var(--ink-soft); background: var(--surface); padding: 2px 7px; border-radius: 5px; }
 .tx-history-hint { font-family: var(--font-ui); font-size: 12px; line-height: 17px; color: var(--ink-soft); margin: 12px 0 0; }
 body.mobile-mode .tx-editor { width: 94vw; }
+
+/* "Diagnoses per visit" beside "Show inactive" */
+.admin-tools .fake-input.tx-max-dx {
+  width: 64px;
+  padding: 7px 8px;
+  font-family: var(--font-mono);
+}

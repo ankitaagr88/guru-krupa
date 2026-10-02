@@ -20,6 +20,7 @@ import { OT_STATUS } from '../OT/constants';
 import { fmtTime } from '../OT/SurgeryTimes';
 import { ageSexLabel, fmtDob, fmtLastVisit } from '../../lib/format';
 import { PrescriptionModal } from '../Prescription';
+import { dxNames } from '../../components/DiagnosisChips';
 import NewPatientModal from '../Queue/NewPatientModal';
 import useConfig from '../Queue/useConfig';
 import EditPatientModal from './EditPatientModal';
@@ -480,7 +481,7 @@ export default function Patient() {
               <div className="patient-block">
                 <div className="field-label">
                   Prescription
-                  {v.prescription.diagnosisName && <span className="patient-dx"> · {v.prescription.diagnosisName}</span>}
+                  {dxNames(v.prescription) && <span className="patient-dx"> · {dxNames(v.prescription)}</span>}
                 </div>
                 {v.prescription.lines.length === 0 && <p className="patient-empty">No medicines on it.</p>}
                 {v.prescription.lines.map((l, i) => (

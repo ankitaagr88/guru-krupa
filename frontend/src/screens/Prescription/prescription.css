@@ -32,32 +32,6 @@
   display: block;
   flex-shrink: 0;
 }
-/* In-page "Replace medicines / Keep mine" after picking a diagnosis. */
-.rx-replace-ask {
-  margin-top: 8px;
-  padding: 10px 12px;
-  border: 1px solid var(--gold-line, var(--line));
-  background: var(--gold-wash);
-  border-radius: 10px;
-}
-.rx-replace-ask p {
-  font-family: var(--font-ui);
-  font-size: 13px;
-  line-height: 18px;
-  color: var(--ink);
-  margin: 0 0 8px;
-}
-.rx-replace-btns {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.rx-replace-btns .btn-ghost {
-  flex: none;
-  padding: 9px 14px;
-  font-size: 13px;
-  line-height: 18px;
-}
 /* Save state: "Unsaved changes" hint beside the buttons; "Saved at …" reads as done.
    The row sticks to the bottom of the pop-up so Close / Save / Print never scroll away. */
 .rx-modal .modal-actions {

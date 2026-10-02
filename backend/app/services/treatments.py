@@ -5,6 +5,12 @@ The standard for a diagnosis is, in order:
   2. the most common prescription across every past prescription written for that diagnosis —
      a medicine is included when it appears in at least half of them, with the dosage that was
      written most often. Plain counting, no AI.
+
+A prescription can be for several diagnoses. For the history count of one diagnosis, prescriptions
+written for that diagnosis alone are used when there are any — a "glaucoma + dry eye" prescription
+would otherwise teach the glaucoma standard to include lubricants; only when there are none are the
+mixed ones counted. Several diagnoses picked together fill the prescription with their standards
+one after another, each medicine once (`combined_standard`).
 """
 from collections import Counter, defaultdict
 
@@ -14,7 +20,8 @@ from sqlalchemy.orm import Session
 from app.models.pharmacy import (Diagnosis, Medicine, Prescription, PrescriptionLine, TreatmentStandard,
                                  TreatmentStandardLine)
 from app.models.staff import Staff
-from app.schemas.treatments import DiagnosisOut, StandardLineIn, StandardLineOut, StandardOut
+from app.schemas.treatments import (CombinedPart, CombinedStandardOut, DiagnosisOut, StandardLineIn, StandardLineOut,
+                                    StandardOut)
 from app.services.admin import BadValue, Conflict, NotFound, _audit, _reorder  # noqa: F401 (re-exported)
 from app.services.pharmacy import find_medicine
 
@@ -29,10 +36,22 @@ def _ordered(db: Session, include_inactive: bool) -> list[Diagnosis]:
     return list(db.scalars(q.order_by(Diagnosis.sort_order, Diagnosis.id)))
 
 
+def _rx_diagnoses(db: Session) -> list[tuple[int, list[int]]]:
+    """(prescription id, its diagnoses) for every prescription with at least one."""
+    out = []
+    for rx_id, one, ids in db.execute(select(Prescription.id, Prescription.diagnosis_id, Prescription.diagnosis_ids)):
+        ids = list(ids or []) or ([one] if one is not None else [])
+        if ids:
+            out.append((rx_id, ids))
+    return out
+
+
 def _counts(db: Session) -> dict[int, int]:
-    rows = db.execute(select(Prescription.diagnosis_id, func.count()).where(Prescription.diagnosis_id.is_not(None))
-                      .group_by(Prescription.diagnosis_id))
-    return {d: n for d, n in rows}
+    """Prescriptions per diagnosis (a prescription for two counts for both)."""
+    counts: Counter = Counter()
+    for _, ids in _rx_diagnoses(db):
+        counts.update(set(ids))
+    return dict(counts)
 
 
 def _standard_ids(db: Session) -> set[int]:
@@ -101,7 +120,7 @@ def update_diagnosis(db: Session, d: Diagnosis, values: dict, by: Staff | None) 
 
 def delete_diagnosis(db: Session, d: Diagnosis, by: Staff | None) -> None:
     """Hard delete only when nothing refers to it; otherwise switch it off (PATCH active=false)."""
-    used = db.scalar(select(func.count()).select_from(Prescription).where(Prescription.diagnosis_id == d.id))
+    used = _counts(db).get(d.id, 0)
     if used:
         raise Conflict(f"{used} prescription(s) use '{d.name}' — switch it off instead")
     std = db.scalar(select(TreatmentStandard).where(TreatmentStandard.diagnosis_id == d.id))
@@ -127,7 +146,9 @@ def history_standard(db: Session, diagnosis_id: int) -> tuple[list[StandardLineO
 
     Returns (lines ordered by how often they were prescribed, number of prescriptions counted).
     """
-    rx_ids = list(db.scalars(select(Prescription.id).where(Prescription.diagnosis_id == diagnosis_id)))
+    with_it = [(rx_id, ids) for rx_id, ids in _rx_diagnoses(db) if diagnosis_id in ids]
+    alone = [rx_id for rx_id, ids in with_it if len(set(ids)) == 1]
+    rx_ids = alone or [rx_id for rx_id, _ in with_it]
     total = len(rx_ids)
     if total == 0:
         return [], 0
@@ -177,6 +198,26 @@ def standard(db: Session, d: Diagnosis) -> StandardOut:
                            updated_by=std.updated_by.name if std.updated_by else None, history_lines=hist)
     return StandardOut(diagnosis_id=d.id, diagnosis_name=d.name, source="history" if hist else "none",
                        lines=hist, history_count=count, history_lines=hist)
+
+
+def combined_standard(db: Session, ids: list[int]) -> CombinedStandardOut:
+    """What fills the prescription when several diagnoses are picked: each one's standard in the
+    order picked, a medicine already listed (by name) not added again."""
+    parts: list[StandardOut] = []
+    lines: list[StandardLineOut] = []
+    seen: set[str] = set()
+    for i in dict.fromkeys(ids):
+        part = standard(db, get_diagnosis(db, i))
+        parts.append(part)
+        for ln in part.lines:
+            key = _line_key(ln.name)
+            if key and key not in seen:
+                seen.add(key)
+                lines.append(ln)
+    return CombinedStandardOut(lines=lines, parts=[CombinedPart(diagnosis_id=p.diagnosis_id,
+                                                                diagnosis_name=p.diagnosis_name, source=p.source,
+                                                                history_count=p.history_count, lines=len(p.lines))
+                                                   for p in parts])
 
 
 def save_standard(db: Session, d: Diagnosis, lines: list[StandardLineIn], by: Staff | None) -> StandardOut:

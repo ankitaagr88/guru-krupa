@@ -5,7 +5,7 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { AppProviders } from '../../App';
 import AppShell from '../../components/AppShell';
 import { ADMIN, renderWithProviders } from '../../test/utils';
-import { appointments, mockStore, prescriptions, rxPrint, treatments, visits } from '../../mocks/adapters';
+import { appointments, doctor, mockStore, prescriptions, rxPrint, treatments, visits } from '../../mocks/adapters';
 import { PrescriptionModal } from '../Prescription';
 import Queue from './Queue';
 import { fmtFollowUp, followUpPresets } from './DoctorPanel';
@@ -27,6 +27,13 @@ function renderQueue(route) {
 
 const drawer = () => document.querySelector('#drawer');
 const diagnosisId = async (name) => (await treatments.diagnoses()).find((d) => d.name === name).id;
+const chips = () => within(drawer()).queryAllByTestId('dx-chip').map((c) => c.firstChild.textContent);
+/** The drawer's "Add diagnosis" picker, once the diagnosis list has loaded. */
+async function addPicker() {
+  const select = await within(drawer()).findByLabelText('Add diagnosis');
+  await waitFor(() => expect(within(select).getAllByRole('option').length).toBeGreaterThan(1));
+  return select;
+}
 
 beforeEach(() => {
   mockStore.reset();
@@ -39,15 +46,15 @@ describe('Doctor panel: diagnosis', () => {
     await visits.move(3, 'doctor');
     renderQueue('/queue/doctor?patient=3');
     await waitFor(() => expect(drawer()).toHaveClass('show'));
-    const select = await within(drawer()).findByLabelText('Diagnosis');
+    const select = await addPicker();
     expect(within(drawer()).getByRole('button', { name: 'Write prescription' })).toBeInTheDocument();
     const glaucoma = await diagnosisId('Glaucoma');
-    await waitFor(() => expect(within(select).getAllByRole('option').length).toBeGreaterThan(1));
     await userEvent.selectOptions(select, String(glaucoma));
 
     const note = await within(drawer()).findByTestId('dx-note');
-    expect(note).toHaveTextContent('most common past prescription');
+    expect(note).toHaveTextContent('Most common past prescription');
     expect(note).toHaveTextContent('Filled 2 medicines');
+    expect(chips()).toEqual(['Glaucoma']);
     // the lines are listed right there in the drawer's prescription section
     expect(drawer()).toHaveTextContent('Timolol 0.5% eye drops');
     expect(within(drawer()).getByRole('button', { name: /Open prescription/ })).toHaveTextContent('2 medicines');
@@ -57,22 +64,61 @@ describe('Doctor panel: diagnosis', () => {
     expect((await visits.get(3)).diagnosisId).toBe(glaucoma);
   });
 
-  it("asks before replacing medicines already written, and says it is Dr Anu's standard", async () => {
+  it('a second diagnosis: chips in order, both ids sent, only the missing medicines added; removing one keeps them', async () => {
     const dry = await diagnosisId('Dry eye');
-    await treatments.admin.saveStandard(dry, [{ name: 'Carboxymethylcellulose 0.5% (tear drops)', dosage: '4x daily' }]);
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    renderQueue('/queue/doctor?patient=5'); // Bharat Oza: 2 medicines already
+    const glaucoma = await diagnosisId('Glaucoma');
+    // Dry eye's standard repeats Timolol (other case) — it must not be listed twice
+    await treatments.admin.saveStandard(dry, [
+      { name: 'Carboxymethylcellulose 0.5% (tear drops)', dosage: '4x daily' },
+      { name: 'TIMOLOL 0.5% eye drops', dosage: 'other dosage' },
+    ]);
+    const confirm = vi.spyOn(window, 'confirm');
+    const sent = vi.spyOn(doctor, 'setDiagnoses');
+    renderQueue('/queue/doctor?patient=5'); // Bharat Oza: Glaucoma, 2 medicines already
     await waitFor(() => expect(drawer()).toHaveClass('show'));
-    const select = await within(drawer()).findByLabelText('Diagnosis');
-    await waitFor(() => expect(within(select).getAllByRole('option').length).toBeGreaterThan(1));
-    await userEvent.selectOptions(select, String(dry));
-    await waitFor(() =>
-      expect(confirm).toHaveBeenCalledWith('Replace the 2 medicines with the usual set for Dry eye?')
-    );
-    expect(await within(drawer()).findByTestId('dx-note')).toHaveTextContent("Dr Anu's standard");
+    await waitFor(() => expect(chips()).toEqual(['Glaucoma']));
+    await userEvent.selectOptions(await addPicker(), String(dry));
+
+    await waitFor(() => expect(chips()).toEqual(['Glaucoma', 'Dry eye']));
+    expect(sent).toHaveBeenLastCalledWith(5, [glaucoma, dry]);
+    expect(within(drawer()).getAllByTestId('dx-chip')[0]).toHaveClass('dx-main');
+    const note = await within(drawer()).findByTestId('dx-note');
+    expect(note).toHaveTextContent("Dr Anu's standard");
+    expect(note).toHaveTextContent('Added 1 medicine');
     await waitFor(() => expect(drawer()).toHaveTextContent('Carboxymethylcellulose 0.5% (tear drops)'));
-    expect(drawer()).not.toHaveTextContent('Timolol 0.5% eye drops');
+    let rx = await prescriptions.get(5);
+    expect(rx.lines.map((l) => l.name)).toEqual([
+      'Timolol 0.5% eye drops',
+      'Latanoprost 0.005% eye drops',
+      'Carboxymethylcellulose 0.5% (tear drops)',
+    ]);
+    expect(rx.lines[0].dosage).toBe('1 drop both eyes, twice daily'); // the doctor's line is untouched
+    expect(rx.diagnoses.map((d) => d.name)).toEqual(['Glaucoma', 'Dry eye']);
+    expect(confirm).not.toHaveBeenCalled();
+
+    // removing Glaucoma: Dry eye becomes the main one; the medicines stay
+    await userEvent.click(within(drawer()).getByRole('button', { name: 'Remove Glaucoma' }));
+    await waitFor(() => expect(chips()).toEqual(['Dry eye']));
+    const v = await visits.get(5);
+    expect(v.diagnosisId).toBe(dry);
+    expect(v.diagnoses.map((d) => d.id)).toEqual([dry]);
+    rx = await prescriptions.get(5);
+    expect(rx.lines).toHaveLength(3);
     confirm.mockRestore();
+    sent.mockRestore();
+  });
+
+  it('the Admin limit: at the limit the "Add diagnosis" picker goes; the server refuses more', async () => {
+    await treatments.admin.saveSettings(2);
+    renderQueue('/queue/doctor?patient=5'); // Glaucoma already
+    await waitFor(() => expect(drawer()).toHaveClass('show'));
+    await userEvent.selectOptions(await addPicker(), String(await diagnosisId('Cataract')));
+    await waitFor(() => expect(chips()).toEqual(['Glaucoma', 'Cataract']));
+    expect(within(drawer()).queryByLabelText('Add diagnosis')).toBeNull();
+    await expect(doctor.setDiagnoses(5, [8, 7, 1])).rejects.toThrow('At most 2 diagnoses per visit');
+    // one off → room again
+    await userEvent.click(within(drawer()).getByRole('button', { name: 'Remove Cataract' }));
+    expect(await within(drawer()).findByLabelText('Add diagnosis')).toBeInTheDocument();
   });
 });
 
@@ -163,24 +209,28 @@ describe('Prescription pop-up: save state and next visit', () => {
         onClose={() => {}}
       />
     );
-    await waitFor(() => expect(screen.getByLabelText('Diagnosis')).toHaveValue(String(glaucoma)));
+    await waitFor(() => expect(screen.getAllByTestId('dx-chip').map((c) => c.firstChild.textContent)).toEqual(['Glaucoma']));
     expect(screen.getByRole('img', { name: /Guru Krupa/ })).toHaveAttribute('src', '/logo.png');
     await userEvent.click(screen.getByRole('button', { name: 'Print' }));
     expect(await screen.findByTestId('rx-print-next')).toHaveTextContent('Next visit: 7 Oct 2026');
   });
 
-  it('changing the diagnosis in the pop-up updates the visit too', async () => {
+  it('adding / removing a diagnosis in the pop-up updates the visit too', async () => {
     const cataract = await diagnosisId('Cataract');
+    const glaucoma = await diagnosisId('Glaucoma');
     const onVisitChange = vi.fn();
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
     renderWithProviders(
       <PrescriptionModal visit={{ id: 5, name: 'Bharat Oza' }} onClose={() => {}} onVisitChange={onVisitChange} />
     );
-    const select = await screen.findByLabelText('Diagnosis');
+    const select = await screen.findByLabelText('Add diagnosis');
+    await waitFor(() => expect(within(select).getAllByRole('option').length).toBeGreaterThan(1));
     await userEvent.selectOptions(select, String(cataract));
-    await waitFor(() => expect(onVisitChange).toHaveBeenCalledWith(expect.objectContaining({ diagnosisId: cataract })));
-    expect((await visits.get(5)).diagnosisName).toBe('Cataract');
-    window.confirm.mockRestore();
+    await waitFor(() =>
+      expect(onVisitChange).toHaveBeenCalledWith(expect.objectContaining({ diagnosisId: glaucoma }))
+    );
+    expect((await visits.get(5)).diagnoses.map((d) => d.name)).toEqual(['Glaucoma', 'Cataract']);
+    await userEvent.click(screen.getByRole('button', { name: 'Remove Glaucoma' }));
+    await waitFor(async () => expect((await visits.get(5)).diagnosisName).toBe('Cataract'));
   });
 });
 

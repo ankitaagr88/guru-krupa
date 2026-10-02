@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useToast } from '../../components/Toast';
+import DiagnosisChips, { missingLines } from '../../components/DiagnosisChips';
 import {
   doctor as doctorApi,
   treatments as treatmentsApi,
@@ -9,10 +10,10 @@ import {
 } from '../../api';
 
 /* The doctor's panel in the queue drawer (doctor stage):
-     DiagnosisPicker — picking a diagnosis saves it on the visit and fills the prescription
-                       from that diagnosis's standard (Dr Anu's own, else the most common past
-                       prescription — counted, not AI). Existing medicines are replaced only
-                       after the doctor confirms.
+     DiagnosisPicker — the visit's diagnoses (several, up to the Admin limit); picking one saves
+                       them on the visit and adds that diagnosis's standard (Dr Anu's own, else
+                       the most common past prescription — counted, not AI) to the prescription,
+                       only the medicines not already listed.
      FollowUpPicker  — "come back in…": storing the date books (or moves) the patient's
                        appointment for that day; "No follow-up" removes it.
    Both report the updated visit (VisitOut) through `onVisit`.
@@ -63,62 +64,59 @@ export function followUpPresets(from = new Date()) {
 
 const SOURCE_LABEL = {
   admin: "Dr Anu's standard",
-  history: 'most common past prescription',
-  none: 'no standard yet',
+  history: 'Most common past prescription',
+  none: 'No usual set yet',
 };
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
-export function DiagnosisPicker({ visitId, diagnosisId, lines, onVisit, onRx, disabled }) {
+/* Diagnoses on the visit (several, up to the Admin limit; the first is the main one). Picking one
+   saves the list and adds that diagnosis's usual medicines to the prescription — only the ones not
+   already listed, so nothing the doctor wrote is replaced. Removing a diagnosis keeps the medicines. */
+export function DiagnosisPicker({ visitId, diagnoses: picked = [], maxDiagnoses = 3, lines, onVisit, onRx, disabled }) {
   const toast = useToast();
-  const [diagnoses, setDiagnoses] = useState([]);
+  const [all, setAll] = useState([]);
   const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState(null); // {source, count, historyCount, kept?}
+  const [note, setNote] = useState(null); // {source, count, historyCount, added}
 
   useEffect(() => {
     let alive = true;
     treatmentsApi
       .diagnoses()
-      .then((list) => alive && setDiagnoses(Array.isArray(list) ? list : []))
-      .catch(() => alive && setDiagnoses([]));
+      .then((list) => alive && setAll(Array.isArray(list) ? list : []))
+      .catch(() => alive && setAll([]));
     return () => {
       alive = false;
     };
   }, []);
   useEffect(() => setNote(null), [visitId]);
 
-  const pick = async (value) => {
-    const id = value ? Number(value) : null;
+  const change = async (ids, addedId) => {
     setBusy(true);
     setNote(null);
     try {
-      const v = await doctorApi.setDiagnosis(visitId, id);
+      const v = await doctorApi.setDiagnoses(visitId, ids);
       onVisit?.(v);
-      if (!id) return;
-      const std = await treatmentsApi.standard(id);
+      if (!addedId) return;
+      const std = await treatmentsApi.standard(addedId);
       const stdLines = std?.lines || [];
-      const name = std?.diagnosisName || diagnoses.find((d) => d.id === id)?.name || 'this diagnosis';
       if (stdLines.length === 0) {
         setNote({ source: 'none', count: 0 });
         return;
       }
       const current = lines || [];
-      if (
-        current.length > 0 &&
-        !window.confirm(`Replace the ${plural(current.length, 'medicine')} with the usual set for ${name}?`)
-      ) {
-        setNote({ source: std.source, count: stdLines.length, kept: true });
-        return;
+      const add = missingLines(current, stdLines);
+      if (add.length > 0) {
+        const body = [...current, ...add].map((l) => ({
+          name: l.name,
+          medicineId: l.medicineId ?? undefined,
+          dosage: l.dosage || '',
+          qtyGiven: Number(l.qtyGiven) || 0,
+        }));
+        const res = await prescriptionsApi.save(visitId, body, null, ids);
+        onRx?.(res);
       }
-      const body = stdLines.map((l) => ({
-        name: l.name,
-        medicineId: l.medicineId ?? undefined,
-        dosage: l.dosage || '',
-        qtyGiven: Number(l.qtyGiven) || 0,
-      }));
-      const res = await prescriptionsApi.save(visitId, body, null, id);
-      onRx?.(res);
-      setNote({ source: std.source, count: stdLines.length, historyCount: std.historyCount || 0 });
+      setNote({ source: std.source, count: add.length, historyCount: std.historyCount || 0, added: current.length > 0 });
     } catch (err) {
       toast.error('Could not set the diagnosis', errorMessage(err));
     } finally {
@@ -128,40 +126,26 @@ export function DiagnosisPicker({ visitId, diagnosisId, lines, onVisit, onRx, di
 
   return (
     <div className="dx-picker">
-      <label className="field-label" htmlFor="drawerDiagnosis">
-        Diagnosis
-      </label>
-      <select
-        id="drawerDiagnosis"
-        className="drop-select"
-        value={diagnosisId ?? ''}
-        onChange={(e) => pick(e.target.value)}
+      <DiagnosisChips
+        inputId="drawerDiagnosis"
+        picked={picked}
+        all={all}
+        max={maxDiagnoses}
+        onChange={change}
         disabled={busy || disabled}
-      >
-        <option value="">Pick a diagnosis — fills the usual prescription</option>
-        {diagnoses.map((d) => (
-          <option key={d.id} value={d.id}>
-            {d.name}
-          </option>
-        ))}
-        {diagnosisId != null && !diagnoses.some((d) => d.id === diagnosisId) && diagnoses.length > 0 && (
-          <option value={diagnosisId}>(switched off in Admin)</option>
-        )}
-      </select>
-      {busy && <p className="dx-note">Looking up the usual prescription…</p>}
+      />
+      {busy && <p className="dx-note">Looking up the usual medicines…</p>}
       {!busy && note && (
         <p className="dx-note" data-testid="dx-note">
           <span className={`dx-source ${note.source}`}>{SOURCE_LABEL[note.source] || note.source}</span>
-          {note.source === 'none' &&
-            'Add the medicines in the prescription — once saved, they start counting towards the usual set.'}
           {note.source !== 'none' &&
-            (note.kept
-              ? 'Kept the medicines already listed.'
-              : `Filled ${plural(note.count, 'medicine')}${
+            (note.count === 0
+              ? 'Already listed'
+              : `${note.added ? 'Added' : 'Filled'} ${plural(note.count, 'medicine')}${
                   note.source === 'history' && note.historyCount
                     ? ` (from ${plural(note.historyCount, 'past prescription')})`
                     : ''
-                } — open the prescription to change them.`)}
+                }`)}
         </p>
       )}
     </div>
